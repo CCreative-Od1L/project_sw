@@ -1,0 +1,30 @@
+# Claude Code 本地配置与记忆
+.claude/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# 环境与依赖
+.env
+.env.local
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# 日志与临时文件
+*.log
+*.tmp
+.tmp/
+.cache/
