@@ -22,7 +22,7 @@
 
 1. `git init`,配置 `.gitignore`(Flutter 标准模板 + 本地密码库文件、密钥、日志输出)。
 2. `flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
-3. 按 ARCHITECTURE.md §5 建立目录骨架(`presentation/domain/data/core`)。
+3. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
 4. 引入依赖:`sodium_libs`、`flutter_bloc`(含 Cubit)、`intl`、测试与可观测性依赖(见 §6)。
 5. 配置 `analysis_options.yaml`(lint 严格档,见 §4)。
 6. 添加 LICENSE(MIT)。
