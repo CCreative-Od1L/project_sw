@@ -89,23 +89,36 @@ graph TB
 
     subgraph Core["Core (基础设施)"]
         direction LR
+        C_CRYPTO["crypto<br/>CryptoService 抽象<br/>+ sodium 适配"]
+        VF["vault_file<br/>外壳 header/directory<br/>block/free list/journal"]
         OBS["observability<br/>日志 · 埋点 · 监控"]
         I18N["i18n<br/>ARB · intl"]
         CFG["config"]
     end
 
+    subgraph Shared["Shared (跨域原语)"]
+        direction LR
+        SH_ENT["entities<br/>VaultEntry · VaultHeader<br/>GenerationProfile"]
+        SH_VO["value_objects<br/>EntryId · CustomField"]
+        SH_ERR["errors<br/>VaultLocked · DecryptFailure"]
+    end
+
     Presentation -->|"依赖倒置<br/>(调用 Use Case)"| Domain
     Domain -->|"依赖倒置<br/>(实现接口)"| Data
     Data --> Core
+    Data --> Shared
+    Domain --> Shared
     Presentation --> Core
+    Presentation --> Shared
 
     style Presentation fill:#e1f5fe,stroke:#0277bd
     style Domain fill:#fff3e0,stroke:#e65100
     style Data fill:#e8f5e9,stroke:#2e7d32
     style Core fill:#f3e5f5,stroke:#7b1fa2
+    style Shared fill:#fff9c4,stroke:#f9a825
 ```
 
-> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。
+> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切基础设施;Shared 为跨域纯数据(字段定义,无业务逻辑)。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。
 >
 > **组织演进**:上图展示逻辑分层(横切视图),实际代码按业务线(feature-based)组织——见 [§5 项目结构](#5-项目结构目标)。每条业务线内部复现此分层(如 `features/auth/` 内含 `presentation/`/`domain/`/`data/`),业务线间零直接依赖,跨域共享经 `shared/` 或依赖注入接口。
 
@@ -231,74 +244,99 @@ integration_test/                   # 集成测试
 
 ```mermaid
 graph TB
-    subgraph app["app/ (入口装配)"]
+    subgraph Assembly["app/ (应用装配)"]
         MAIN["main.dart"]
-        ROUTES["路由 · 主题 · i18n"]
+        ROUTES["路由 · 主题 · DI · i18n"]
     end
 
-    subgraph presentation["presentation/ (表现层)"]
-        PAGES["pages/"]
-        WIDGETS["widgets/"]
-        CUBITS["cubits/ · blocs/"]
-        STATES["states/ · signals/"]
-    end
+    subgraph Features["features/ (6 条业务线)"]
+        direction TB
 
-    subgraph domain["domain/ (领域层 · 纯 Dart)"]
-        ENTITIES["entities/"]
-        USECASES["usecases/"]
-        REPOS["repositories/ (接口)"]
-    end
-
-    subgraph data["data/ (数据层)"]
-        REPO_IMPL["repositories/ (实现)"]
-        subgraph datasources["datasources/"]
-            EV["encrypted_vault/"]
-            SS["secure_storage/"]
-            LM["lan_migration/"]
+        subgraph Auth["auth"]
+            A_P["presentation/"]
+            A_D["domain/"]
+            A_Data["data/ (KeychainKeystore)"]
+            A_P --> A_D --> A_Data
         end
-        D_CRYPTO["crypto/ (CryptoService 实现)"]
+
+        subgraph Vault["vault"]
+            V_P["presentation/"]
+            V_D["domain/"]
+            V_Data["data/ (vault文件条目读写)"]
+            V_P --> V_D --> V_Data
+        end
+
+        subgraph Gen["generator"]
+            G_P["presentation/"]
+            G_D["domain/"]
+        end
+
+        subgraph Search["search"]
+            S_P["presentation/"]
+            S_D["domain/"]
+        end
+
+        subgraph Mig["migration"]
+            M_P["presentation/"]
+            M_D["domain/"]
+            M_Data["data/ (LAN)"]
+            M_P --> M_D --> M_Data
+        end
+
+        subgraph Set["settings"]
+            St_P["presentation/"]
+            St_D["domain/"]
+            St_Data["data/ (app存储)"]
+            St_P --> St_D --> St_Data
+        end
     end
 
-    subgraph core["core/ (基础设施 · 跨层横切)"]
-        C_CRYPTO["crypto/ (抽象 + sodium 适配)"]
-        OBS["observability/"]
+    subgraph Core["core/ (跨层基础设施)"]
+        CRYPTO["crypto/ (CryptoService + sodium)"]
+        VF["vault_file/ (外壳格式读写)"]
+        OBS_I["observability/"]
         I18N["i18n/"]
-        CONFIG["config/"]
+        CFG["config/"]
     end
 
-    subgraph testing["测试"]
-        UNIT["test/domain/ · data/ · presentation/"]
+    subgraph Shared["shared/ (跨域纯数据)"]
+        ENT["entities/ (VaultEntry · VaultHeader · GenProfile)"]
+        VO["value_objects/ (EntryId · CustomField)"]
+        ERR["errors/ (VaultLocked · DecryptFailure)"]
+    end
+
+    subgraph Testing["测试"]
+        UNIT["test/features/ · test/core/"]
         INTEG["integration_test/"]
     end
 
-    MAIN --> app
-    app --> presentation
+    MAIN --> Assembly
+    Assembly --> Features
 
-    presentation -->|"依赖倒置"| domain
-    domain -->|"依赖倒置"| data
+    Auth -.->|"注入接口"| Shared
+    Vault -.->|"注入接口"| Shared
+    Gen -.->|"注入接口"| Shared
+    Search -.->|"依赖 vault 明文(注入)"| Vault
+    Mig -.->|"注入接口"| Shared
+    Set -.->|"注入接口"| Shared
 
-    data --> core
-    presentation --> core
+    Features --> Core
+    Features --> Shared
 
-    CUBITS --> USECASES
-    REPO_IMPL -->|"implements"| REPOS
-    REPO_IMPL --> datasources
-    REPO_IMPL --> D_CRYPTO
-    D_CRYPTO -->|"implements"| C_CRYPTO
+    UNIT --> Features
+    UNIT --> Core
+    INTEG --> Assembly
 
-    UNIT --> domain
-    UNIT --> data
-    INTEG --> app
-
-    style domain fill:#fff3e0,stroke:#e65100
-    style core fill:#f3e5f5,stroke:#7b1fa2
-    style presentation fill:#e1f5fe,stroke:#0277bd
-    style data fill:#e8f5e9,stroke:#2e7d32
-    style testing fill:#fafafa,stroke:#9e9e9e
-    style app fill:#f5f5f5,stroke:#616161
+    style Features fill:#f5f5f5,stroke:#424242
+    style Core fill:#f3e5f5,stroke:#7b1fa2
+    style Shared fill:#fff9c4,stroke:#f9a825
+    style Assembly fill:#e8eaf6,stroke:#283593
+    style Testing fill:#fafafa,stroke:#9e9e9e
 ```
 
-> 依赖方向:app → presentation → domain ← data。domain 零平台导入,虚线框表示接口(`repositories/`)由 data 实现。core 为全层共享基础设施(加密抽象、日志、i18n、配置)。测试与源文件镜像目录映射。
+> **业务线内聚**:每条业务线内部保持 presentation→domain←data 单向依赖;业务线间零直接 import。
+> **跨域共享**:`shared/` 为纯数据(字段定义,无业务逻辑);`core/` 为纯基础设施;CryptoService 抽象在 `core/crypto`,vault 外壳格式在 `core/vault_file`。
+> **Search → Vault**:搜索依赖 vault 业务线提供的内存明文条目(经依赖注入),非直接 import vault 包。
 
 ## 6. 状态管理约定
 
