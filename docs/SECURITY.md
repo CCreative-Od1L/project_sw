@@ -128,6 +128,61 @@ flowchart TD
 - **Master Vault Key**:随机生成,是"换主密码不改密文"的关键——改主密码只需用新 KEK 重新包裹 Master Vault Key,无需重加密所有条目。
 - **DEK**:每条目独立随机密钥,实现局部更新(改一条只重写该条 + 其 DEK 密文)、单条迁移、单条销毁。
 
+### 4.1 解锁序列(主密码路径 + 生物路径)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Presentation
+    participant Domain as Domain (UseCase)
+    participant Data as Data (VaultRepo)
+    participant Vault as Vault File
+    participant KC as Keychain/Keystore
+    participant Mem as 内存(KEK/MVK/DEK/明文)
+
+    Note over User,Mem: ── 主密码路径 (§4, §6.1① 冷启动) ──
+
+    User->>UI: 输入主密码
+    UI->>Domain: UnlockVault(password)
+    Domain->>Data: read_header()
+    Data->>Vault: read FileHeader
+    Vault-->>Data: {kdf_salt, kdf_params, wrapped_mvk, ...}
+
+    Domain->>Domain: Argon2id(password, salt, m/t/p) → KEK
+    Domain->>Mem: KEK(仅内存)
+
+    Domain->>Domain: XChaCha20-Poly1305(KEK).decrypt(wrapped_mvk)
+    Note right of Domain: AAD = magic‖format_version‖kdf_algorithm_id‖kdf_params‖kdf_salt<br/>tag 校验 → MVK(明文)
+
+    Domain->>Mem: MVK(仅内存)
+
+    loop 每条 EntryRecord
+        Data->>Vault: read EntryBlock(block_offset, block_length)
+        Vault-->>Data: dek_wrapped(72B) ‖ entry_ciphertext(变长)
+        Domain->>Domain: XChaCha20(MVK).decrypt(dek_wrapped)
+        Note right of Domain: AAD = magic‖format_version‖aead_algorithm_id‖entry_id<br/>tag 校验 → DEK_i(明文)
+        Domain->>Mem: DEK_i(仅内存)
+        Domain->>Domain: XChaCha20(DEK_i).decrypt(entry_ciphertext)
+        Note right of Domain: AAD = magic‖format_version‖aead_algorithm_id‖entry_id‖seq<br/>tag 校验 → VaultEntry 明文 JSON
+        Domain->>Mem: VaultEntry(仅内存)
+    end
+
+    Domain-->>UI: vault_unlocked
+    UI-->>User: 进入主界面
+
+    Note over User,Mem: ── 生物路径 (§6 流程2, 超时锁后重开) ──
+
+    User->>UI: 指纹/面容
+    UI->>KC: 请求生物认证
+    KC-->>Domain: K_bio(硬件门控释放)
+    Domain->>Data: read_header()
+    Vault-->>Data: biometric_wrapped_mvk(72B)
+    Domain->>Domain: XChaCha20(K_bio).decrypt(biometric_wrapped_mvk)
+    Note right of Domain: 不涉及主密码、不执行 Argon2id<br/>MVK(明文)
+    Domain->>Mem: MVK(仅内存)
+    Note over Domain,Mem: 后续解 DEK → 解条目<br/>同主密码路径
+```
+
 ## 5. 数据布局(密码库文件)
 
 密码库为单个本地文件。序列化格式**已定**(见 §5.1–§5.6):**自定义二进制外壳 + JSON 内层条目明文**,支持逐条 O(1) 局部更新与格式版本迁移。
@@ -319,6 +374,56 @@ Entry Block 为 dek 段(定长 72B)+ entry 段(变长)双段(§5.3)。按"改明
 - **entry_id 冲突策略(C2,整条覆盖)**:迁入条目与接收端已有条目 `entry_id` 冲突时,按 `updated_at` 判定——**较新者整条覆盖、丢弃较旧者**(不保留旧 `created_at`,迁入条 created_at 即为最终值),较旧则跳过;冲突均须向用户提示。整条覆盖维持 `entry_ciphertext` 原样透传不重加密(created_at 在加密 blob 内部,字段级合并须重加密,与透传原则冲突,故不合并)。覆盖含所有 VaultEntry 字段(含 `favorite`/`custom_fields`/注释等),非字段级合并。`entry_id` 全局唯一(CSPRNG UUID),正常迁移不应冲突,此策略为兜底。
 - **前置约束与超时抑制**:接收端须已建库且处于解锁态(持有自身 MVK);全新设备需先建空库再接收迁移。全库迁移为逐条重包裹的循环,仅数量差异。**迁移进行中临时抑制空闲超时与切后台锁**(恢复暂停计时,迁移完成/中断后恢复);迁移发起前强告知用户"迁移期间请保持应用前台"。
 - **生物设置不迁移**:`K_bio` 绑定本设备硬件密钥库(§6),`biometric_wrapped_mvk` 不随迁移传输;接收端须迁移完成后独立设置生物解锁。
+
+```mermaid
+sequenceDiagram
+    actor UserA as 用户(发送端)
+    actor UserB as 用户(接收端)
+    participant Send as 发送端(Domain+Vault)
+    participant Net as 加密通道(crypto_kx)
+    participant Recv as 接收端(Vault+内存缓冲)
+    participant RecvV as 接收端 Vault 文件
+
+    Note over UserA,RecvV: ── ① 设备发现与配对认证(§8.1) ──
+    UserA->>Send: 发起迁移
+    Send->>Send: 生成一次性 X25519 密钥对(pk_发,sk_发)
+    Send->>UserA: 显示二维码{role, IP:port, pk_发}
+    UserB->>Recv: 扫码 → 获 pk_发(带外,防 MITM)
+    Recv->>Recv: 生成一次性 X25519 密钥对(pk_收,sk_收)
+    Recv->>Net: TCP 直连,回送 pk_收
+
+    Note over Send,Net: ── ② 密钥协商 ──
+    Send->>Send: crypto_kx(pk_收,sk_发) → 会话密钥
+    Recv->>Recv: crypto_kx(pk_发,sk_收) → 会话密钥
+
+    Note over Send,Net: ── ③ 版本/算法匹配检测(§8.1) ──
+    Send->>Net: {format_version, aead_algorithm_id, plaintext_format_id 支持集}
+    Recv->>Net: 比对自身 → 一致 ✓
+
+    Note over Send,RecvV: ── ④ 逐条传输 + 重包裹(§8.1 C1/C3) ──
+    loop 每条条目
+        Send->>Send: MVK 解包 dek_wrapped → DEK 明文
+        Send->>Net: 会话 AEAD 加密: {entry_id, seq(原值), plaintext_format_id, entry_ciphertext(原样), DEK 明文}
+        Recv->>Recv: 内存缓冲; 会话 AEAD 解密得各字段
+        Recv->>Recv: 自身 MVK 重包裹 DEK 明文 → 新 dek_wrapped(72B)
+        Note right of Recv: AAD = 接收端header + 迁入entry_id<br/>EntryRecord.seq = 发送端原值(C1)
+        Recv->>Recv: 构建新 EntryBlock = 新dek_wrapped ‖ entry_ciphertext(原样)
+    end
+
+    Note over Send,RecvV: ── ⑤ TRANSFER_END + transcript MAC(§8.1) ──
+    Send->>Net: TRANSFER_END + MAC(tx_key, transcript_hash)
+    Recv->>Recv: 校验 transcript MAC → 通过 ✓
+
+    Note over Recv,RecvV: ── ⑥ 目录双写原子提交(§8.1 C4) ──
+    Recv->>RecvV: 全部双段块 + 新 Directory → 写入空闲区
+    Recv->>RecvV: journal{op=DIR_SWITCH, new_dir_offset}
+    Recv->>RecvV: 原子切换 active_directory_offset
+    Recv->>RecvV: journal 清零
+
+    Note over Recv: ── ⑦ 恢复超时锁 + 提示冷备同步 ──
+    Recv-->>UserB: 迁移完成
+    Recv->>Recv: 恢复超时锁抑制(§8.1)
+```
 
 > 迁移握手协议在设计层面已闭合:设备发现与配对认证(二维码全通道)、密钥协商、版本/算法匹配、重包裹、完整性、原子性均已定(见 §8.1)。实现期细节(二维码载荷字段编码与纠错级、消息成帧与类型枚举)留待编码阶段,不构成设计决策。
 
