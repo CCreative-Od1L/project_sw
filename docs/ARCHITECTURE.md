@@ -106,6 +106,8 @@ graph TB
 ```
 
 > 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。
+>
+> **组织演进**:上图展示逻辑分层(横切视图),实际代码按业务线(feature-based)组织——见 [§5 项目结构](#5-项目结构目标)。每条业务线内部复现此分层(如 `features/auth/` 内含 `presentation/`/`domain/`/`data/`),业务线间零直接依赖,跨域共享经 `shared/` 或依赖注入接口。
 
 ## 3. 核心模块
 
@@ -119,6 +121,9 @@ graph TB
 | `generator` | 密码生成(随机字符串/可发音模式、字符集、强度评估) | 纯 Dart + CSPRNG(sodium `randombytes`,见 [SECURITY.md §15](./SECURITY.md)) |
 | `i18n` | 中英文资源加载 | `intl` + ARB |
 | `observability` | 日志、埋点、监控(见 DEVELOPMENT.md) | 跨层 hook |
+| — | — | — |
+| `core/vault_file` | vault 文件外壳格式:File Header + Directory(EntryRecord[]) + Entry Block(双段) + free list + journal 读写(见 SECURITY.md §5) | `core/crypto`(CryptoService) |
+| `shared/` | 跨域共享原语:实体(VaultEntry, VaultHeader, GenerationProfile)、值对象(EntryId, CustomField)、领域错误(VaultLockedException, DecryptionFailureException) | 被所有业务线与 core 依赖 |
 
 ## 4. 密钥层级与数据流
 
@@ -143,35 +148,86 @@ graph TB
 
 ## 5. 项目结构(目标)
 
+本项目按**业务线**(feature-based)组织,每条业务线内采用 Clean Architecture 分层。跨域共享原语置于 `shared/`,全层基础设施置于 `core/`。
+
 ```
 lib/
   main.dart
-  app/                      # 应用入口、路由、主题、i18n 装配
-  presentation/
-    pages/                  # 各页面
-    widgets/                # 可复用组件
-    cubits/  blocs/         # 状态管理
-    states/  signals/       # State 与 Pure Signal
-  domain/
-    entities/
-    usecases/
-    repositories/           # 接口
-  data/
-    repositories/           # 接口实现
-    datasources/
-      encrypted_vault/      # 本地加密库读写
-      secure_storage/       # Keychain/Keystore 封装
-      lan_migration/        # 局域网迁移
-    crypto/                 # CryptoService 实现(信封加解密)
+  app/                              # 应用装配(路由 · 主题 · 依赖注入 · i18n 挂载)
+
+  features/
+    auth/                           # 认证业务线
+      presentation/{pages,cubits,states}
+      domain/{usecases,repositories}
+      data/{repos,datasources}      # datasource = Keychain/Keystore
+
+    vault/                          # 密码库业务线
+      presentation/{pages,cubits,states}
+      domain/{entities,usecases,repositories}
+      data/{repos,datasources}      # datasource = vault 文件读写(条目层)
+
+    generator/                      # 密码生成业务线
+      presentation/{pages,cubits,states}
+      domain/{entities,usecases}
+      data/                         # 无持久化或仅读 GenerationProfile 本地配置
+
+    search/                         # 本地搜索业务线
+      presentation/{pages,cubits,states}
+      domain/{usecases}
+                                    # 无独立 data,依赖 vault 内存明文
+
+    migration/                      # 局域网迁移业务线
+      presentation/{pages,cubits,states}
+      domain/{usecases,repositories}
+      data/{datasources}            # datasource = LAN 网络
+
+    settings/                       # 设置业务线
+      presentation/{pages,cubits,states}
+      domain/{entities,usecases}
+      data/{repos,datasources}      # datasource = 本地 app 存储
+
+  core/                             # 基础设施(跨层横切)
+    crypto/                         # CryptoService 抽象 + sodium 适配
+    vault_file/                     # vault 文件格式(外壳 header/directory/block/free list/journal)
+    observability/                  # 日志/埋点/监控/脱敏
+    i18n/                           # ARB + intl
+    config/                         # 全局配置
+
+  shared/                           # 跨域共享原语
+    entities/                       # VaultEntry · VaultHeader · GenerationProfile
+    value_objects/                  # EntryId · EntryRecord · CustomField
+    errors/                         # VaultLockedException · DecryptionFailureException · ...
+
+test/                               # 单元测试(镜像 features/ + core/ 结构)
+  features/
+    auth/ vault/ generator/ search/ migration/ settings/
   core/
-    crypto/                 # CryptoService 抽象 + sodium 适配
-    observability/          # 日志/埋点/监控
-    i18n/
-    config/
-test/                       # 单元测试
-  domain/ data/ presentation/
-integration_test/           # 集成测试
+integration_test/                   # 集成测试
 ```
+
+**关键设计约束**:
+
+| 约束 | 说明 |
+|------|------|
+| 业务线间零直接依赖 | `features/auth` 不直接 `import features/vault`;跨域共享经 `shared/` 或依赖注入接口 |
+| 业务线内 Clean Architecture | 每条业务线内部保持 `presentation → domain ← data` 单向依赖 |
+| core 为纯基础设施 | `core/crypto`、`core/vault_file`、`core/observability` 等不含业务逻辑,被多条业务线依赖 |
+| shared 为纯数据 | `shared/entities`、`shared/value_objects` 只含字段定义,不含 use case/业务逻辑 |
+| vault 文件外壳归 core | `core/vault_file` 提供 header/directory/block/free list/journal 读写,被 auth(读 header)、vault(读写条目)、migration(批量导入) 共用 |
+| 加密全经 CryptoService | 各业务线 domain 层依赖 `core/crypto` 的 `CryptoService` 接口(data 层实现);禁止直接调用 libsodium |
+
+### 5.1 业务线-模块映射
+
+| 旧模块(§3) | 新业务线 | 说明 |
+|-----------|---------|------|
+| `biometric` + `vault`(解锁/锁定部分) | `features/auth` | 认证业务线吸收生物解锁与锁定流程 |
+| `vault`(CRUD 部分) | `features/vault` | 密码库的增删改查 |
+| `generator` | `features/generator` | 独立业务线(锁定态可用) |
+| `search` | `features/search` | 依赖 vault 业务线提供明文条目(经注入) |
+| `migration` | `features/migration` | 依赖 `core/vault_file` 与 `core/crypto` |
+| `i18n` + `observability` | `core/i18n` + `core/observability` | 基础设施,非业务线 |
+| `crypto` | `core/crypto` + `core/vault_file` | 外壳格式与加解密原语分离为两个 core 模块 |
+| — | `shared/` | 新增:跨域实体、值对象、领域错误 |
 
 ```mermaid
 graph TB
