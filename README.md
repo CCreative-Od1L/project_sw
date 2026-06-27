@@ -35,14 +35,14 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 | 密钥安全存储 | 系统原生 Keychain(iOS/macOS)/ Keystore(Android),硬件背书 |
 | KDF | Argon2id |
 | AEAD | XChaCha20-Poly1305 |
-| 加密粒度 | 逐条信封加密(envelope encryption) |
+| 加密粒度 | 逐条信封加密(envelope encryption),自定义二进制外壳 + JSON 内层 |
 | 国际化 | Flutter `intl` + ARB(zh + en) |
 
 > 加密方案的完整设计见 [docs/SECURITY.md](docs/SECURITY.md)。
 
 ## 核心功能
 
-1. **密码生成** —— 按可配置规则(长度/字符集/可读性)生成强密码
+1. **密码生成** —— 按可配置规则(模式/长度/字符集/可读性)生成强密码,理论熵强度评估(规格见 [docs/ARCHITECTURE.md §9](docs/ARCHITECTURE.md))
 2. **加密存储** —— 本地加密保存密码库,逐条信封加密
 3. **生物解锁** —— 指纹/面容解锁应用,硬件密钥保护
 4. **局域网迁移** —— 设备间 LAN 传输密码库,带鉴权与传输加密

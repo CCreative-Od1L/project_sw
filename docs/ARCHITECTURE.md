@@ -42,26 +42,26 @@
 - **Pure Signal**:用于跨组件、跨 Bloc 的细粒度响应式信号(如解锁状态、搜索关键词),避免不必要的重建。
 
 ### 2.2 Domain 层
-- **Entities**:`VaultEntry`、`VaultMeta`、`VaultHeader`、`GenerationProfile` 等纯数据模型。
-- **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`、`MigrateOverLan` 等,封装单一业务用例。
+- **Entities**:`VaultEntry`(规格见 §10)、`GenerationProfile`(规格见 §9) 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [SECURITY.md §5.3](./SECURITY.md))。
+- **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。
 - **Repository Interfaces**:`VaultRepository`、`SecureKeyRepository`、`MigrationRepository` 等抽象,由 data 层实现。
 
 ### 2.3 Data 层
 - **Repository 实现**:组合多个 DataSource 实现 domain 接口,负责加解密编排。
-- **EncryptedVaultDataSource**:负责密码库文件的读写(密文)、序列化格式、版本/头信息管理。
+- **EncryptedVaultDataSource**:负责密码库文件的读写(密文)、序列化格式、版本/头信息管理。序列化已定为**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),含 free list 与崩溃安全 journal,支持逐条 O(1) 局部更新。
 - **SecureStorageDataSource**:封装系统 Keychain/Keystore,存放包裹后的库主密钥(生物解锁路径)。
-- **LanMigrationDataSource**:局域网设备发现、握手、传输,独立隔离,默认不启用网络栈。
+- **LanMigrationDataSource**:二维码点对点配对 + 直连 TCP 握手与传输,无 multicast/自动发现,独立隔离,仅在迁移功能激活时启用网络栈(见 [SECURITY.md §8.1](./SECURITY.md))。
 
 ## 3. 核心模块
 
 | 模块 | 职责 | 关键依赖 |
 |------|------|----------|
-| `crypto` | KDF(Aargon2id)、AEAD(XChaCha20-Poly1305)、信封加解密、随机数 | `sodium_libs` |
+| `crypto` | KDF(Argon2id)、AEAD(XChaCha20-Poly1305)、信封加解密、随机数 | `sodium_libs` |
 | `vault` | 密码库结构、条目 CRUD、密钥层级包裹/解包 | `crypto`, `data` |
 | `biometric` | 生物识别授权、硬件密钥释放 | 平台生物识别 API, `SecureStorageDataSource` |
-| `migration` | LAN 设备发现、安全握手、库传输 | 平台网络 API |
+| `migration` | 二维码点对点配对、安全握手、库传输 | 平台网络 + 相机 API |
 | `search` | 本地检索(对加密元数据/索引的安全处理) | `vault` |
-| `generator` | 密码生成(规则、强度评估) | 纯 Dart + CSPRNG |
+| `generator` | 密码生成(随机字符串/可发音模式、字符集、强度评估) | 纯 Dart + CSPRNG(sodium `randombytes`,见 [SECURITY.md §15](./SECURITY.md)) |
 | `i18n` | 中英文资源加载 | `intl` + ARB |
 | `observability` | 日志、埋点、监控(见 DEVELOPMENT.md) | 跨层 hook |
 
@@ -133,5 +133,129 @@ integration_test/           # 集成测试
 ## 8. 待决与演进
 
 - 局域网迁移协议细节(设备发现、握手认证)—— 见 SECURITY.md §局域网迁移。
-- 本地搜索是否建立加密元数据索引及性能权衡 —— 见 SECURITY.md §本地搜索。
-- 密码库文件格式(版本化头 + 条目集合)具体序列化方案待定(JSON/CBOR/自定义二进制),要求支持格式版本迁移。
+- 本地搜索采用**解锁后内存内线性检索**(基线),不建持久化索引(见 [SECURITY.md §9](./SECURITY.md));password 不入可搜集合与结果展示。
+- 密码库文件格式已定:**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),支持逐条 O(1) 局部更新与格式版本迁移。
+
+## 9. 密码生成器规格(已定)
+
+对应核心功能"密码生成"。规格定义 `GenerationProfile` 实体与 `GeneratePassword` use case 的参数空间。
+
+### 9.1 随机源(安全根基)
+
+- 生成器随机源**与加密用 CSPRNG 同源**:使用 `sodium_libs` 的 `randombytes`(经审计,与盐/nonce/MVK/DEK 同源),**禁止**用 `dart:math.Random()`(伪随机)或未审计的第三方随机源(见 [SECURITY.md §15](./SECURITY.md))。
+- 抽样采用**无偏等概率**方式(如拒绝采样),避免字符集大小非 2 的幂时的模偏置。
+
+### 9.2 生成模式与字符集
+
+**pronounceable 模式字符集**:默认仅使用字母(辅音+元音交替,基于固定音节表),与 §9.3 `charsets` 的 digits/symbols 开关独立;若需在音节间插入数字/符号,实现期可扩展。
+
+| 模式 | 说明 | 默认 |
+|------|------|------|
+| **随机字符串**(random) | 从启用的字符集均匀抽取 N 字符 | ✓ 默认模式 |
+| **可发音**(pronounceable) | 按音节结构(辅音/元音交替)生成类词字符串,可读性介于随机串与 passphrase 之间 | 可选 |
+
+> 不提供 passphrase(多词拼接)模式:依赖外部词库资产,与最小依赖原则冲突;可发音模式已覆盖"可读性"诉求。
+
+### 9.3 字符集(随机字符串模式)
+
+| 字符集 | 范围 | 默认启用 |
+|--------|------|----------|
+| 小写字母 | `a-z` | ✓ |
+| 大写字母 | `A-Z` | ✓ |
+| 数字 | `0-9` | ✓ |
+| 符号 | 可配置子集(默认 ASCII 符号集,排除影响表单/URL 的字符如空格、`/`、`"`、`'`) | ✓ |
+
+- **可读性选项(排除易混字符)**:可选排除易混集 `O 0 I 1 l |`(及按需 `B 8`、`S 5`、`G 6` 等),减少人工辨识错误;默认**关闭**(保留熵),用户可开。
+- 至少启用一个字符集;若启用集并集为空,生成拒绝。
+
+### 9.4 长度
+
+| 项 | 值 |
+|----|----|
+| 默认长度 | **20 字符**(全面字符集下理论熵 ≈ 131 bit) |
+| 最小长度 | 8 |
+| 最大长度 | 128(避免 UI/存储边界问题) |
+| 可发音模式长度 | 按音节数控制,默认映射到等价熵 |
+
+### 9.5 强度评估(口径已定)
+
+- 采用**理论熵估算**:`entropy ≈ length × log2(启用字符集并集大小)`,映射到标签:
+  - `< 50 bit`:弱
+  - `50–80 bit`:中
+  - `80–120 bit`:强
+  - `> 120 bit`:极强
+- **不引入字典/模式评估**(如 zxcvbn):避免重依赖与词库,与最小依赖原则一致。代价:不识别弱模式(如重复/键盘序列)——以"随机源无偏 + 用户可调长度"兜底,UI 提示理论熵为估算值。
+- 可发音模式按音节熵折算:`entropy ≈ syllable_count × log2(音节表大小)`,音节表为固定辅音×元音组合集合;折算后套用同一标签阈值(§9.5)。
+- **pronounceable 模式字符集**:默认仅使用字母(辅音+元音,约 26 个大写/小写字符的固定音节表);`charsets` 中的 digits/symbols 开关在 pronounceable 模式下**是否生效待定**,默认关闭(纯字母发音串)。若需在音节间插入数字/符号,实现期可扩展。
+
+### 9.6 GenerationProfile 实体字段(目标)
+
+```dart
+GenerationProfile {
+  mode: { random | pronounceable }       // 默认 random
+  length: int                             // 默认 20,范围 [8, 128]
+  charsets: { lowercase, uppercase, digits, symbols }  // 各 bool,默认全 true
+  excludeAmbiguous: bool                  // 默认 false
+  symbolSubset: Set<String>               // 可配置符号子集
+}
+```
+
+`GeneratePassword(profile) → String` 为纯函数(domain 层),随机源经抽象注入便于单测(测试注入固定随机源以可复现)。**生成器输出流向**:生成器输出经用户确认后填入 VaultEntry.password 或 custom_fields.value(§10),随条目走 §5 信封加密;输出未存入 vault 前为短暂 UI 态,按 §7 内存卫生持有与清零。**生成器可在锁定态独立使用**(不依赖 vault/MVK),此时输出复制应同样走 §7.1 剪贴板 20s 清除。
+
+## 10. VaultEntry 字段规格(已定)
+
+`VaultEntry` 为条目明文实体(domain 层,经 DEK 加密后存入 `entry_ciphertext`,见 [SECURITY.md §5](./SECURITY.md))。项目定位为**纯密码管理器**,不含 TOTP/2FA。
+
+### 10.1 固定字段
+
+| 字段 | 类型 | 必填 | 可搜(SECURITY §9) | 说明 |
+|------|------|------|----------|------|
+| `entry_id` | UUID/CSPRNG(16B) | ✓ | — | 条目身份,跨设备不变;外壳 EntryRecord 持有,明文实体亦暴露 |
+| `name` | String | ✓ | ✓ | 条目标识(如 "GitHub") |
+| `url` | String | ✗ | ✓ | 服务地址 |
+| `username` | String | ✗ | ✓ | 登录账号 |
+| `password` | String | ✗ | **✗** | 密码;**不入可搜与列表展示**,仅详情页解密展示(SECURITY §9) |
+| `notes` | String | ✗ | 可选 | 备注;可搜,故**不应填敏感信息** |
+| `created_at` | ISO8601 UTC | ✓ | — | 创建时间 |
+| `updated_at` | ISO8601 UTC | ✓ | — | 最近更新;用于排序与迁移冲突判新(SECURITY §8.1) |
+| `custom_fields` | List<CustomField> | ✗ | 见下 | 自定义键值,见 §10.2 |
+| `favorite` | bool | ✗ | ✓ | 收藏标记;true 时置顶展示(条目组织仅此一种,见 §10.5) |
+
+> `password` 可选:支持纯 note 条目或仅有 username 的条目。`name` 为唯一必填业务字段。
+
+### 10.2 自定义字段(CustomField)
+
+```dart
+CustomField {
+  label: String        // 字段名(如 "安全问题"、"备用邮箱"、"PIN")
+  value: String        // 字段值
+  secret: bool         // true = 敏感字段,按 password 级卫生处理
+}
+```
+
+- **`secret: true` 的自定义字段**:与 `password` 同级卫生——**不入可搜集合、不入列表展示**,仅条目详情页按需解密展示(对齐 [SECURITY.md §9](./SECURITY.md))。
+- **`secret: false` 的自定义字段**:非敏感,可入可搜(按 label/value 匹配)、可入列表展示。
+- 存在意义:让用户区分敏感与非敏感附加信息,避免把敏感内容塞进 `notes`(notes 可搜,会意外暴露,见 [SECURITY.md §9](./SECURITY.md))。
+
+### 10.3 字段卫生汇总(对接 [SECURITY.md §9](./SECURITY.md) 搜索)
+
+| 字段类别 | 入可搜 | 入列表展示 | 详情页展示 |
+|----------|--------|-----------|-----------|
+| name / url / username | ✓ | ✓ | ✓ |
+| notes | 可选 | 可选(截断) | ✓ |
+| password | ✗ | ✗ | ✓(按需解密) |
+| custom_fields(secret=true) | ✗ | ✗ | ✓(按需解密) |
+| custom_fields(secret=false) | ✓ | ✓ | ✓ |
+| favorite | ✓ | ✓(置顶) | ✓ |
+
+### 10.4 序列化(内层)
+
+VaultEntry 明文经 SECURITY §5.1 内层 JSON 序列化为裸字节后喂入 AEAD;`entry_id`/`seq` 由外壳 EntryRecord 持有(SECURITY §5.3),内层 JSON 可选择是否冗余 `entry_id`(便于解码后校验一致性)。**字段级演进策略**:JSON 解析采用宽容模式(忽略未知字段,缺失字段取类型默认值——`favorite` 缺省为 `false`、`created_at`/`updated_at` 缺省为 epoch 等),新字段经应用升级自然生效,无需批量迁移;`plaintext_format_id` 只派发格式级(JSON→CBOR),不派发字段版本,字段演进依赖宽容解析而非格式版本号。
+
+### 10.5 条目组织(已定)
+
+项目仅提供**收藏(flag)**一种条目组织维度,不做分类/文件夹/标签/嵌套树:
+
+- `favorite: bool` 标记常用条目,列表页置顶展示;非敏感字段,可搜、可展示。
+- **不做更重组织的原因**:个人库规模(几十~数百条)下,搜索(SECURITY §9)已能快速定位,分类/标签边际价值低;标签(多对多)与嵌套文件夹(树)会增实体与迁移复杂度(SECURITY §8.1 需迁组织结构),与"个人玩具 + 先简化"基调冲突。
+- **演进预留**:未来若库变大、组织需求显现,可评估加单层 `category` 或 `tags`——`favorite` 字段不影响此演进。
