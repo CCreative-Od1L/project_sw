@@ -90,6 +90,8 @@ linter:
 
 ## 7. 版本管理
 
+> 完整的 Git 工作流规范(分支模型、提交格式、PR 生命周期、标签与发布)见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
+
 - **Git 分支策略**:简洁主干开发 + 功能分支;`main` 始终可发布。
 - **提交规范**:Conventional Commits(`feat:` / `fix:` / `docs:` / `refactor:` / `test:` / `chore:` / `security:`)。
 - **语义化版本**:SemVer `MAJOR.MINOR.PATCH`;移动端构建号 `+N` 递增。
