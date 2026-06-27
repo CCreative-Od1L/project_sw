@@ -7,6 +7,52 @@
 
 - **目标**:在设备本地完成所有加解密;即使本地密码库文件被窃取,在不知道主密码的前提下,攻击者无法离线还原明文。
 - **信任边界**:设备本身(含其硬件密钥库)是唯一信任域。无任何后端、无云、无第三方托管。局域网迁移为受控的、临时性的跨边界通道。
+
+```mermaid
+flowchart TB
+    subgraph Device["📱 移动设备 (iOS / Android)"]
+        direction TB
+
+        subgraph App["Flutter 进程"]
+            direction LR
+            PRES["Presentation<br/>Widgets · Cubit · Bloc"]
+            DOMAIN["Domain<br/>纯 Dart · 无平台依赖"]
+            DATA["Data<br/>Repository · DataSource · CryptoService"]
+            OBS["observability<br/>日志·埋点·监控"]
+
+            PRES --> DOMAIN --> DATA
+            OBS -.-> PRES
+            OBS -.-> DOMAIN
+            OBS -.-> DATA
+        end
+
+        subgraph Native["平台原生"]
+            KC["Keychain / Keystore<br/>━━━━━━━━━━━━━━<br/>K_bio (硬件门控)<br/>biometric_wrapped_mvk (可选)"]
+            CSP["🧊 CSPRNG<br/>sodium_libs · randombytes<br/>嵌入式原生二进制"]
+            FS["📁 本地文件系统<br/>━━━━━━━━━━━━━━<br/>vault 文件 (自定义二进制)<br/>脱敏明文日志 (滚动文件)<br/>.bak · journal 残留<br/>本地 app 设置 (非敏感)"]
+        end
+
+        App -->|"libsodium FFI"| CSP
+        App -->|"Keychain API / Keystore API"| KC
+        App -->|"文件读写"| FS
+        DATA -->|"vault 序列化/反序列化"| FS
+        DATA -->|"K_bio 存取"| KC
+    end
+
+    subgraph LAN["🔗 局域网 (仅迁移时)"]
+        PEER["另一设备<br/>━━━━━━━━━━━━━━<br/>QR 配对 (带外公钥)<br/>TCP 直连 · crypto_kx<br/>端到端 XChaCha20-Poly1305"]
+    end
+
+    App -->|"二维码 + 会话 AEAD<br/>不经过任何服务器"| PEER
+
+    COLD["🔐 外部: 用户记忆<br/>━━━━━━━━━━━━━━<br/>主密码 (不存储)<br/>离线记录 (推荐)"] -.-> PRES
+```
+
+> **节点说明**:
+> - **Flutter 进程**:所有业务逻辑在设备本地完成,无网络依赖(迁移除外)。
+> - **平台原生**:`sodium_libs` 为嵌入式原生二进制(嵌入式,非外部服务);`Keychain/Keystore` 由 OS 管,`K_bio` 可选设生物门控;vault 文件与日志均在本地文件系统。
+> - **LAN 通道**:唯一跨信任边界数据流,经 QR 带外公钥 + `crypto_kx` 端到端加密,纯 P2P 无中转(§8 第 5 项)。
+> - **用户记忆**:主密码是唯一不由系统存储的秘密(零知识),离线记录为推荐的缓解措施(§10.2)。
 - **不保证**:设备已被 root/越狱、或恶意软件已拿到运行时内存时的绝对安全(此类场景超出本地应用可防御范围,见 §威胁模型)。
 
 ## 2. 加密方案(已定)

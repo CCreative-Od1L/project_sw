@@ -173,6 +173,77 @@ test/                       # 单元测试
 integration_test/           # 集成测试
 ```
 
+```mermaid
+graph TB
+    subgraph app["app/ (入口装配)"]
+        MAIN["main.dart"]
+        ROUTES["路由 · 主题 · i18n"]
+    end
+
+    subgraph presentation["presentation/ (表现层)"]
+        PAGES["pages/"]
+        WIDGETS["widgets/"]
+        CUBITS["cubits/ · blocs/"]
+        STATES["states/ · signals/"]
+    end
+
+    subgraph domain["domain/ (领域层 · 纯 Dart)"]
+        ENTITIES["entities/"]
+        USECASES["usecases/"]
+        REPOS["repositories/ (接口)"]
+    end
+
+    subgraph data["data/ (数据层)"]
+        REPO_IMPL["repositories/ (实现)"]
+        subgraph datasources["datasources/"]
+            EV["encrypted_vault/"]
+            SS["secure_storage/"]
+            LM["lan_migration/"]
+        end
+        D_CRYPTO["crypto/ (CryptoService 实现)"]
+    end
+
+    subgraph core["core/ (基础设施 · 跨层横切)"]
+        C_CRYPTO["crypto/ (抽象 + sodium 适配)"]
+        OBS["observability/"]
+        I18N["i18n/"]
+        CONFIG["config/"]
+    end
+
+    subgraph testing["测试"]
+        UNIT["test/domain/ · data/ · presentation/"]
+        INTEG["integration_test/"]
+    end
+
+    MAIN --> app
+    app --> presentation
+
+    presentation -->|"依赖倒置"| domain
+    domain -->|"依赖倒置"| data
+
+    data --> core
+    presentation --> core
+
+    CUBITS --> USECASES
+    REPO_IMPL -->|"implements"| REPOS
+    REPO_IMPL --> datasources
+    REPO_IMPL --> D_CRYPTO
+    D_CRYPTO -->|"implements"| C_CRYPTO
+
+    UNIT --> domain
+    UNIT --> data
+    INTEG --> app
+
+    style domain fill:#fff3e0,stroke:#e65100
+    style core fill:#f3e5f5,stroke:#7b1fa2
+    style presentation fill:#e1f5fe,stroke:#0277bd
+    style data fill:#e8f5e9,stroke:#2e7d32
+    style testing fill:#fafafa,stroke:#9e9e9e
+    style app fill:#f5f5f5,stroke:#616161
+```
+
+> 依赖方向:app → presentation → domain ← data。domain 零平台导入,虚线框表示接口(`repositories/`)由 data 实现。core 为全层共享基础设施(加密抽象、日志、i18n、配置)。测试与源文件镜像目录映射。
+
 ## 6. 状态管理约定
 
 - 一个业务域一个 Cubit/Bloc,粒度以"页面或功能域"为单位,避免巨型 Bloc。
