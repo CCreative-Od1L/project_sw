@@ -52,6 +52,61 @@
 - **SecureStorageDataSource**:封装系统 Keychain/Keystore,存放包裹后的库主密钥(生物解锁路径)。
 - **LanMigrationDataSource**:二维码点对点配对 + 直连 TCP 握手与传输,无 multicast/自动发现,独立隔离,仅在迁移功能激活时启用网络栈(见 [SECURITY.md §8.1](./SECURITY.md))。
 
+```mermaid
+graph TB
+    subgraph Presentation["Presentation (表现层)"]
+        direction LR
+        W["Widgets / Pages"]
+        C["Cubit / Bloc"]
+        S1["State"]
+        PS["Pure Signal"]
+        W -->|"渲染"| S1
+        C -->|"产出"| S1
+        C -->|"发布"| PS
+    end
+
+    subgraph Domain["Domain (领域层) · 纯 Dart"]
+        direction LR
+        E["Entities<br/>VaultEntry · VaultHeader<br/>GenerationProfile"]
+        UC["Use Cases<br/>UnlockVault · LockVault<br/>AddEntry · UpdateEntry<br/>SearchEntries · GeneratePassword<br/>MigrateOverLan"]
+        RI["Repository Interfaces<br/>VaultRepository<br/>SecureKeyRepository<br/>MigrationRepository"]
+        UC --> E
+        UC --> RI
+    end
+
+    subgraph Data["Data (数据层)"]
+        direction LR
+        subgraph DS["DataSources"]
+            EV["EncryptedVault<br/>DataSource"]
+            SS["SecureStorage<br/>DataSource"]
+            LM["LanMigration<br/>DataSource"]
+        end
+        RI_IMPL["Repository<br/>Implementations"]
+        CRYPTO["CryptoService<br/>sodium_libs 适配"]
+        RI_IMPL --> DS
+        RI_IMPL --> CRYPTO
+    end
+
+    subgraph Core["Core (基础设施)"]
+        direction LR
+        OBS["observability<br/>日志 · 埋点 · 监控"]
+        I18N["i18n<br/>ARB · intl"]
+        CFG["config"]
+    end
+
+    Presentation -->|"依赖倒置<br/>(调用 Use Case)"| Domain
+    Domain -->|"依赖倒置<br/>(实现接口)"| Data
+    Data --> Core
+    Presentation --> Core
+
+    style Presentation fill:#e1f5fe,stroke:#0277bd
+    style Domain fill:#fff3e0,stroke:#e65100
+    style Data fill:#e8f5e9,stroke:#2e7d32
+    style Core fill:#f3e5f5,stroke:#7b1fa2
+```
+
+> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。
+
 ## 3. 核心模块
 
 | 模块 | 职责 | 关键依赖 |

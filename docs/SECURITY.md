@@ -52,6 +52,78 @@ DEK_i(Data Encryption Key,每条目随机 256-bit)─── 密文(dek_wrapped)�
 密文 VaultEntry_i
 ```
 
+```mermaid
+flowchart TD
+    MP["🔑 主密码<br/>用户记忆,不存储"] -->|"Argon2id<br/>salt + m/t/p · 存于 header"| KEK["
+        KEK · Key Encryption Key
+        256-bit · 仅内存,从不落盘
+    "]
+
+    KEK -->|"
+        XChaCha20-Poly1305 包裹
+        AAD = magic ‖ format_version ‖ kdf_algorithm_id ‖ kdf_params ‖ kdf_salt
+    "| MVK_ENC["wrapped_master_vault_key
+        72B · nonce24 + ct32 + tag16
+        存于 vault header"]
+
+    KEK -.->|"解密"| MVK_ENC
+
+    CSPRNG["🎲 CSPRNG · sodium randombytes"] -->|"生成"| MVK["Master Vault Key
+        随机 256-bit
+        仅内存"]
+
+    MVK -->|"
+        XChaCha20-Poly1305 包裹
+        AAD = magic ‖ format_version ‖ aead_algorithm_id ‖ entry_id
+    "| DEK_ENC["dek_wrapped · 每条目
+        72B · nonce24 + ct32 + tag16
+        Entry Block 双段·dek段"]
+
+    MVK -.->|"解密"| DEK_ENC
+
+    DEK["DEK_i · Data Encryption Key
+        每条目随机 256-bit
+        仅内存"] -->|"
+        XChaCha20-Poly1305 加密条目明文
+        AAD = magic ‖ format_version ‖ aead_algorithm_id ‖ entry_id ‖ seq
+    "| ENTRY_ENC["entry_ciphertext · 每条目
+        nonce24 + ct + tag16
+        Entry Block 双段·entry段"]
+
+    DEK -.->|"解密"| ENTRY_ENC
+
+    ENTRY["📄 VaultEntry 明文
+        JSON · {name,url,username,password,notes,...}
+        仅内存,锁定即清零"]
+
+    CSPRNG -->|"生成"| MVK
+    CSPRNG -->|"逐条生成"| DEK
+
+    K_BIO["🔐 K_bio
+        硬件密钥库·生物门控
+        Keychain / Keystore"] -->|"
+        XChaCha20-Poly1305 包裹
+    "| BIO_ENC["biometric_wrapped_mvk
+        72B · 存于 vault header
+        可选,has_biometric=1"]
+
+    K_BIO -.->|"生物解锁路径<br/>跳过 Argon2id"| MVK
+
+    ENTRY --> ENTRY_ENC
+
+    style MP fill:#f44336,color:#fff
+    style KEK fill:#ff9800,color:#fff
+    style MVK fill:#ff9800,color:#fff
+    style DEK fill:#ffc107
+    style ENTRY fill:#4caf50,color:#fff
+    style CSPRNG fill:#2196f3,color:#fff
+    style K_BIO fill:#9c27b0,color:#fff
+    style MVK_ENC fill:#f5f5f5
+    style DEK_ENC fill:#f5f5f5
+    style ENTRY_ENC fill:#f5f5f5
+    style BIO_ENC fill:#f5f5f5
+```
+
 - **KEK**:由主密码派生,只存在于解锁后的内存;锁定/退出即清零。
 - **Master Vault Key**:随机生成,是"换主密码不改密文"的关键——改主密码只需用新 KEK 重新包裹 Master Vault Key,无需重加密所有条目。
 - **DEK**:每条目独立随机密钥,实现局部更新(改一条只重写该条 + 其 DEK 密文)、单条迁移、单条销毁。
@@ -354,6 +426,71 @@ Entry Block 为 dek 段(定长 72B)+ entry 段(变长)双段(§5.3)。按"改明
   - 须设置新主密码并走强度评估(见 [ARCHITECTURE.md §9](./ARCHITECTURE.md)),不接受弱密码。
 
 **风险定性**:此通道放大了"设备丢失+生物冒用"的后果——从"仅能查看数据"升级为"可重置主密码永久接管"。代价以四重门槛(隐式 + 触发阈值 + 冷却 + 摩擦)控制,与 §6.1 接受的生物残余风险同源。通道仅在用户主动改密码且记不起旧密码时浮现,非日常路径。
+
+```mermaid
+stateDiagram-v2
+    direction TB
+
+    [*] --> S0 : 首次启动
+    state 图例 {
+        state "解锁态" as UNLOCKED
+        state "锁定态" as LOCKED
+        state "应急态" as EMERGENCY
+        state "生命周期" as LIFECYCLE
+    }
+
+    S0: 未建库
+    S1: 已建库·锁定<br/>冷启动
+    S2: 已建库·锁定<br/>超时/切后台
+    S3: 解锁·主密码路径
+    S4: 解锁·生物路径
+    S5: 生物失效<br/>K_bio 不可用
+    S6: 冷却期内<br/>忘码入口隐藏
+    S7: 冷却期外<br/>忘码入口可浮现
+    S8: 忘码恢复成功<br/>新主密码生效
+    S9: 迁移发送中
+    S10: 迁移接收中
+    S11: 擦除中
+
+    S0 --> S1 : 建库完成
+    S0 --> S11 : (未建库无擦除)
+
+    S1 --> S3 : 主密码正确
+    S1 --> S3 : 生物解锁■见注1
+    S3 --> S2 : 超时/切后台
+    S3 --> S1 : 主动锁定
+    S3 --> S11 : 正常擦除·须主密码
+
+    S4 --> S2 : 超时/切后台
+    S4 --> S1 : 主动锁定
+    S4 --> S3 : 高敏强制主密码<br/>冷启动/高敏操作/生物失效
+    S4 --> S5 : 生物变更<br/>K_bio 失效
+
+    S2 --> S4 : 生物解锁<br/>超时后允许
+    S2 --> S3 : 主密码解锁
+    S2 --> S11 : ■死锁擦除<br/>特定手势+摩擦<br/>不要求主密码
+
+    S5 --> S11 : ■死锁擦除
+    S5 --> S3 : 主密码解锁后<br/>重新设 K_bio
+
+    S3 --> S7 : 改密码错≥3次<br/>忘码入口浮现
+    S7 --> S8 : 忘码恢复成功
+    S8 --> S4 : 重新设新主密码后
+    S8 --> S6 : 冷却期起算
+
+    S6 --> S7 : 冷却期满
+    S6 --> S2 : 生物解锁可用
+    S6 --> S11 : ■死锁擦除<br/>冷却期内忘新密码<br/>+生物失效
+
+    S3 --> S9 : 发起迁移
+    S3 --> S10 : 接收迁移
+    S9 --> S3 : 迁移完成/中断
+    S10 --> S3 : 迁移完成/中断
+
+    S11 --> S0 : 擦除完成<br/>归零·可重建库
+```
+
+> **图例**:■ 标记的转换为缺口 A 修复新增(死锁擦除逃生口)。冷启动 S1 → 生物不可用(§6.1①),须走主密码 S3;超时锁 S2 → 允许生物(§6.1);迁移期间 S9/S10 抑制超时(§8.1)。全部状态均有可见转换边,无不可逃死锁。
 
 **UI 告知义务**:建库、设置生物解锁、高敏强制主密码时,均须如实告知忘密码的真实边界(生物兜底 vs 密码学锁死),不得简单宣称"忘密码就丢数据"。忘码恢复入口浮现时须按上条强告知接管风险。
 
