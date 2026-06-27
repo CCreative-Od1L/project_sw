@@ -42,7 +42,7 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 
 ## 核心功能
 
-1. **密码生成** —— 按可配置规则(模式/长度/字符集/可读性)生成强密码,理论熵强度评估(规格见 [docs/ARCHITECTURE.md §9](docs/ARCHITECTURE.md))
+1. **密码生成** —— 按可配置规则(模式/长度/字符集/可读性)生成强密码,理论熵强度评估(规格见 [docs/specs/password_generator.md](docs/specs/password_generator.md))
 2. **加密存储** —— 本地加密保存密码库,逐条信封加密
 3. **生物解锁** —— 指纹/面容解锁应用,硬件密钥保护
 4. **局域网迁移** —— 设备间 LAN 传输密码库,带鉴权与传输加密
@@ -52,7 +52,9 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 
 | 文档 | 内容 |
 |------|------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构、Clean Architecture 分层、模块划分、数据流、密钥层级 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构综述、Clean Architecture 分层、模块划分、数据流、密钥层级 |
+| [docs/specs/password_generator.md](docs/specs/password_generator.md) | 密码生成器规格:随机源、生成模式、字符集、强度评估 |
+| [docs/specs/vault_entry.md](docs/specs/vault_entry.md) | VaultEntry 字段规格:固定字段、自定义字段、卫生汇总、条目组织 |
 | [docs/SECURITY.md](docs/SECURITY.md) | 威胁模型、加密方案、密钥层级、生物解锁、迁移与搜索安全 |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发环境、代码规范、测试体系、可观测性、CI/CD、发布流程 |
 | [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git 工作流:分支模型、提交格式、PR 生命周期、标签与发布 |
