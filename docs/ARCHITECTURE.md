@@ -42,7 +42,7 @@
 - **Pure Signal**:用于跨组件、跨 Bloc 的细粒度响应式信号(如解锁状态、搜索关键词),避免不必要的重建。
 
 ### 2.2 Domain 层
-- **Entities**:`VaultEntry`(规格见 §10)、`GenerationProfile`(规格见 §9) 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [SECURITY.md §5.3](./SECURITY.md))。
+- **Entities**:`VaultEntry`(规格见 §10)、`GenerationProfile`(规格见 §9) 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [specs/vault_format.md §3](./specs/vault_format.md))。
 - **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。
 - **Repository Interfaces**:`VaultRepository`、`SecureKeyRepository`、`MigrationRepository` 等抽象,由 data 层实现。
 
@@ -50,7 +50,7 @@
 - **Repository 实现**:组合多个 DataSource 实现 domain 接口,负责加解密编排。
 - **EncryptedVaultDataSource**:负责密码库文件的读写(密文)、序列化格式、版本/头信息管理。序列化已定为**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),含 free list 与崩溃安全 journal,支持逐条 O(1) 局部更新。
 - **SecureStorageDataSource**:封装系统 Keychain/Keystore,存放包裹后的库主密钥(生物解锁路径)。
-- **LanMigrationDataSource**:二维码点对点配对 + 直连 TCP 握手与传输,无 multicast/自动发现,独立隔离,仅在迁移功能激活时启用网络栈(见 [SECURITY.md §8.1](./SECURITY.md))。
+- **LanMigrationDataSource**:二维码点对点配对 + 直连 TCP 握手与传输,无 multicast/自动发现,独立隔离,仅在迁移功能激活时启用网络栈(见 [specs/lan_migration.md §2](./specs/lan_migration.md))。
 
 ```mermaid
 graph TB
@@ -131,7 +131,7 @@ graph TB
 | `biometric` | 生物识别授权、硬件密钥释放 | 平台生物识别 API, `SecureStorageDataSource` |
 | `migration` | 二维码点对点配对、安全握手、库传输 | 平台网络 + 相机 API |
 | `search` | 本地检索(对加密元数据/索引的安全处理) | `vault` |
-| `generator` | 密码生成(随机字符串/可发音模式、字符集、强度评估) | 纯 Dart + CSPRNG(sodium `randombytes`,见 [SECURITY.md §15](./SECURITY.md)) |
+| `generator` | 密码生成(随机字符串/可发音模式、字符集、强度评估) | 纯 Dart + CSPRNG(sodium `randombytes`,见 [specs/password_generator.md §1](./specs/password_generator.md)) |
 | `i18n` | 中英文资源加载 | `intl` + ARB |
 | `observability` | 日志、埋点、监控(见 DEVELOPMENT.md) | 跨层 hook |
 | — | — | — |

@@ -8,7 +8,7 @@
 ### 1.1 基础工具
 - **Flutter**:稳定通道(stable),保持团队约定版本(见 `flutter --version`,建议用 fvm 锁定)。
 - **Dart**:随 Flutter 附带。
-- **Git**:项目初始化后启用(当前尚未 `git init`,为首个开发任务)。
+- **Git**:仓库已初始化(`master` 分支,`.gitignore` 已配置);工作流规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
 ### 1.2 原生构建依赖(libsodium)
 本项目使用 `sodium_libs`(libsodium 的 Flutter 绑定,采用 Flutter build hooks 自动处理各平台二进制)。需准备的本地工具:
@@ -20,12 +20,13 @@
 
 ## 2. 项目初始化步骤(首个开发任务)
 
-1. `git init`,配置 `.gitignore`(Flutter 标准模板 + 本地密码库文件、密钥、日志输出)。
-2. `flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
-3. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
-4. 引入依赖:`sodium_libs`、`flutter_bloc`(含 Cubit)、`intl`、测试与可观测性依赖(见 §6)。
-5. 配置 `analysis_options.yaml`(lint 严格档,见 §4)。
-6. 添加 LICENSE(MIT)。
+> 仓库已 `git init` 并配置 `.gitignore`;以下为代码骨架初始化步骤。
+
+1. `flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
+2. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
+3. 引入依赖:`sodium_libs`、`flutter_bloc`(含 Cubit)、`intl`、测试与可观测性依赖(见 §6)。
+4. 配置 `analysis_options.yaml`(lint 严格档,见 §4)。
+5. 添加 LICENSE(MIT)。
 
 ## 3. 代码规范
 
@@ -67,9 +68,9 @@ linter:
 
 | 层级 | 目标 | 工具 | 覆盖重点 |
 |------|------|------|----------|
-| 单元测试 | domain use case、纯函数、密码生成器(模式覆盖、字符集并集、长度边界、排除易混、**无偏抽样**、**理论熵估算校验**)、加密信封编解码 | `package:test` | 业务逻辑与密码学正确性(含 KDF/AEAD 向量、信封包裹/解包、错误路径);生成器随机源须用同源 CSPRNG(见 [SECURITY.md §15](./SECURITY.md)) |
+| 单元测试 | domain use case、纯函数、密码生成器(模式覆盖、字符集并集、长度边界、排除易混、**无偏抽样**、**理论熵估算校验**)、加密信封编解码 | `package:test` | 业务逻辑与密码学正确性(含 KDF/AEAD 向量、信封包裹/解包、错误路径);生成器随机源须用同源 CSPRNG(见 [specs/password_generator.md §1](./specs/password_generator.md)) |
 | Widget 测试 | 单个组件/页面在给定 State 下的渲染与交互 | `flutter_test` | UI 状态映射、事件上报、错误展示 |
-| 集成测试 | 端到端关键流(首次建库→解锁→增删改查→锁定→生物解锁→迁移);**迁移细节**(发送端解包 DEK 会话加密传输、接收端 seq 透传不改写、entry_id 冲突整条覆盖、目录双写原子切换/中途崩溃回滚);**认证强度策略路径**(冷启动强制主密码、高敏操作强制主密码、超时后仍允许生物);**超时锁定**(当前固定:空闲 5min、切后台立即锁、切后台锁不可禁用;设置中可见);**剪贴板**(敏感字段复制后 20s 自动清除、倒计时提示、iOS 禁用 Handoff);**忘主密码边界**(已设生物+生物未变仍可访问、生物失效后不可恢复、正常擦除须主密码、**死锁擦除**:特定手势浮现+四重摩擦+不要求主密码);**忘码恢复通道**(改密码连续错 ≥3 次浮现入口、一周冷却、二次生物确认、强告知接管风险) | `integration_test` | 跨层协作、真实存储、超时锁定(参数见 [SECURITY.md §10.1](./SECURITY.md))、剪贴板卫生(见 [§7.1](./SECURITY.md))、忘主密码(见 [§10.2](./SECURITY.md))、迁移(见 [§8.1](./SECURITY.md))、强度档位切换 |
+| 集成测试 | 端到端关键流(首次建库→解锁→增删改查→锁定→生物解锁→迁移);**迁移细节**(发送端解包 DEK 会话加密传输、接收端 seq 透传不改写、entry_id 冲突整条覆盖、目录双写原子切换/中途崩溃回滚);**认证强度策略路径**(冷启动强制主密码、高敏操作强制主密码、超时后仍允许生物);**超时锁定**(当前固定:空闲 5min、切后台立即锁、切后台锁不可禁用;设置中可见);**剪贴板**(敏感字段复制后 20s 自动清除、倒计时提示、iOS 禁用 Handoff);**忘主密码边界**(已设生物+生物未变仍可访问、生物失效后不可恢复、正常擦除须主密码、**死锁擦除**:特定手势浮现+四重摩擦+不要求主密码);**忘码恢复通道**(改密码连续错 ≥3 次浮现入口、一周冷却、二次生物确认、强告知接管风险) | `integration_test` | 跨层协作、真实存储、超时锁定(参数见 [specs/lock_and_recovery.md §2](./specs/lock_and_recovery.md))、剪贴板卫生(见 [specs/data_hygiene.md §2](./specs/data_hygiene.md))、忘主密码(见 [specs/lock_and_recovery.md §3](./specs/lock_and_recovery.md))、迁移(见 [specs/lan_migration.md §2](./specs/lan_migration.md))、强度档位切换 |
 | 加密专项 | 解密失败/篡改/nonce/参数升级等安全路径;**外壳解析与完整性**(逐字段损坏验证检测、free list/journal 重放与回滚、AAD 绑定校验、序列化往返一致性);**Entry Block 双段**(dek 段定长 72B 原地覆写、改 DEK 不动 entry 段、双段往返一致) | `package:test` | 见 SECURITY.md §威胁模型、§5 |
 
 要求:
