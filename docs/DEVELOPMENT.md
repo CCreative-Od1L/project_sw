@@ -101,7 +101,7 @@ linter:
 
 ## 8. 脚本化打包与 CI/CD
 
-对应需求"脚本化打包流程、CI/CD 流程":
+对应需求"脚本化打包流程、CI/CD 流程"。本节为概述;完整设计(workflow 分层、job 矩阵、缓存、runner、签名注入、产物、发版流水线、落地里程碑)见 [specs/ci_cd.md](./specs/ci_cd.md)。
 
 ### 8.1 打包脚本
 - 统一打包脚本(`scripts/`),参数化平台与环境(dev/staging/release):
@@ -138,6 +138,6 @@ linter:
 
 - [ ] `pubspec.yaml` 依赖清单(含 dev 依赖)
 - [ ] `analysis_options.yaml` 最终 lint 规则集
-- [ ] CI workflow 文件(.github/workflows/)
-- [ ] 打包脚本与签名流程细则
+- [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 待代码就绪后按其 §12 落地)
+- [ ] CI workflow 文件(.github/workflows/)与打包脚本——按 [specs/ci_cd.md §12](./specs/ci_cd.md) 里程碑分阶段落
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)

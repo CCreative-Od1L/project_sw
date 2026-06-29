@@ -53,8 +53,15 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 | 文档 | 内容 |
 |------|------|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构综述、Clean Architecture 分层、模块划分、数据流、密钥层级 |
-| [docs/specs/password_generator.md](docs/specs/password_generator.md) | 密码生成器规格:随机源、生成模式、字符集、强度评估 |
+| [docs/specs/vault_format.md](docs/specs/vault_format.md) | Vault 文件格式:二进制外壳、Entry Block 双段、free list、journal、AAD |
 | [docs/specs/vault_entry.md](docs/specs/vault_entry.md) | VaultEntry 字段规格:固定字段、自定义字段、卫生汇总、条目组织 |
+| [docs/specs/biometric_auth.md](docs/specs/biometric_auth.md) | 生物解锁机制、认证强度策略、高敏操作枚举 |
+| [docs/specs/lan_migration.md](docs/specs/lan_migration.md) | 局域网迁移协议:二维码配对、crypto_kx 握手、重包裹、原子提交 |
+| [docs/specs/local_search.md](docs/specs/local_search.md) | 本地搜索:内存内线性检索基线、字段卫生、不越基线论证 |
+| [docs/specs/password_generator.md](docs/specs/password_generator.md) | 密码生成器规格:随机源、生成模式、字符集、强度评估 |
+| [docs/specs/lock_and_recovery.md](docs/specs/lock_and_recovery.md) | 锁定、销毁、忘主密码恢复、死锁擦除、状态机 |
+| [docs/specs/data_hygiene.md](docs/specs/data_hygiene.md) | 数据卫生:内存/日志脱敏、剪贴板清除 |
+| [docs/specs/ci_cd.md](docs/specs/ci_cd.md) | CI/CD 设计规格:workflow 分层、job 矩阵、缓存、签名、发版流水线 |
 | [docs/SECURITY.md](docs/SECURITY.md) | 威胁模型、加密方案、密钥层级、生物解锁、迁移与搜索安全 |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发环境、代码规范、测试体系、可观测性、CI/CD、发布流程 |
 | [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git 工作流:分支模型、提交格式、PR 生命周期、标签与发布 |
