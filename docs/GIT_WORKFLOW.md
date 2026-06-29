@@ -68,7 +68,7 @@ Implement XChaCha20-Poly1305 based envelope encryption:
 - Entry plaintext is encrypted by DEK (AEAD, AAD = entry_id + seq)
 - Enables per-entry O(1) update and single-entry LAN migration
 
-Refs: SECURITY.md §4, §5.5
+Refs: SECURITY.md §4, specs/vault_format.md §5
 ```
 
 ```

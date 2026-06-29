@@ -51,7 +51,7 @@ flowchart TB
 > - **Flutter 进程**:所有业务逻辑在设备本地完成,无网络依赖(迁移除外)。
 > - **平台原生**:`sodium_libs` 为嵌入式原生二进制(嵌入式,非外部服务);`Keychain/Keystore` 由 OS 管,`K_bio` 可选设生物门控;vault 文件与日志均在本地文件系统。
 > - **LAN 通道**:唯一跨信任边界数据流,经 QR 带外公钥 + `crypto_kx` 端到端加密,纯 P2P 无中转(§8 第 5 项)。
-> - **用户记忆**:主密码是唯一不由系统存储的秘密(零知识),离线记录为推荐的缓解措施(§10.2)。
+> - **用户记忆**:主密码是唯一不由系统存储的秘密(零知识),离线记录为推荐的缓解措施([specs/lock_and_recovery.md §3](./specs/lock_and_recovery.md))。
 - **不保证**:设备已被 root/越狱、或恶意软件已拿到运行时内存时的绝对安全(此类场景超出本地应用可防御范围,见 §威胁模型)。
 
 ## 2. 加密方案(已定)
@@ -91,7 +91,7 @@ KEK(Key Encryption Key,256-bit)─── 仅内存,从不落盘
 Master Vault Key(随机 256-bit)─── 密文存于 vault header
    │  XChaCha20-Poly1305 包裹每条
    ▼
-DEK_i(Data Encryption Key,每条目随机 256-bit)─── 密文(dek_wrapped)随条目 Entry Block 存储(§5.3 双段)
+DEK_i(Data Encryption Key,每条目随机 256-bit)─── 密文(dek_wrapped)随条目 Entry Block 存储([specs/vault_format.md §3](./specs/vault_format.md) 双段)
    │  XChaCha20-Poly1305 加密条目明文
    ▼
 密文 VaultEntry_i
@@ -185,7 +185,7 @@ sequenceDiagram
     participant KC as Keychain/Keystore
     participant Mem as 内存(KEK/MVK/DEK/明文)
 
-    Note over User,Mem: ── 主密码路径 (§4, §6.1① 冷启动) ──
+    Note over User,Mem: ── 主密码路径 (§4, [specs/biometric_auth.md §2](./specs/biometric_auth.md)① 冷启动) ──
 
     User->>UI: 输入主密码
     UI->>Domain: UnlockVault(password)

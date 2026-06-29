@@ -1,12 +1,12 @@
 # 密码生成器规格 · PROJECT_SW
 
-> 规格概述见 [ARCHITECTURE.md §9](../ARCHITECTURE.md)；安全约束(随机源)见 [SECURITY.md §15](../SECURITY.md)。
+> 规格概述见 [ARCHITECTURE.md §3](../ARCHITECTURE.md);安全约束(随机源)见本文档 §1。
 
 对应核心功能"密码生成"。规格定义 `GenerationProfile` 实体与 `GeneratePassword` use case 的参数空间。
 
 ### 1. 随机源(安全根基)
 
-- 生成器随机源**与加密用 CSPRNG 同源**:使用 `sodium_libs` 的 `randombytes`(经审计,与盐/nonce/MVK/DEK 同源),**禁止**用 `dart:math.Random()`(伪随机)或未审计的第三方随机源(见 [SECURITY.md §15](../SECURITY.md))。
+- 生成器随机源**与加密用 CSPRNG 同源**:使用 `sodium_libs` 的 `randombytes`(经审计,与盐/nonce/MVK/DEK 同源),**禁止**用 `dart:math.Random()`(伪随机)或未审计的第三方随机源(见本文档 §1)。
 - 抽样采用**无偏等概率**方式(如拒绝采样),避免字符集大小非 2 的幂时的模偏置。
 
 ### 2. 生成模式与字符集
@@ -64,4 +64,4 @@ GenerationProfile {
 }
 ```
 
-`GeneratePassword(profile) → String` 为纯函数(domain 层),随机源经抽象注入便于单测(测试注入固定随机源以可复现)。**生成器输出流向**:生成器输出经用户确认后填入 VaultEntry.password 或 custom_fields.value(见 [vault_entry.md](vault_entry.md)),随条目走 §5 信封加密;输出未存入 vault 前为短暂 UI 态,按 §7 内存卫生持有与清零。**生成器可在锁定态独立使用**(不依赖 vault/MVK),此时输出复制应同样走 §7.1 剪贴板 20s 清除。
+`GeneratePassword(profile) → String` 为纯函数(domain 层),随机源经抽象注入便于单测(测试注入固定随机源以可复现)。**生成器输出流向**:生成器输出经用户确认后填入 VaultEntry.password 或 custom_fields.value(见 [vault_entry.md](vault_entry.md)),随条目走 [vault_format.md §3](vault_format.md) 信封加密;输出未存入 vault 前为短暂 UI 态,按 [data_hygiene.md §1](data_hygiene.md) 内存卫生持有与清零。**生成器可在锁定态独立使用**(不依赖 vault/MVK),此时输出复制应同样走 [data_hygiene.md §2](data_hygiene.md) 剪贴板 20s 清除。
