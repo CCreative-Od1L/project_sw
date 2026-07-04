@@ -7,7 +7,7 @@
 ### 1. 随机源(安全根基)
 
 - 生成器随机源**与加密用 CSPRNG 同源**:使用 `sodium_libs` 的 `randombytes`(经审计,与盐/nonce/MVK/DEK 同源),**禁止**用 `dart:math.Random()`(伪随机)或未审计的第三方随机源(见本文档 §1)。
-- 抽样采用**无偏等概率**方式(如拒绝采样),避免字符集大小非 2 的幂时的模偏置。
+- 抽样采用**无偏等概率**方式:使用 `sodium_libs` 的 `randombytes_uniform(charset.length)`(内部已实现无偏选择,经密码学社区审计),避免字符集大小非 2 的幂时的模偏置。不使用手写拒绝采样或 `dart:math.Random.nextInt`(伪随机,已在 §1 禁用)。
 
 ### 2. 生成模式与字符集
 

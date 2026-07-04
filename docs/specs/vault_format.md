@@ -46,7 +46,8 @@
 | … | 8 | `entry_count` | 活跃条目数 |
 | … | 8 | `free_list_head` | 首个空闲槽偏移,0=无 |
 | … | 8 | `sequence_counter` | 全局序号,供 AAD/重放防护 |
-| … | ~32 | `journal` 槽 | 单槽意图日志,崩溃安全(见 §5) |
+| … | 8 | `committed_seq` | 最近一次成功提交的操作序号,journal 惰性判断依据(见 §4) |
+| … | ~32 | `journal` 槽 | 单槽意图日志,含 op/entry_id/seq/crc;永不主动清零,journal 惰性由 committed_seq 判断(见 §4) |
 | … | — | reserved(零填充至定长) | 预留未来字段 |
 
 ### Directory EntryRecord(定长 48B,每条目一份)
@@ -74,11 +75,23 @@
 ## 4. free list 与崩溃安全
 
 - **free list**:空闲槽自链(`next_free_offset(8B) + capacity(4B) + ...`),header 的 `free_list_head` 指向首节点。分配取 `capacity ≥ 需求` 的槽(可分裂),否则 append 到 EOF;释放将旧槽 push 到链头。碎片由周期性 compaction(锁定时空闲时整体重写,O(N) 离线维护,非热路径)回收。
-- **崩溃安全 journal**:header 内单槽意图日志,覆盖两类中途崩溃:
-  - **单条更新**(新增/改/删):`journal{op, entry_id, new_offset, new_length, seq, checksum}`,完成块+目录写入后清零;打开时非空且校验通过 → 重放或回滚,校验失败 → 判损坏/回退 .bak。
-  - **目录切换**(批量导入/compaction):`journal{op=DIR_SWITCH, new_directory_offset, checksum}`,新目录与块就位后写此 journal,原子切换 `active_directory_offset` 后清零;打开时非空且校验通过 → 切换至新目录或回滚,校验失败 → 回退 .bak。
+ - **崩溃安全 journal**:header 内单槽意图日志,**有效性依赖 LSN(seq)+ CRC 校验 + 单扇区原子写**,而非"清零"作为完成信号。覆盖两类中途崩溃:
+   - **单条更新**(新增/改/删):`journal{op, entry_id, new_offset, new_length, seq, crc}`。**流程**:① 写 journal 意图(seq = sequence_counter,committed: 0)+ fsync → ② 写 Entry Block + fsync → ③ 更新 Directory + fsync → ④ 写 `committed_seq = seq` + `sequence_counter++`(单扇区原子写 + fsync)。**journal 永不主动清零**,下次操作覆写。**打开时判断**:seq > committed_seq 且 CRC 通过 → 操作进行中,幂等重放或回滚;seq <= committed_seq → 操作已完成(或更旧 stale journal),忽略;journal 写入本身被撕裂(CRC 失败,在单扇区原子写假设下不应发生)→ 硬件异常,回退 .bak。
+   - **目录切换**(批量导入/compaction):`journal{op=DIR_SWITCH, new_directory_offset, seq, crc}`。**流程**:① 写 journal 意图 + fsync → ② 新目录与块就位 → ③ 写 `committed_seq = seq` + `sequence_counter++` + 原子切换 `active_directory_offset`(单扇区原子写 + fsync)。**打开时判断**:同上。**单槽 journal 经"目录切换"单步意图即可支撑批量原子提交**:多记录操作先把所有块与新目录写好(中途崩溃不影响旧 active 目录),最后以单步 journal 记录"切换"动作,从而把 N 条原子性收敛为 1 步原子切换。
 
-> 单槽 journal 经"目录切换"单步意图即可支撑批量原子提交:多记录操作先把所有块与新目录写好(中途崩溃不影响旧 active 目录),最后以单步 journal 记录"切换"动作,从而把 N 条原子性收敛为 1 步原子切换。
+ 
+ ### 单扇区原子写约束
+ 
+ 移动文件系统(APFS/ext4/f2fs)保证扇区内的写入要么完整要么未写。journal 槽(~32B)、committed_seq(8B)、active_directory_offset(8B)均远小于 512B 扇区。实现约束:
+ - **File Header 写入对齐**:header 写入需对齐到扇区边界(512B 或 4KB,取决于文件系统),确保单扇区原子性。
+ - **committed_seq 与 journal 可独立**:committed_seq 的写入是"完成信号",journal 槽写入是"意图信号",二者是两个独立的原子写——即使不在同一扇区也可。
+ - **重放幂等性**:重放操作必须幂等(写相同的 Entry Block 和 Directory 值),确保误判为 pending 时重放不丢数据。
+ 
+ ### .bak 回退策略
+ 
+ - 每次成功提交(committed_seq 写入成功 + fsync)后,将当前 vault 文件复制为 `.bak`(覆写旧 .bak)。
+ - 崩溃恢复时 .bak 是上一个成功提交的快照。
+ - journal CRC 失败 → 极端情况(硬件异常),回退 .bak;正常情况下不应触发。
 
 ## 5. AAD 绑定
 
