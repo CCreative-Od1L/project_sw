@@ -341,7 +341,7 @@ graph TB
 ## 6. 状态管理约定
 
 - 一个业务域一个 Cubit/Bloc,粒度以"页面或功能域"为单位,避免巨型 Bloc。
-- State 为不可变类,变更经 `copyWith`。
+- State 为不可变类,变更经 `copyWith`。多状态 hierarchy 用 sealed class(如 `AuthState`),利用 Dart 3 穷尽检查确保新增状态时所有 match 分支被编译器强制处理;初始版本只定义所需子类,后续版本扩展。
 - 跨 Bloc 共享状态(如全局解锁态、当前搜索词)走 Pure Signal 订阅,避免层层透传。
 - 敏感状态(明文密码、密钥)禁止进入全局可观察状态,仅在受控作用域内短生命周期持有。
 
