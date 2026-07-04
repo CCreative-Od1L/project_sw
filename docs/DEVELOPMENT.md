@@ -20,6 +20,8 @@
 
 ## 2. 项目初始化步骤(首个开发任务)
 
+> 完整构建顺序与版本里程碑见 [specs/build_roadmap.md](specs/build_roadmap.md)。
+
 > 仓库已 `git init` 并配置 `.gitignore`;以下为代码骨架初始化步骤。
 
 1. `flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
@@ -82,7 +84,7 @@ linter:
 ## 6. 可观测性(日志 / 埋点 / 监控)
 
 对应需求"日志系统、埋点以及监控":
-- **统一入口**:`core/observability` 提供日志、埋点、监控抽象,各层通过它上报,禁止裸 `print`/`debugPrint`。
+- **统一入口**:`core/observability` 提供日志、埋点、监控抽象,各层通过它上报,禁止裸 `print`/`debugPrint`。接口形状、事件清单与脱敏管道见 [specs/observability.md](specs/observability.md)。
 - **脱敏**:所有日志/埋点经脱敏过滤器,禁止记录明文密码、密钥、条目内容(见 SECURITY.md §7)。只可记录条目 id、操作类型、耗时、错误码、KDF 耗时(用于自适应调参)等。
 - **日志**:分级(verbose/info/warning/error);开发期可写控制台,生产期可写**本地滚动明文文件**并受容量上限(加密决策见下条)。
 - **埋点**:关键业务事件(建库、解锁成功/失败、迁移完成、锁定触发、强制主密码触发、忘码恢复触发/成功、死锁擦除触发);本地计数,不上报外部。
