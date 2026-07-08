@@ -97,11 +97,19 @@ _Avoid_: sequence, 版本号, version
 ### 条目模型
 
 **VaultEntry**:
-单条密码条目的明文实体,经 DEK 加密后存入 entry_ciphertext。含 name、url、username、password、notes、created_at、updated_at、favorite、custom_fields。
+单条密码条目的**完整明文实体**,经 DEK 加密后存入 entry_ciphertext。含 name、url、username、password、notes、created_at、updated_at、favorite、custom_fields。根据 ADR-0007,`VaultEntry` 不作为解锁态全局常驻工作集,仅在解锁提取摘要或详情页按需解密时短生命周期存在。
 _Avoid_: entry(泛指), 条目(泛指), credential, item
 
+**EntrySummary**:
+解锁后保留在全局内存中的**常驻摘要模型**,仅含 `entry_id`、`name`、`url`、`username`、`favorite`、`created_at`、`updated_at`。用于列表、排序、过滤、常规搜索;不含 `password`、`notes` 或任何 `custom_fields`。
+_Avoid_: preview entry, lightweight entry, list item, summary record
+
+**EntryDetail**:
+详情页按需解密得到的**单条完整详情对象**。字段形状可与 `VaultEntry` 等价,但只允许存在于详情页局部作用域,退出详情页或锁定后即清理,不得回填全局常驻状态。
+_Avoid_: full entry cache, hydrated entry, detail cache
+
 **CustomField**:
-VaultEntry 中的自定义键值对,带 secret 标记。secret=true 按 password 级卫生处理(不入搜、不展示),secret=false 可搜可展示。
+VaultEntry 中的自定义键值对,带 secret 标记。secret=true 按 password 级卫生处理(不入搜、不入列表展示);secret=false 语义上是非敏感扩展字段,但按 ADR-0007 同样不入常规搜索、不入列表展示,仅详情页按需解密展示。
 _Avoid_: 自定义字段, extra field, attribute
 
 **GenerationProfile**:

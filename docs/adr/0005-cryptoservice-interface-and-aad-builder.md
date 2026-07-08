@@ -36,8 +36,8 @@ class AadBuilder {
 
 ## 同步/异步边界
 
-- `deriveKek`: `Future<Uint8List>`——主 isolate 调用,内部经 `Isolate.run` offload(ADR-0003)。
-- `encryptWithAead` / `decryptWithAead` / `generateKey` / `randombytes`: 同步——单条操作在主 isolate 直接执行;批量解密在 isolate 内同步调用这些方法。
+- `deriveKek`: `Future<Uint8List>`——由调用方在主 isolate 发起,实际后台执行机制遵循 ADR-0003 的分级策略(首选 `Isolate.run()`,次选长驻 crypto worker isolate,最后才是主 isolate fallback)。
+- `encryptWithAead` / `decryptWithAead` / `generateKey` / `randombytes`: 同步——单条操作在主 isolate 直接执行;若调用方选择在后台机制内批量解密,则在该后台执行上下文中同步调用这些原语。
 
 ## 调用模式
 

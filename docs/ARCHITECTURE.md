@@ -42,7 +42,7 @@
 - **Pure Signal**:用于跨组件、跨 Bloc 的细粒度响应式信号(如解锁状态、搜索关键词),避免不必要的重建。
 
 ### 2.2 Domain 层
-- **Entities**:`VaultEntry`(规格见 §10)、`GenerationProfile`(规格见 §9) 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [specs/vault_format.md §3](./specs/vault_format.md))。
+- **Entities**:`VaultEntry`(完整条目明文实体,规格见 [specs/vault_entry.md](./specs/vault_entry.md))、解锁态摘要模型(见 [ADR-0007](./adr/0007-unlocked-residency-and-summary-detail-split.md))、`GenerationProfile` 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [specs/vault_format.md §3](./specs/vault_format.md))。
 - **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。
 - **Repository Interfaces**:`VaultRepository`、`SecureKeyRepository`、`MigrationRepository` 等抽象,由 data 层实现。
 
@@ -136,11 +136,11 @@ graph TB
 | `observability` | 日志、埋点、监控(见 DEVELOPMENT.md) | 跨层 hook |
 | — | — | — |
 | `core/vault_file` | vault 文件外壳格式:File Header + Directory(EntryRecord[]) + Entry Block(双段) + free list + journal 读写(见 SECURITY.md §5) | `core/crypto`(CryptoService) |
-| `shared/` | 跨域共享原语:实体(VaultEntry, VaultHeader, GenerationProfile)、值对象(EntryId, CustomField)、领域错误(VaultLockedException, DecryptionFailureException) | 被所有业务线与 core 依赖 |
+| `shared/` | 跨域共享原语:实体(VaultEntry, VaultHeader, GenerationProfile, 解锁态摘要模型)、值对象(EntryId, CustomField)、领域错误(VaultLockedException, DecryptionFailureException) | 被所有业务线与 core 依赖 |
 
 ## 4. 密钥层级与数据流
 
-完整密码学设计见 [SECURITY.md §密钥层级](./SECURITY.md)。架构层面只强调:加解密编排集中在 data 层的 repository,`CryptoService` 为唯一入口,domain 层只处理明文实体,绝不接触密钥或密文。
+完整密码学设计见 [SECURITY.md §密钥层级](./SECURITY.md)。架构层面只强调:加解密编排集中在 data 层的 repository,`CryptoService` 为唯一入口,domain 层只处理明文实体与摘要模型,绝不接触密钥或密文。
 
 **解锁数据流**:
 
@@ -155,7 +155,12 @@ graph TB
                                 │ XChaCha20-Poly1305 解密
                                 ▼
                         明文 VaultEntry(domain 实体)
+                                │ 提取摘要字段
+                                ▼
+                     EntrySummary(解锁态常驻模型)
 ```
+
+> 根据 [ADR-0007](./adr/0007-unlocked-residency-and-summary-detail-split.md),解锁阶段允许先解出完整 `VaultEntry`,但解锁态全局常驻的是摘要模型而不是完整条目明文;详情页进入时再按需解密单条完整详情对象。
 
 **生物解锁路径**:首次主密码解锁后,Master Vault Key 经硬件密钥包裹存入 Keychain/Keystore;后续生物识别通过后,由 OS 释放该密钥,跳过 Argon2id 派生环节(详见 SECURITY.md)。
 
@@ -187,7 +192,7 @@ lib/
     search/                         # 本地搜索业务线
       presentation/{pages,cubits,states}
       domain/{usecases}
-                                    # 无独立 data,依赖 vault 内存明文
+                                    # 无独立 data,依赖 vault 提供的解锁态摘要模型
 
     migration/                      # 局域网迁移业务线
       presentation/{pages,cubits,states}
@@ -236,7 +241,7 @@ integration_test/                   # 集成测试
 | `biometric` + `vault`(解锁/锁定部分) | `features/auth` | 认证业务线吸收生物解锁与锁定流程 |
 | `vault`(CRUD 部分) | `features/vault` | 密码库的增删改查 |
 | `generator` | `features/generator` | 独立业务线(锁定态可用) |
-| `search` | `features/search` | 依赖 vault 业务线提供明文条目(经注入) |
+| `search` | `features/search` | 依赖 vault 业务线提供解锁态摘要模型(经注入) |
 | `migration` | `features/migration` | 依赖 `core/vault_file` 与 `core/crypto` |
 | `i18n` + `observability` | `core/i18n` + `core/observability` | 基础设施,非业务线 |
 | `crypto` | `core/crypto` + `core/vault_file` | 外壳格式与加解密原语分离为两个 core 模块 |
@@ -336,7 +341,7 @@ graph TB
 
 > **业务线内聚**:每条业务线内部保持 presentation→domain←data 单向依赖;业务线间零直接 import。
 > **跨域共享**:`shared/` 为纯数据(字段定义,无业务逻辑);`core/` 为纯基础设施;CryptoService 抽象在 `core/crypto`,vault 外壳格式在 `core/vault_file`。
-> **Search → Vault**:搜索依赖 vault 业务线提供的内存明文条目(经依赖注入),非直接 import vault 包。
+> **Search → Vault**:搜索依赖 vault 业务线提供的解锁态摘要模型(经依赖注入),非直接 import vault 包。
 
 ## 6. 状态管理约定
 
@@ -353,7 +358,7 @@ graph TB
 ## 8. 待决与演进
 
 - 局域网迁移协议细节(设备发现、握手认证)—— 见 SECURITY.md §局域网迁移。
-- 本地搜索采用**解锁后内存内线性检索**(基线),不建持久化索引(见 [SECURITY.md §9](./SECURITY.md));password 不入可搜集合与结果展示。
+- 本地搜索采用**基于解锁态摘要模型的内存内线性检索**(基线),不建持久化索引(见 [SECURITY.md §9](./SECURITY.md) 与 [ADR-0007](./adr/0007-unlocked-residency-and-summary-detail-split.md));`password`、`notes`、`custom_fields` 不入常规搜索集合与结果展示。
 - 密码库文件格式已定:**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),支持逐条 O(1) 局部更新与格式版本迁移。
 
 > **详细规格子文档**:
@@ -361,4 +366,3 @@ graph TB
 > - VaultEntry 字段规格([docs/specs/vault_entry.md](specs/vault_entry.md))
 >
 > **说明**:原 ARCHITECTURE.md §9(密码生成器)与 §10(VaultEntry)已提取为独立规格子文档。本文档仅保留架构综述(§1–§8)。
-
