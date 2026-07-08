@@ -139,7 +139,11 @@ flowchart TD
 
     ENTRY["📄 VaultEntry 明文
         JSON · {name,url,username,password,notes,...}
-        仅内存,锁定即清零"]
+        详情页按需解密 · 短生命周期"]
+    SUMMARY["📋 EntrySummary
+        {entry_id,name,url,username,
+        favorite,created_at,updated_at}
+        解锁态常驻内存"]
 
     CSPRNG -->|"生成"| MVK
     CSPRNG -->|"逐条生成"| DEK
@@ -155,6 +159,7 @@ flowchart TD
     K_BIO -.->|"生物解锁路径<br/>跳过 Argon2id"| MVK
 
     ENTRY --> ENTRY_ENC
+    ENTRY -.->|"提取摘要字段"| SUMMARY
 
     style MP fill:#f44336,color:#fff
     style KEK fill:#ff9800,color:#fff
@@ -209,7 +214,8 @@ sequenceDiagram
         Domain->>Mem: DEK_i(仅内存)
         Domain->>Domain: XChaCha20(DEK_i).decrypt(entry_ciphertext)
         Note right of Domain: AAD = magic‖format_version‖aead_algorithm_id‖entry_id‖seq<br/>tag 校验 → VaultEntry 明文 JSON
-        Domain->>Mem: VaultEntry(仅内存)
+        Domain->>Mem: VaultEntry(短生命周期)
+        Domain->>Mem: 提取 EntrySummary(解锁态常驻)
     end
 
     Domain-->>UI: vault_unlocked
@@ -225,8 +231,10 @@ sequenceDiagram
     Domain->>Domain: XChaCha20(K_bio).decrypt(biometric_wrapped_mvk)
     Note right of Domain: 不涉及主密码、不执行 Argon2id<br/>MVK(明文)
     Domain->>Mem: MVK(仅内存)
-    Note over Domain,Mem: 后续解 DEK → 解条目<br/>同主密码路径
+    Note over Domain,Mem: 后续解 DEK → 解条目 → 提取摘要<br/>同主密码路径
 ```
+
+> 根据 [ADR-0007](./adr/0007-unlocked-residency-and-summary-detail-split.md),解锁阶段允许批量解出完整 `VaultEntry` 明文以提取摘要,但解锁态全局常驻的是 `EntrySummary`;`password`、`notes`、`custom_fields` 只在详情页按需解密并短生命周期持有。
 
 ## 5. 文件格式与加密存储
 
@@ -246,7 +254,7 @@ sequenceDiagram
 
 ## 9. 本地搜索
 
-> **详见**: [本地搜索规格](specs/local_search.md) — 解锁后内存内线性检索(基线)、匹配语义、字段卫生、custom_fields 搜索规则、为何不越过基线
+> **详见**: [本地搜索规格](specs/local_search.md) — 基于解锁态摘要模型的内存内线性检索(基线)、匹配语义、字段卫生、为何不越过基线
 
 ## 10. 锁定、销毁与密码恢复
 
@@ -261,7 +269,7 @@ sequenceDiagram
 | 条目被换槽/换条/回放旧版本 | AAD 绑定使 tag 与 entry_id/版本/算法绑定,移植或回放至错误位置校验失败(见 vault_format.md) |
 | nonce 重用导致密文泄漏 | XChaCha20 24B 随机 nonce,碰撞概率可忽略;每次加密新生成 |
 | 设备丢失 + 生物被冒用 | 生物识别由 OS/硬件把关(见 biometric_auth.md);主密码路径独立且为冷启动/高敏强制项;用户可配置禁用生物 |
-| 运行时内存被恶意进程读取 | 及时清零、切后台锁定、敏感数据短生命周期;root/越狱设备不保证 |
+| 运行时内存被恶意进程读取 | 及时清零、切后台锁定、摘要/详情分层、敏感数据短生命周期;root/越狱设备不保证 |
 | 日志/埋点泄漏明文 | 脱敏规范(见 data_hygiene.md),禁止记录敏感字段 |
 | 局域网迁移被窃听/中间人 | 二维码带外公钥传递 + 临时会话密钥端到端加密 + transcript MAC(见 lan_migration.md) |
 | 剪贴板泄漏 | 超时自动清除(当前固定 20s)+ 倒计时提示 + iOS 禁用通用剪贴板 Handoff(见 data_hygiene.md) |
@@ -288,4 +296,3 @@ sequenceDiagram
 - [x] ~~局域网迁移握手协议~~ → 已定:二维码全通道+crypto_kx+版本匹配+重包裹+transcript MAC+原子提交(见 lan_migration.md)
 - [x] ~~本地搜索索引方案~~ → 已评估不采纳:基线为最终方案(见 local_search.md)
 - [x] ~~安全自检/防调试选项~~ → 已评估:降为实现期可选增强;若实现须仅告警不阻断
-

@@ -1,8 +1,34 @@
 # VaultEntry 字段规格 · PROJECT_SW
 
 > 规格概述见 [ARCHITECTURE.md §3](../ARCHITECTURE.md);序列化外壳见 [vault_format.md](vault_format.md)。
+> 解锁态内存模型见 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md)。
 
 `VaultEntry` 为条目明文实体(domain 层,经 DEK 加密后存入 `entry_ciphertext`,见 [vault_format.md §3](vault_format.md))。项目定位为**纯密码管理器**,不含 TOTP/2FA。
+
+## 0. 运行时分层(已定)
+
+`VaultEntry` 是**完整条目明文实体**,不是解锁态全局常驻工作集。根据 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md),运行时需明确区分:
+
+- **常驻摘要模型**:解锁后保留在全局内存中的轻量对象,仅用于列表、排序、过滤、搜索。
+- **详情按需解密模型**:进入详情页后按需解密得到的单条完整详情对象,字段形状可与 `VaultEntry` 等价,但只允许存在于详情页局部作用域。
+
+常驻摘要模型仅包含:
+
+- `entry_id`
+- `name`
+- `url`
+- `username`
+- `favorite`
+- `created_at`
+- `updated_at`
+
+以下字段**不得**进入常驻摘要模型:
+
+- `password`
+- `notes`
+- 全部 `custom_fields`
+
+因此,本文件后续对 `VaultEntry` 的字段定义描述的是**完整明文条目**;列表展示、常规搜索与常驻内存范围以 ADR-0007 为准,不应直接从 `VaultEntry` 的完整字段集推导。
 
 ### 1. 固定字段
 
@@ -13,7 +39,7 @@
 | `url` | String | ✗ | ✓ | 服务地址 |
 | `username` | String | ✗ | ✓ | 登录账号 |
 | `password` | String | ✗ | **✗** | 密码;**不入可搜与列表展示**,仅详情页解密展示(SECURITY §9) |
-| `notes` | String | ✗ | 可选 | 备注;可搜,故**不应填敏感信息** |
+| `notes` | String | ✗ | **✗(常规搜索)** | 备注;仅详情页按需解密展示,不进入常驻摘要与常规搜索 |
 | `created_at` | ISO8601 UTC | ✓ | — | 创建时间 |
 | `updated_at` | ISO8601 UTC | ✓ | — | 最近更新;用于排序与迁移冲突判新([lan_migration.md §2](lan_migration.md)) |
 | `custom_fields` | List<CustomField> | ✗ | 见下 | 自定义键值,见 §2 |
@@ -32,29 +58,31 @@ CustomField {
 ```
 
 - **`secret: true` 的自定义字段**:与 `password` 同级卫生——**不入可搜集合、不入列表展示**,仅条目详情页按需解密展示(对齐 [SECURITY.md §9](../SECURITY.md))。
-- **`secret: false` 的自定义字段**:非敏感,可入可搜(按 label/value 匹配)、可入列表展示。
-- 存在意义:让用户区分敏感与非敏感附加信息,避免把敏感内容塞进 `notes`(notes 可搜,会意外暴露,见 [SECURITY.md §9](../SECURITY.md))。
+- **`secret: false` 的自定义字段**:语义上属于非敏感扩展字段,但根据 ADR-0007 也**不进入常驻摘要模型,不参与常规搜索,不进入列表展示**;仍仅在条目详情页按需解密展示。
+- 存在意义:让用户区分敏感与非敏感附加信息,避免把敏感内容塞进 `notes`;但项目不再把这类字段作为常规搜索和列表信息源。
 
 ### 3. 字段卫生汇总(对接 [local_search.md](local_search.md) 搜索)
 
 | 字段类别 | 入可搜 | 入列表展示 | 详情页展示 |
 |----------|--------|-----------|-----------|
 | name / url / username | ✓ | ✓ | ✓ |
-| notes | 可选 | 可选(截断) | ✓ |
+| notes | ✗ | ✗ | ✓(按需解密) |
 | password | ✗ | ✗ | ✓(按需解密) |
 | custom_fields(secret=true) | ✗ | ✗ | ✓(按需解密) |
-| custom_fields(secret=false) | ✓ | ✓ | ✓ |
+| custom_fields(secret=false) | ✗ | ✗ | ✓(按需解密) |
 | favorite | ✓ | ✓(置顶) | ✓ |
+
+> 上表中的"入可搜 / 入列表展示"指**常规搜索与摘要列表基线**。详情页展示以单条完整详情对象为单位按需解密,不意味着这些字段可进入解锁态全局常驻内存。
 
 ### 4. 序列化(内层)
 
-VaultEntry 明文经 [vault_format.md §1](vault_format.md) 内层 JSON 序列化为裸字节后喂入 AEAD;`entry_id`/`seq` 由外壳 EntryRecord 持有([vault_format.md §3](vault_format.md)),内层 JSON 可选择是否冗余 `entry_id`(便于解码后校验一致性)。**字段级演进策略**:JSON 解析采用宽容模式(忽略未知字段,缺失字段取类型默认值——`favorite` 缺省为 `false`、`created_at`/`updated_at` 缺省为 epoch 等),新字段经应用升级自然生效,无需批量迁移;`plaintext_format_id` 只派发格式级(JSON→CBOR),不派发字段版本,字段演进依赖宽容解析而非格式版本号。
+VaultEntry 明文经 [vault_format.md §1](vault_format.md) 内层 JSON 序列化为裸字节后喂入 AEAD;`entry_id`/`seq` 由外壳 EntryRecord 持有([vault_format.md §3](vault_format.md)),内层 JSON 可选择是否冗余 `entry_id`(便于解码后校验一致性)。解锁阶段允许先解密完整 `VaultEntry` 明文,再按 ADR-0007 仅提取摘要字段进入常驻内存。**字段级演进策略**:JSON 解析采用宽容模式(忽略未知字段,缺失字段取类型默认值——`favorite` 缺省为 `false`、`created_at`/`updated_at` 缺省为 epoch 等),新字段经应用升级自然生效,无需批量迁移;`plaintext_format_id` 只派发格式级(JSON→CBOR),不派发字段版本,字段演进依赖宽容解析而非格式版本号。
 
 ### 5. 条目组织(已定)
 
 项目仅提供**收藏(flag)**一种条目组织维度,不做分类/文件夹/标签/嵌套树:
 
-- `favorite: bool` 标记常用条目,列表页置顶展示;非敏感字段,可搜、可展示。
+- `favorite: bool` 标记常用条目,列表页置顶展示;非敏感字段,进入常驻摘要模型,可搜、可展示。
 - **不做更重组织的原因**:个人库规模(几十~数百条)下,搜索(SECURITY §9)已能快速定位,分类/标签边际价值低;标签(多对多)与嵌套文件夹(树)会增实体与迁移复杂度([lan_migration.md §2](lan_migration.md) 需迁组织结构),与"个人玩具 + 先简化"基调冲突。
 - **演进预留**:未来若库变大、组织需求显现,可评估加单层 `category` 或 `tags`——`favorite` 字段不影响此演进。
 
@@ -122,4 +150,4 @@ erDiagram
 > **关系说明**:
 > `FileHeader`(`active_directory_offset`)→指向当前活跃 Directory→`EntryRecord[]`;
 > `EntryRecord`(`block_offset`)→指向 `EntryBlock`(双段:前 72B `dek_wrapped` + 后变长 `entry_ciphertext`);
-> `EntryBlock`→经 DEK 解密→`VaultEntry` 明文(内层 JSON)。`VaultEntry` 仅在解锁后内存存在,落盘即为 `entry_ciphertext` 密文。
+> `EntryBlock`→经 DEK 解密→`VaultEntry` 明文(内层 JSON)。根据 ADR-0007,完整 `VaultEntry` 不应在解锁态全局常驻;解锁阶段提取摘要后仅保留摘要模型,完整 `VaultEntry` 只在详情页按需解密并短生命周期持有。
