@@ -2,6 +2,7 @@
 
 > 行为规范见 [DEVELOPMENT.md §6](../DEVELOPMENT.md);本文定义 `core/observability` 的接口形状、事件清单、脱敏机制与日志存储策略。
 > 架构定位见 [ARCHITECTURE.md §3](../ARCHITECTURE.md) `core/observability` 模块。
+> 错误分层遵循 [ADR-0009](../adr/0009-error-model-and-result-boundary.md):业务失败与系统故障分别记录,不得混淆。
 
 ## 1. 接口定义
 
@@ -24,6 +25,9 @@ abstract class Logger {
 - `context`:结构化附加字段(如 `{"entryId": "...", "durationMs": 320}`),已由调用方提供非敏感值;管道式脱敏过滤器再兜底(见 §3)。
 - `error`/`stackTrace`:`error` 级别专用,传入异常对象与堆栈供诊断。
 - 便利方法封装统一入口 `void log(LogLevel level, String tag, String message, {Map<String, dynamic>? context, Object? error, StackTrace? stackTrace})`,内部转发。
+- 记录原则:
+  - 进入 use case `Result` failure 的**业务失败**默认不记 `error`,优先 `info` / `warning`
+  - 未被 use case 吸收、继续上抛的**系统故障**记录 `error`
 
 ### 1.2 EventTracker
 
@@ -109,6 +113,22 @@ abstract class MetricsRecorder {
 
 > 所有 params 中的 `entryId` 为随机 UUID,不含明文;`reason`/`method` 等为枚举字符串,不含敏感数据。
 
+## 2.1 业务失败与系统故障
+
+- **业务失败**:指正常产品流程中预期发生、并已被 use case 显式建模为 `Result` failure 的分支。例如错误主密码、生物认证被用户取消。
+- **系统故障**:指未被 use case 吸收、继续上抛的异常。例如 vault 文件损坏、I/O 故障、crypto 初始化失败、状态违例。
+
+记录要求:
+
+- 业务失败:
+  - 允许埋点与计数
+  - 默认使用 `info` / `warning`
+  - 不默认附带异常堆栈
+- 系统故障:
+  - 使用 `error`
+  - 记录异常对象与堆栈
+  - 进入诊断与排障路径
+
 ## 3. 脱敏管道(管道式)
 
 所有 `Logger` 实现内部经过管道式脱敏过滤器,调用方不需要自觉脱敏,机制兜底:
@@ -136,6 +156,7 @@ class RedactionFilter {
 - 过滤器位于 `Logger` 实现的输出管道中,所有日志输出前必经此过滤。
 - `message` 正文不由过滤器处理——调用方有责任不在 message 中拼接敏感值;过滤器只兜底 `context` map。
 - `EventTracker` 和 `MetricsRecorder` 的 params 不过管道——这些接口的 params 由调用方传入结构化数据,设计上不含敏感值(见 §2 表格)。
+- 第三方异常原文若包含潜在敏感上下文,在进入 `Logger.error` 前也应先做项目内收束或筛洗,不得直接原样打出。
 
 ## 4. 日志文件存储
 
