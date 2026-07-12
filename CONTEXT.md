@@ -122,6 +122,22 @@ _Avoid_: 生成配置, generator config, profile
 指纹/面容授权 OS 释放 K_bio,解包 biometric_wrapped_mvk 得 MVK,跳过 Argon2id 的便捷解锁路径。安全强度归 OS/硬件,非密码学。
 _Avoid_: biometric auth, 指纹解锁(泛指)
 
+**Result**:
+用于承载**预期业务失败**的最小密封返回抽象,只在少量交互型 use case 上使用。不是跨层统一返回形状,不用于承载系统故障或内部异常对象(见 ADR-0009)。
+_Avoid_: 通用错误容器, monad result, 全面函数式返回
+
+**领域异常收束 (Domain Exception Normalization)**:
+repository 作为第一层边界,将第三方或底层异常收束为项目内异常族,禁止把 `sodium_libs` 异常、`FileSystemException` 等直接泄漏到 use case / presentation。
+_Avoid_: 透传底层异常, raw exception passthrough
+
+**业务失败 (Business Failure)**:
+正常产品流程中预期发生,且调用方有稳定处理动作的失败分支。典型例子是错误主密码;在本项目中应由 use case 专属 failure 类型承载,默认低噪声记录。
+_Avoid_: 普通异常, expected exception
+
+**系统故障 (System Fault)**:
+未被 use case 吸收的异常路径,包括文件损坏、I/O 失败、crypto 初始化失败、状态违例等。presentation 不应将其伪装成普通业务失败,observability 按 error/fault 路径记录。
+_Avoid_: 普通错误提示, recoverable failure
+
 **忘码恢复 (Master Password Recovery)**:
 已设生物且生物未变时,经生物协助重置主密码的隐式应急通道。带四重门槛(隐式入口、错三次触发、一周冷却、二次生物确认)。
 _Avoid_: password reset, 密码重置, 找回密码

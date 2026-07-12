@@ -43,11 +43,11 @@
 
 ### 2.2 Domain 层
 - **Entities**:`VaultEntry`(完整条目明文实体,规格见 [specs/vault_entry.md](./specs/vault_entry.md))、解锁态摘要模型(见 [ADR-0007](./adr/0007-unlocked-residency-and-summary-detail-split.md))、`GenerationProfile` 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [specs/vault_format.md §3](./specs/vault_format.md))。
-- **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。
+- **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。错误模型遵循 [ADR-0009](./adr/0009-error-model-and-result-boundary.md):默认成功返回/异常上抛,仅少量交互型预期失败 use case 返回专属 `Result` failure。
 - **Repository Interfaces**:`VaultRepository`、`SecureKeyRepository`、`MigrationRepository` 等抽象,由 data 层实现。
 
 ### 2.3 Data 层
-- **Repository 实现**:组合多个 DataSource 实现 domain 接口,负责加解密编排。
+- **Repository 实现**:组合多个 DataSource 实现 domain 接口,负责加解密编排,并作为第三方/底层异常收束到项目内领域异常的第一层边界(见 [ADR-0009](./adr/0009-error-model-and-result-boundary.md))。
 - **EncryptedVaultDataSource**:负责密码库文件的读写(密文)、序列化格式、版本/头信息管理。其底层持久化按**单文件存储引擎**建模(见 [ADR-0008](./adr/0008-vault-persistence-runtime-model.md))。序列化已定为**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),含 free list 与崩溃安全 journal,支持逐条 O(1) 局部更新。
 - **SecureStorageDataSource**:封装系统 Keychain/Keystore,存放包裹后的库主密钥(生物解锁路径)。
 - **LanMigrationDataSource**:二维码点对点配对 + 直连 TCP 握手与传输,无 multicast/自动发现,独立隔离,仅在迁移功能激活时启用网络栈(见 [specs/lan_migration.md §2](./specs/lan_migration.md))。
@@ -118,7 +118,7 @@ graph TB
     style Shared fill:#fff9c4,stroke:#f9a825
 ```
 
-> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切基础设施;Shared 为跨域纯数据(字段定义,无业务逻辑)。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。
+> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切基础设施;Shared 为跨域纯数据(字段定义,无业务逻辑)。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。错误处理上,core 不承载产品语义,repository 收束底层异常,use case 仅把少量预期业务失败映射成显式 failure(见 [ADR-0009](./adr/0009-error-model-and-result-boundary.md))。
 >
 > **组织演进**:上图展示逻辑分层(横切视图),实际代码按业务线(feature-based)组织——见 [§5 项目结构](#5-项目结构目标)。每条业务线内部复现此分层(如 `features/auth/` 内含 `presentation/`/`domain/`/`data/`),业务线间零直接依赖,跨域共享经 `shared/` 或依赖注入接口。
 
@@ -133,10 +133,10 @@ graph TB
 | `search` | 本地检索(对加密元数据/索引的安全处理) | `vault` |
 | `generator` | 密码生成(随机字符串/可发音模式、字符集、强度评估) | 纯 Dart + CSPRNG(sodium `randombytes`,见 [specs/password_generator.md §1](./specs/password_generator.md)) |
 | `i18n` | 中英文资源加载 | `intl` + ARB |
-| `observability` | 日志、埋点、监控(见 DEVELOPMENT.md) | 跨层 hook |
+| `observability` | 日志、埋点、监控(见 DEVELOPMENT.md),区分业务失败与系统故障 | 跨层 hook |
 | — | — | — |
 | `core/vault_file` | vault 底层单文件存储引擎:File Header + Directory(EntryRecord[]) + Entry Block(双段) + free list + journal / recovery 协议(见 [ADR-0008](./adr/0008-vault-persistence-runtime-model.md)) | `core/crypto`(CryptoService) |
-| `shared/` | 跨域共享原语:实体(VaultEntry, VaultHeader, GenerationProfile, 解锁态摘要模型)、值对象(EntryId, CustomField)、领域错误(VaultLockedException, DecryptionFailureException) | 被所有业务线与 core 依赖 |
+| `shared/` | 跨域共享原语:实体(VaultEntry, VaultHeader, GenerationProfile, 解锁态摘要模型)、值对象(EntryId, CustomField)、领域错误与最小 `Result` 抽象 | 被所有业务线与 core 依赖 |
 
 ## 4. 密钥层级与数据流
 

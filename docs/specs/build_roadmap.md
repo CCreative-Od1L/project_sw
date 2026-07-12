@@ -31,15 +31,15 @@
 
 ### Phase 1:基础设施(core 层,无业务逻辑)
 
-- **1a. shared/errors**:领域异常体系——`VaultException` 基类 + `VaultLockedException`、`DecryptionFailureException`、`VaultCorruptedException`、`KdfParameterException`
+- **1a. shared/errors**:领域异常体系——`VaultException` 基类 + `VaultLockedException`、`InvalidMasterPasswordException`、`VaultCorruptedException`、`VaultIoException`、`CryptoInitializationException`、`EntropyUnavailableException`、`InvalidArgumentException`
 - **1b. core/observability**:`Logger`/`EventTracker`/`MetricsRecorder` 接口 + 便利方法 + `RedactionFilter` + 文件日志实现(路径、滚动、生产/开发切换,见 [observability.md](observability.md))
 - **1c. core/config**:最小 config 抽象——固定默认值 readonly(Argon2id 参数、超时值、日志路径)
 - **1d. core/crypto**:`CryptoService` 接口(`deriveKek`、`generateKey`、`randombytes`、`encryptWithAead`、`decryptWithAead`)+ `SodiumCryptoService` 适配实现;包裹/解包由 data 层通过 `AadBuilder + encryptWithAead/decryptWithAead` 编排(见 [ADR-0005](../adr/0005-cryptoservice-interface-and-aad-builder.md));CPU 密集任务的后台执行机制遵循 [ADR-0003](../adr/0003-isolate-offload-for-cpu-intensive-operations.md) 的分级策略
  - **1d-spike(sodium isolate 验证)**:**Phase 1d 第一步**。先验证 ADR-0003 的首选机制是否成立:在 `Isolate.run()` 内调用 `SodiumLib.init()` + `randombytes` 测试 `sodium_libs` 的跨 isolate 可用性与初始化开销。结果按 ADR-0003 的既定优先级收敛: ① 若短生命周期 isolate 可用且 init 成本可接受,继续使用 `Isolate.run()`; ② 若 init 显著(如 >200ms)但 isolate 路线可行,改用长驻 crypto worker isolate(app 启动时 spawn 一次 + init 一次 + 持久复用); ③ 仅当前两者均不可行时,才回退主 isolate 受限 fallback。spike 结果决定后续 1d 实现路径,但不再触发 ADR 改写。
-  - **CryptoService 错误处理**:混合模式——可恢复错误返回 Result 类型,不可恢复错误直接抛异常。
-    - **可恢复错误**(返回 Result):AEAD 认证失败(用户输入错误主密码 → 预期业务路径,调用方优雅处理"密码错误"提示)、随机数生成失败(罕见但可重试)。
-    - **不可恢复错误**(直接抛异常):参数非法(salt 长度不是 16 字节 → 编程错误,应让开发者修复)、系统熵不足(OS 环境问题,上层决定是否重试或终止)。
-    - Result 类型需定义(Dart 标准库无内置,可引入 `result_dart` 或手写 sealed class)。
+  - **错误模型**:遵循 [ADR-0009](../adr/0009-error-model-and-result-boundary.md) 的混合模型——repository 公开边界以项目内领域异常为主,use case 仅对少量预期业务失败返回 `Result`。
+    - `CryptoService` / `vault_file` 不直接暴露产品语义失败,只抛原语/存储层异常,由 repository 收束。
+    - `UnlockVault` 吸收 `InvalidMasterPasswordException` 并返回 `UnlockFailure.invalidMasterPassword`;其余异常继续上抛。
+    - 项目内 `Result` 采用自定义最小 sealed 抽象,不引入第三方 Result 库。
  - **1e. app/**:DI 容器初始化(get_it 全局单例容器 + 构造函数注入混合)+ GoRouter 路由骨架(redirect 守卫,状态机映射见 [ADR-0004](../adr/0004-routing-with-gorouter.md))
    - **DI 模式**:全局单例容器(`GetIt.instance`)+ 构造函数注入。实现类通过构造函数接收依赖实例,保持模块边界清晰;但实现类本身从容器获取。测试时每个用例开头 `GetIt.instance.reset()` + 注册测试替身保证隔离。
 
@@ -70,7 +70,7 @@
 - **3b. features/auth/data**:`EncryptedVaultDataSource` 实现(调用 vault_file API + CryptoService);`VaultRepository` 实现(编排:读 header → 通过 ADR-0003 的后台机制执行 `deriveKek` → 解包 MVK → 通过同一后台机制批量解密条目并提取摘要模型)
   - **批量解密数据流(路径 A)**:主 isolate 预读全部 Entry Block 原始字节 + MVK + header 参数,再交给 ADR-0003 选定的后台执行机制;后台上下文内完成 AAD 组装 + 解包 DEK + 解密明文 + JSON 反序列化,随后仅提取 `entry_id/name/url/username/favorite/created_at/updated_at` 摘要字段返回摘要集合。后台执行上下文不碰文件 I/O,只做纯计算;完整 `VaultEntry` 明文不进入解锁态全局常驻内存(见 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md))。
   - **性能风险**:若采用 isolate 路线,全部密文字节经 message port 深拷贝(主 isolate → 后台执行上下文),双份内存占用。个人库规模(几百条 × ~1KB ≈ 几百 KB)下可接受;若库规模显著增大(数千条或单条明文很大),深拷贝开销和内存峰值可能成为瓶颈,届时需评估分批处理或长驻 crypto worker isolate 逐条返回。
-- **3c. features/auth/presentation**:`AuthCubit`(状态用 sealed class:`Uninitialized` / `Locked` / `Unlocked`,后续版本扩展子类)+ 最简解锁页 UI(主密码输入 + 解锁按钮 + 建库引导)
+- **3c. features/auth/presentation**:`AuthCubit`(状态用 sealed class:`Uninitialized` / `Locked` / `Unlocked`,后续版本扩展子类)+ 最简解锁页 UI(主密码输入 + 解锁按钮 + 建库引导)。错误主密码消费 `UnlockFailure.invalidMasterPassword`;库损坏/I/O/crypto 初始化失败进入故障态而非普通表单错误。
 
 **验收**:auth 单元测试通过(`CreateVault` 生成合法 header、`UnlockVault` 正确密码解锁/错误密码失败、`LockVault` 清零 KEK/MVK/DEK);集成测试可驱动 AuthCubit 状态转换。
 
