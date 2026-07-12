@@ -47,12 +47,12 @@
 
 ### Phase 2:vault 文件层(依赖 1d)
 
-- **2a.** `core/vault_file` FileHeader 序列化/反序列化(magic `PSWV`、format_version、kdf_algorithm_id、aead_algorithm_id、kdf_params、kdf_salt、wrapped_master_vault_key、flags、active_directory_offset、entry_count、free_list_head、sequence_counter、**committed_seq**、journal 槽)
+- **2a.** `core/vault_file` 单文件存储引擎 FileHeader 序列化/反序列化(magic `PSWV`、format_version、kdf_algorithm_id、aead_algorithm_id、kdf_params、kdf_salt、wrapped_master_vault_key、flags、active_directory_offset、entry_count、free_list_head、sequence_counter、**committed_seq**、journal 槽)
 - **2b.** Directory + EntryRecord 序列化/反序列化(entry_id、block_offset、block_length、block_capacity、plaintext_format_id、flags、seq)
 - **2c.** Entry Block 双段读写(dek_wrapped 定长 72B + entry_ciphertext 变长,外壳不透明)
 - **2d.** free list 分配/释放(自链节点、capacity 匹配、分裂、append EOF)
 - **2e.** journal 机制(单条更新意图 + 目录切换意图;LSN(seq)+ CRC 校验 + 单扇区原子写;committed_seq 作为完成信号;journal 永不主动清零,下次操作覆写;打开时 seq > committed_seq 且 CRC 通过 → 幂等重放或回滚)
-- **2f.** 完整文件读写 API(`readHeader`、`readDirectory`、`readEntryBlock`、`writeEntryBlock`、`updateDirectory`、`commitOperation`(写 committed_seq + sequence_counter++ 单扇区原子写 + fsync)、`openVaultFile` 含 journal 恢复逻辑(幂等重放/回滚/.bak 回退))
+- **2f.** 单文件存储引擎 API(`readHeader`、`readDirectory`、`readEntryBlock`、`writeEntryBlock`、`updateDirectory`、`commitOperation`(写 committed_seq + sequence_counter++ 单扇区原子写 + fsync)、`openVaultFile` 含 journal 恢复逻辑(幂等重放/回滚/.bak 回退))
  - **vault 文件存储位置**:经 `path_provider` 的 `getApplicationSupportDirectory()` 获取路径,vault 文件存于 `<appSupport>/vault.psw`(iOS `NSApplicationSupportDirectory` / Android app files 子目录)。选 applicationSupportDirectory 而非 applicationDocumentsDirectory 的理由:iOS 上默认不被 iCloud 备份,与零云依赖原则一致,无需额外设置 `NSURLIsExcludedFromBackupKey`。
  - **File I/O 策略**:使用同步 `RandomAccessFile`(Dart 标准库 `File.openSync`)。选择理由:① journal 流程是严格"写意图 → fsync → 写数据 → fsync → 写 committed_seq → fsync"同步序列,同步 API 直接表达此顺序;② vault 文件通常几 KB~几 MB,单次 I/O 操作耗时微秒~毫秒级,同步阻塞对 UI 影响可忽略;③ 跨平台一致性(Dart 标准库在 iOS/Android/Linux 行为一致)。
    - **性能风险**:同步 I/O 阻塞主 isolate 事件循环。若 vault 文件规模显著增大(数千条目、目录区达数百 KB),连续 fsync 的累计耗时可能在低端设备上产生感知卡顿。届时需评估:① 减少 fsync 频率(合并多个写入后再 flush,但需重新论证 journal 安全性);② 将文件 I/O 也迁到 ADR-0003 所定义的后台执行机制中(优先 isolate 路线,但增加复杂度)。当前个人库规模下不触发。
