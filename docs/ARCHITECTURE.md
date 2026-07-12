@@ -48,7 +48,7 @@
 
 ### 2.3 Data 层
 - **Repository 实现**:组合多个 DataSource 实现 domain 接口,负责加解密编排。
-- **EncryptedVaultDataSource**:负责密码库文件的读写(密文)、序列化格式、版本/头信息管理。序列化已定为**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),含 free list 与崩溃安全 journal,支持逐条 O(1) 局部更新。
+- **EncryptedVaultDataSource**:负责密码库文件的读写(密文)、序列化格式、版本/头信息管理。其底层持久化按**单文件存储引擎**建模(见 [ADR-0008](./adr/0008-vault-persistence-runtime-model.md))。序列化已定为**自定义二进制外壳 + JSON 内层**(见 [SECURITY.md §5](./SECURITY.md)),含 free list 与崩溃安全 journal,支持逐条 O(1) 局部更新。
 - **SecureStorageDataSource**:封装系统 Keychain/Keystore,存放包裹后的库主密钥(生物解锁路径)。
 - **LanMigrationDataSource**:二维码点对点配对 + 直连 TCP 握手与传输,无 multicast/自动发现,独立隔离,仅在迁移功能激活时启用网络栈(见 [specs/lan_migration.md §2](./specs/lan_migration.md))。
 
@@ -135,7 +135,7 @@ graph TB
 | `i18n` | 中英文资源加载 | `intl` + ARB |
 | `observability` | 日志、埋点、监控(见 DEVELOPMENT.md) | 跨层 hook |
 | — | — | — |
-| `core/vault_file` | vault 文件外壳格式:File Header + Directory(EntryRecord[]) + Entry Block(双段) + free list + journal 读写(见 SECURITY.md §5) | `core/crypto`(CryptoService) |
+| `core/vault_file` | vault 底层单文件存储引擎:File Header + Directory(EntryRecord[]) + Entry Block(双段) + free list + journal / recovery 协议(见 [ADR-0008](./adr/0008-vault-persistence-runtime-model.md)) | `core/crypto`(CryptoService) |
 | `shared/` | 跨域共享原语:实体(VaultEntry, VaultHeader, GenerationProfile, 解锁态摘要模型)、值对象(EntryId, CustomField)、领域错误(VaultLockedException, DecryptionFailureException) | 被所有业务线与 core 依赖 |
 
 ## 4. 密钥层级与数据流
@@ -231,7 +231,7 @@ integration_test/                   # 集成测试
 | 业务线内 Clean Architecture | 每条业务线内部保持 `presentation → domain ← data` 单向依赖 |
 | core 为纯基础设施 | `core/crypto`、`core/vault_file`、`core/observability` 等不含业务逻辑,被多条业务线依赖 |
 | shared 为纯数据 | `shared/entities`、`shared/value_objects` 只含字段定义,不含 use case/业务逻辑 |
-| vault 文件外壳归 core | `core/vault_file` 提供 header/directory/block/free list/journal 读写,被 auth(读 header)、vault(读写条目)、migration(批量导入) 共用 |
+| vault 文件外壳归 core | `core/vault_file` 作为单文件存储引擎提供 header/directory/block/free list/journal/recovery 能力,被 auth(读 header)、vault(读写条目)、migration(批量导入) 共用 |
 | 加密全经 CryptoService | 各业务线 domain 层依赖 `core/crypto` 的 `CryptoService` 接口(data 层实现);禁止直接调用 libsodium |
 
 ### 5.1 业务线-模块映射
