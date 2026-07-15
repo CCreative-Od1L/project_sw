@@ -122,6 +122,26 @@ _Avoid_: 生成配置, generator config, profile
 指纹/面容授权 OS 释放 K_bio,解包 biometric_wrapped_mvk 得 MVK,跳过 Argon2id 的便捷解锁路径。安全强度归 OS/硬件,非密码学。
 _Avoid_: biometric auth, 指纹解锁(泛指)
 
+**会话真相源 (Session Source of Truth)**:
+全局唯一的会话状态机与协调器,负责持有 `Locked/Unlocked`、锁定原因、认证强度、idle timer、step-up challenge 与路由态派生。`AuthCubit`、GoRouter、页面局部状态都只能订阅它,不能各自维护独立真相(见 ADR-0010)。
+_Avoid_: auth cubit 真相源, router state authority, page-owned session
+
+**认证强度 (Auth Strength)**:
+当前解锁会话满足的认证级别,至少区分 `none`、`biometric`、`master_password`。它与“是否已解锁”不同:两个 unlocked 会话可能强度不同,从而决定是否允许高敏操作。
+_Avoid_: 登录态强度, unlock level
+
+**Step-up Challenge**:
+已解锁会话内为高敏操作补充主密码验证的一次强认证升级。它不是重新锁定,成功后会把当前会话的 `authStrength` 升级为 `master_password` 直到下一次锁定。
+_Avoid_: re-login, forced relock, one-shot token
+
+**Lock Suppression**:
+会话真相源对白名单流程提供的窄范围 idle timeout 抑制机制。首批仅用于迁移中与忘码恢复中,且不抑制切后台立即锁、手动锁或生物失效。
+_Avoid_: no-lock mode, background unlock bypass
+
+**Session Route State**:
+由会话真相源派生出的单一路由可访问状态,供 GoRouter redirect 消费。redirect 不自己拼多份会话信号,只读取这份派生结果。
+_Avoid_: router-owned auth logic, redirect inference
+
 **Result**:
 用于承载**预期业务失败**的最小密封返回抽象,只在少量交互型 use case 上使用。不是跨层统一返回形状,不用于承载系统故障或内部异常对象(见 ADR-0009)。
 _Avoid_: 通用错误容器, monad result, 全面函数式返回

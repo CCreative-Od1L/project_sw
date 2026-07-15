@@ -37,13 +37,13 @@
 
 ### 2.1 Presentation 层
 - **Widgets/Pages**:仅负责渲染与事件上报,不持有业务逻辑。
-- **Cubit/Bloc**:承接 UI 事件,调用 domain use case,产出 State。
+- **Cubit/Bloc**:承接 UI 事件,调用 domain use case,产出 State。认证业务线中的 `AuthCubit` 只投影全局会话真相源,不作为会话状态机本体(见 [ADR-0010](./adr/0010-global-session-source-of-truth-and-step-up-auth.md))。
 - **State**:不可变值对象,描述某一时刻的界面。
 - **Pure Signal**:用于跨组件、跨 Bloc 的细粒度响应式信号(如解锁状态、搜索关键词),避免不必要的重建。
 
 ### 2.2 Domain 层
 - **Entities**:`VaultEntry`(完整条目明文实体,规格见 [specs/vault_entry.md](./specs/vault_entry.md))、解锁态摘要模型(见 [ADR-0007](./adr/0007-unlocked-residency-and-summary-detail-split.md))、`GenerationProfile` 等纯数据模型。`VaultHeader` 对应 SECURITY `File Header`(见 [specs/vault_format.md §3](./specs/vault_format.md))。
-- **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。错误模型遵循 [ADR-0009](./adr/0009-error-model-and-result-boundary.md):默认成功返回/异常上抛,仅少量交互型预期失败 use case 返回专属 `Result` failure。
+- **Use Cases**:`UnlockVault`、`LockVault`、`AddEntry`、`UpdateEntry`、`SearchEntries`、`GeneratePassword`(规格见 §9)、`MigrateOverLan` 等,封装单一业务用例。错误模型遵循 [ADR-0009](./adr/0009-error-model-and-result-boundary.md):默认成功返回/异常上抛,仅少量交互型预期失败 use case 返回专属 `Result` failure。高敏操作是否需要主密码 step-up 由全局会话真相源统一判定(见 [ADR-0010](./adr/0010-global-session-source-of-truth-and-step-up-auth.md))。
 - **Repository Interfaces**:`VaultRepository`、`SecureKeyRepository`、`MigrationRepository` 等抽象,由 data 层实现。
 
 ### 2.3 Data 层
@@ -118,7 +118,7 @@ graph TB
     style Shared fill:#fff9c4,stroke:#f9a825
 ```
 
-> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切基础设施;Shared 为跨域纯数据(字段定义,无业务逻辑)。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。错误处理上,core 不承载产品语义,repository 收束底层异常,use case 仅把少量预期业务失败映射成显式 failure(见 [ADR-0009](./adr/0009-error-model-and-result-boundary.md))。
+> 依赖方向:单向向内。Presentation 依赖 Domain(调用 use case);Domain 零 Flutter/平台导入;Data 实现 Domain 接口;Core 为跨层横切基础设施;Shared 为跨域纯数据(字段定义,无业务逻辑)。加解密一律经 `CryptoService` 抽象,禁止在 Presentation/Domain 直接调用 libsodium。错误处理上,core 不承载产品语义,repository 收束底层异常,use case 仅把少量预期业务失败映射成显式 failure(见 [ADR-0009](./adr/0009-error-model-and-result-boundary.md))。会话状态、生命周期、idle timer 与 step-up challenge 由独立全局会话真相源统一管理,`AuthCubit` 与 GoRouter 仅消费其派生结果(见 [ADR-0010](./adr/0010-global-session-source-of-truth-and-step-up-auth.md))。
 >
 > **组织演进**:上图展示逻辑分层(横切视图),实际代码按业务线(feature-based)组织——见 [§5 项目结构](#5-项目结构目标)。每条业务线内部复现此分层(如 `features/auth/` 内含 `presentation/`/`domain/`/`data/`),业务线间零直接依赖,跨域共享经 `shared/` 或依赖注入接口。
 
@@ -129,6 +129,7 @@ graph TB
 | `crypto` | KDF(Argon2id)、AEAD(XChaCha20-Poly1305)、信封加解密、随机数 | `sodium_libs` |
 | `vault` | 密码库结构、条目 CRUD、密钥层级包裹/解包 | `crypto`, `data` |
 | `biometric` | 生物识别授权、硬件密钥释放 | 平台生物识别 API, `SecureStorageDataSource` |
+| `session` | 全局会话状态机、生命周期事件适配、idle timer、step-up challenge、路由态派生 | `auth`, `biometric`, `observability` |
 | `migration` | 二维码点对点配对、安全握手、库传输 | 平台网络 + 相机 API |
 | `search` | 本地检索(对加密元数据/索引的安全处理) | `vault` |
 | `generator` | 密码生成(随机字符串/可发音模式、字符集、强度评估) | 纯 Dart + CSPRNG(sodium `randombytes`,见 [specs/password_generator.md §1](./specs/password_generator.md)) |
@@ -174,9 +175,9 @@ lib/
   app/                              # 应用装配(路由 · 主题 · 依赖注入 · i18n 挂载)
 
   features/
-    auth/                           # 认证业务线
+    auth/                           # 认证业务线 + 全局 session 真相源
       presentation/{pages,cubits,states}
-      domain/{usecases,repositories}
+      domain/{usecases,repositories,session}
       data/{repos,datasources}      # datasource = Keychain/Keystore
 
     vault/                          # 密码库业务线
@@ -238,7 +239,7 @@ integration_test/                   # 集成测试
 
 | 旧模块(§3) | 新业务线 | 说明 |
 |-----------|---------|------|
-| `biometric` + `vault`(解锁/锁定部分) | `features/auth` | 认证业务线吸收生物解锁与锁定流程 |
+| `biometric` + `vault`(解锁/锁定部分) + `session` | `features/auth` | 认证业务线吸收生物解锁、锁定流程与全局 session 真相源;`app/` 仅负责装配与生命周期/路由接线 |
 | `vault`(CRUD 部分) | `features/vault` | 密码库的增删改查 |
 | `generator` | `features/generator` | 独立业务线(锁定态可用) |
 | `search` | `features/search` | 依赖 vault 业务线提供解锁态摘要模型(经注入) |

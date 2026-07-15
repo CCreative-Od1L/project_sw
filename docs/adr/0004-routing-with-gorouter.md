@@ -1,6 +1,6 @@
 # 路由方案:GoRouter
 
-选用 GoRouter(flutter.dev 官方维护)作为声明式路由,通过 redirect 守卫将 lock_and_recovery.md §5 的 12 状态状态机映射为路由访问控制。
+选用 GoRouter(flutter.dev 官方维护)作为声明式路由,通过 redirect 守卫将 lock_and_recovery.md §5 的 12 状态状态机映射为路由访问控制。运行时会话真相源与路由消费边界见 [ADR-0010](0010-global-session-source-of-truth-and-step-up-auth.md)。
 
 ## 考虑过的替代方案
 
@@ -31,4 +31,4 @@
 | S10 迁移接收中 | `/migration/receiver` | 迁移流程页 |
 | S11 擦除中 | `/wiping` | 擦除进度页(不可返回) |
 
-redirect 守卫监听 AuthCubit 状态变化触发重定向;迁移与擦除状态由对应 Cubit 的状态驱动,进入时 push 独立路由。
+redirect 守卫不自行解释多份会话信号,而是只消费全局会话真相源派生出的单一路由态。`AuthCubit` 仍可作为 UI 投影层对外发布易渲染状态,但 redirect 不以其为运行时权威;迁移与擦除状态也应经会话真相源或等价协调器派生到路由态后再进入独立路由。
