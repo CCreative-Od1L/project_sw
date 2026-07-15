@@ -40,7 +40,7 @@
     - `CryptoService` / `vault_file` 不直接暴露产品语义失败,只抛原语/存储层异常,由 repository 收束。
     - `UnlockVault` 吸收 `InvalidMasterPasswordException` 并返回 `UnlockFailure.invalidMasterPassword`;其余异常继续上抛。
     - 项目内 `Result` 采用自定义最小 sealed 抽象,不引入第三方 Result 库。
- - **1e. app/**:DI 容器初始化(get_it 全局单例容器 + 构造函数注入混合)+ GoRouter 路由骨架(redirect 守卫,状态机映射见 [ADR-0004](../adr/0004-routing-with-gorouter.md))
+ - **1e. app/**:DI 容器初始化(get_it 全局单例容器 + 构造函数注入混合)+ GoRouter 路由骨架(redirect 守卫,状态机映射见 [ADR-0004](../adr/0004-routing-with-gorouter.md));按 [ADR-0010](../adr/0010-global-session-source-of-truth-and-step-up-auth.md) 装配全局 `SessionController` / `SessionCoordinator` 作为会话真相源(实现归属 `features/auth`,`app/` 只负责装配与适配器接线)
    - **DI 模式**:全局单例容器(`GetIt.instance`)+ 构造函数注入。实现类通过构造函数接收依赖实例,保持模块边界清晰;但实现类本身从容器获取。测试时每个用例开头 `GetIt.instance.reset()` + 注册测试替身保证隔离。
 
 **验收**:core 层单元测试通过(crypto 往返 encrypt→decrypt、RedactionFilter 脱敏、DI 容器解析全部注册项)。
@@ -70,7 +70,7 @@
 - **3b. features/auth/data**:`EncryptedVaultDataSource` 实现(调用 vault_file API + CryptoService);`VaultRepository` 实现(编排:读 header → 通过 ADR-0003 的后台机制执行 `deriveKek` → 解包 MVK → 通过同一后台机制批量解密条目并提取摘要模型)
   - **批量解密数据流(路径 A)**:主 isolate 预读全部 Entry Block 原始字节 + MVK + header 参数,再交给 ADR-0003 选定的后台执行机制;后台上下文内完成 AAD 组装 + 解包 DEK + 解密明文 + JSON 反序列化,随后仅提取 `entry_id/name/url/username/favorite/created_at/updated_at` 摘要字段返回摘要集合。后台执行上下文不碰文件 I/O,只做纯计算;完整 `VaultEntry` 明文不进入解锁态全局常驻内存(见 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md))。
   - **性能风险**:若采用 isolate 路线,全部密文字节经 message port 深拷贝(主 isolate → 后台执行上下文),双份内存占用。个人库规模(几百条 × ~1KB ≈ 几百 KB)下可接受;若库规模显著增大(数千条或单条明文很大),深拷贝开销和内存峰值可能成为瓶颈,届时需评估分批处理或长驻 crypto worker isolate 逐条返回。
-- **3c. features/auth/presentation**:`AuthCubit`(状态用 sealed class:`Uninitialized` / `Locked` / `Unlocked`,后续版本扩展子类)+ 最简解锁页 UI(主密码输入 + 解锁按钮 + 建库引导)。错误主密码消费 `UnlockFailure.invalidMasterPassword`;库损坏/I/O/crypto 初始化失败进入故障态而非普通表单错误。
+- **3c. features/auth/presentation**:`AuthCubit` 作为会话真相源的 UI 投影层(不自持状态机规则) + 最简解锁页 UI(主密码输入 + 解锁按钮 + 建库引导)。错误主密码消费 `UnlockFailure.invalidMasterPassword`;库损坏/I/O/crypto 初始化失败进入故障态而非普通表单错误。
 
 **验收**:auth 单元测试通过(`CreateVault` 生成合法 header、`UnlockVault` 正确密码解锁/错误密码失败、`LockVault` 清零 KEK/MVK/DEK);集成测试可驱动 AuthCubit 状态转换。
 
@@ -117,7 +117,7 @@
 - **i18n 挂载**:ARB 骨架(`app_en.arb` / `app_zh.arb`)+ `flutter gen-l10n` 配置 + key 命名规范;所有 UI 文字走 l10n key
 - **密码生成器**:`features/generator` 全链——`GenerationProfile` 实体、`GeneratePassword` use case(随机/可发音模式、字符集、无偏抽样、理论熵估算)、生成器 UI(模式切换、长度滑块、字符集 toggle、强度指示器);锁定态可独立使用;生成输出走剪贴板 20s 清除
 - **本地搜索**:`features/search` 全链——`SearchEntries` use case(基于解锁态摘要模型的内存内线性检索、子串+大小写不敏感、字段卫生);搜索 UI(搜索栏 + 结果列表精简展示)。常规搜索仅覆盖 `name/url/username` 与 `favorite` 过滤,不搜索 `notes`、`custom_fields`、`password`(见 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md))
-- **锁定与超时**:`features/auth` 扩展——空闲超时 5min、切后台立即锁、主动锁定;`WidgetsBindingObserver` 生命周期监听;超时计时器;锁定时清零全部内存明文与密钥
+- **锁定与超时**:`features/auth` 扩展——按 ADR-0010 的会话真相源模型实现空闲超时 5min、切后台立即锁、主动锁定;`WidgetsBindingObserver` 仅作 lifecycle adapter;idle timer 归会话真相源统一管理;锁定时清零全部内存明文与密钥
 - **数据卫生**:`core/observability` 扩展——剪贴板 20s 自动清除 + 倒计时提示 + iOS Handoff 禁用;内存清零策略落地
 - **设置页(只读)**:`features/settings` 最小版——超时参数、剪贴板超时、Argon2id 参数展示(只读,标注"未来可配置")
 
@@ -141,10 +141,10 @@
 
 ### 里程碑
 
-- **生物解锁**:`SecureStorageDataSource` 实现(Keychain/Keystore);K_bio 生成与门控;biometric_wrapped_mvk 存取;生物解锁/失效/重设全链;认证强度策略(冷启动强制主密码、高敏操作枚举、便捷档/强制档);平台权限管理(`USE_BIOMETRIC`、`NSFaceIDUsageDescription`)
+- **生物解锁**:`SecureStorageDataSource` 实现(Keychain/Keystore);K_bio 生成与门控;biometric_wrapped_mvk 存取;生物解锁/失效/重设全链;认证强度策略(冷启动强制主密码、高敏操作枚举、便捷档/强制档);高敏操作经会话真相源触发 step-up challenge 并将当前会话升级到 `master_password`;平台权限管理(`USE_BIOMETRIC`、`NSFaceIDUsageDescription`)
 - **局域网迁移**:`features/migration` 全链——二维码配对、crypto_kx 握手、版本/算法匹配、逐条重包裹、seq 透传、entry_id 冲突覆盖、transcript MAC、目录双写原子提交;平台权限(`CAMERA`、`NSCameraUsageDescription`、`NSLocalNetworkUsageDescription`);迁移期间超时抑制
 - **忘码恢复与死锁擦除**:忘码恢复通道(改密码错 ≥3 次浮现、一周冷却、二次生物确认、salt 重生);死锁擦除(特定手势浮现、四重摩擦、延迟倒计时);擦除覆盖(库文件、.bak、journal、日志、Keychain/Keystore)
-- **完整状态机**:lock_and_recovery.md §5 的 12 状态全部实现,含 S5 生物失效、S6/S7 冷却期、S9/S10 迁移状态、S11 擦除
+- **完整状态机**:lock_and_recovery.md §5 的 12 状态全部实现,由 ADR-0010 所定义的全局会话真相源统一驱动,含 S5 生物失效、S6/S7 冷却期、S9/S10 迁移状态、S11 擦除
 - **设置页(可配置预留)**:超时参数、剪贴板超时当前固定值展示(标注"未来可配置")
 - **CI/CD 落地**:按 [ci_cd.md §12](ci_cd.md) 里程碑——`ci.yml`(PR 检查)、`build.yml`(产物)、`release.yml`(签名发版)、`scheduled.yml`(依赖审计);`scripts/build_android.sh`、`scripts/build_ios.sh`;master 分支保护配置;签名 secret 配置
 - **CHANGELOG.md**:初始化,记录 v1.0 用户可见变化
