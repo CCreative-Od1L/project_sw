@@ -28,3 +28,18 @@ __pycache__/
 *.tmp
 .tmp/
 .cache/
+
+# FVM stores a machine-local SDK link here; the version lock lives in .fvmrc.
+.fvm/
+
+# Flutter/Dart generated state
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+android/.gradle/
+android/local.properties
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh

@@ -21,13 +21,13 @@
 
 ### Phase 0:项目骨架
 
-- `flutter create . --org <org> --platforms=ios,android`
+- `fvm flutter create . --org <org> --platforms=ios,android`
 - 按 ARCHITECTURE.md §5 建立目录骨架:`lib/features/{auth,vault,generator,search,migration,settings}`、`lib/core/{crypto,vault_file,observability,config}`、`lib/shared/{entities,value_objects,errors}`、`lib/app/`
-- `pubspec.yaml` 依赖:`sodium_libs`、`get_it`、`go_router`、`flutter_bloc`、`intl`、`path_provider`、`test`
+- `pubspec.yaml` 应用骨架依赖:`get_it`、`go_router`、`flutter_bloc`、`intl`、`path_provider`、`test`;`sodium_libs` 在 Phase 1d-spike 引入,避免在 crypto 工作开始前强制触发原生构建
 - `analysis_options.yaml`(严格档,DEVELOPMENT.md §4)
 - LICENSE(MIT)
 
-**验收**:目录结构存在,`flutter pub get` 通过,`dart analyze` 零 warning。
+**验收**:目录结构存在,`fvm flutter pub get` 通过,`fvm dart analyze` 零 warning。
 
 ### Phase 1:基础设施(core 层,无业务逻辑)
 
@@ -35,7 +35,7 @@
 - **1b. core/observability**:`Logger`/`EventTracker`/`MetricsRecorder` 接口 + 便利方法 + `RedactionFilter` + 文件日志实现(路径、滚动、生产/开发切换,见 [observability.md](observability.md))
 - **1c. core/config**:最小 config 抽象——固定默认值 readonly(Argon2id 参数、超时值、日志路径)
 - **1d. core/crypto**:`CryptoService` 接口(`deriveKek`、`generateKey`、`randombytes`、`encryptWithAead`、`decryptWithAead`)+ `SodiumCryptoService` 适配实现;包裹/解包由 data 层通过 `AadBuilder + encryptWithAead/decryptWithAead` 编排(见 [ADR-0005](../adr/0005-cryptoservice-interface-and-aad-builder.md));CPU 密集任务的后台执行机制遵循 [ADR-0003](../adr/0003-isolate-offload-for-cpu-intensive-operations.md) 的分级策略
- - **1d-spike(sodium isolate 验证)**:**Phase 1d 第一步**。先验证 ADR-0003 的首选机制是否成立:在 `Isolate.run()` 内调用 `SodiumLib.init()` + `randombytes` 测试 `sodium_libs` 的跨 isolate 可用性与初始化开销。结果按 ADR-0003 的既定优先级收敛: ① 若短生命周期 isolate 可用且 init 成本可接受,继续使用 `Isolate.run()`; ② 若 init 显著(如 >200ms)但 isolate 路线可行,改用长驻 crypto worker isolate(app 启动时 spawn 一次 + init 一次 + 持久复用); ③ 仅当前两者均不可行时,才回退主 isolate 受限 fallback。spike 结果决定后续 1d 实现路径,但不再触发 ADR 改写。
+ - **1d-spike(sodium isolate 验证)**:**Phase 1d 第一步**。此时将 `sodium_libs` 加入 `pubspec.yaml`,先验证 ADR-0003 的首选机制是否成立:在 `Isolate.run()` 内调用 `SodiumLib.init()` + `randombytes` 测试 `sodium_libs` 的跨 isolate 可用性与初始化开销。结果按 ADR-0003 的既定优先级收敛: ① 若短生命周期 isolate 可用且 init 成本可接受,继续使用 `Isolate.run()`; ② 若 init 显著(如 >200ms)但 isolate 路线可行,改用长驻 crypto worker isolate(app 启动时 spawn 一次 + init 一次 + 持久复用); ③ 仅当前两者均不可行时,才回退主 isolate 受限 fallback。spike 结果决定后续 1d 实现路径,但不再触发 ADR 改写。
   - **错误模型**:遵循 [ADR-0009](../adr/0009-error-model-and-result-boundary.md) 的混合模型——repository 公开边界以项目内领域异常为主,use case 仅对少量预期业务失败返回 `Result`。
     - `CryptoService` / `vault_file` 不直接暴露产品语义失败,只抛原语/存储层异常,由 repository 收束。
     - `UnlockVault` 吸收 `InvalidMasterPasswordException` 并返回 `UnlockFailure.invalidMasterPassword`;其余异常继续上抛。
@@ -87,7 +87,7 @@
 
 - **5a.** 集成测试:建库(输入主密码 + Argon2id 基准)→ 解锁(主密码)→ 加一条目 → 锁定 → 重解锁 → 验证条目存在且明文一致
 - **5b.** 单元测试补全:crypto 往返(已知向量 + 随机往返)、vault_file 边界(空库、单条、多条、capacity 溢出分配新槽)、journal 崩溃场景(各阶段崩溃 → openVaultFile 幂等重放/回滚;committed_seq 原子写中断 → 重放不丢数据;CRC 撕裂 → .bak 回退;stale journal seq <= committed_seq → 正确忽略)
-- **5c.** 验收清单全绿:`dart format --set-exit-if-changed .` + `dart analyze` + `flutter test` + `flutter test integration_test/`
+- **5c.** 验收清单全绿:`fvm dart format --set-exit-if-changed .` + `fvm dart analyze` + `fvm flutter test` + `fvm flutter test integration_test/`
 
 **v0.1 整体验收标准**:
 1. 端到端流程可运行:建库 → 解锁 → CRUD → 锁定 → 重解锁,明文一致
@@ -96,7 +96,7 @@
 4. 全部日志经 observability 管道,无裸 `print`,敏感字段被 RedactionFilter 脱敏
 5. 路由守卫正确:未建库 → `/setup`,锁定 → `/unlock`,解锁 → `/home`
 6. journal 崩溃恢复:模拟 seq > committed_seq 且 CRC 通过 → 幂等重放;CRC 失败 → .bak 回退;committed_seq 写入中断 → 重放不丢数据
-7. `dart analyze` 零 warning,`flutter test` 全绿
+7. `fvm dart analyze` 零 warning,`fvm flutter test` 全绿
 
 > **v0.1 不含**:生物解锁、SecureStorageDataSource、局域网迁移、本地搜索、密码生成器 UI、忘码恢复、死锁擦除、i18n、设置页、CI/CD workflow 文件。
 
@@ -127,7 +127,7 @@
 3. 中英文切换正确
 4. 密码生成器在锁定态可独立使用,输出复制走 20s 清除
 5. 搜索结果不暴露 `password` / `notes` / `custom_fields` / `secret` 字段,详情页退出后完整详情对象不残留在全局状态
-6. `dart analyze` 零 warning,`flutter test` + 集成测试全绿
+6. `fvm dart analyze` 零 warning,`fvm flutter test` + 集成测试全绿
 
 > v0.5 任务级分解在 v0.1 验收通过后细化。
 
@@ -155,7 +155,7 @@
 3. 忘码恢复通道四重门槛正确,冷却期生效
 4. 死锁擦除四重摩擦正确,擦除后 Keychain 清除验证
 5. CI:PR 必过 `ci.yml`,tag 触发 `release.yml` 构建签名产物并创建 GitHub Release
-6. `dart analyze` 零 warning,`flutter test` + 集成测试全绿
+6. `fvm dart analyze` 零 warning,`fvm flutter test` + 集成测试全绿
 7. 任一历史 tag 可重新构建
 
 > v1.0 任务级分解在 v0.5 验收通过后细化。

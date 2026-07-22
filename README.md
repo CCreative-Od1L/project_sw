@@ -2,7 +2,7 @@
 
 > **代号**:PROJECT_SW(正式名称待定)
 > **一句话定位**:一个仅依靠本地能力进行加密的开源密码管理器
-> **协议**:MIT · **状态**:设计阶段(尚未开始编码)
+> **协议**:MIT · **状态**:v0.1 tracer-bullet 开发中
 
 ---
 
@@ -71,22 +71,23 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 
 ## 快速开始
 
-> 项目处于设计阶段,尚未提供可运行代码。以下为目标搭建流程,实现后将补全。
+> 已提供可运行的 Flutter 应用骨架与会话路由。建库、解锁和 vault CRUD 仍按 v0.1 路线图逐步实现。
 
 ```bash
 # 1. 环境准备(详见 docs/DEVELOPMENT.md)
-flutter --version          # Flutter 稳定通道
+fvm install                # 安装 .fvmrc 锁定的 Flutter stable 版本
+fvm flutter --version      # 不直接调用全局 flutter
 # libsodium 原生构建工具(macOS/Linux 需 make;Android 交叉编译见 sodium_libs 文档)
 
 # 2. 获取依赖
-flutter pub get
+fvm flutter pub get
 
 # 3. 运行
-flutter run
+fvm flutter run
 
 # 4. 测试
-flutter test               # 单元 + widget 测试
-flutter test integration_test  # 集成测试
+fvm flutter test               # 单元 + widget 测试
+fvm flutter test integration_test  # 集成测试
 ```
 
 ## 软件工程化
@@ -95,4 +96,4 @@ flutter test integration_test  # 集成测试
 
 ## 许可证
 
-MIT License — 见 [LICENSE](LICENSE)(待添加)。
+MIT License — 见 [LICENSE](LICENSE)。
