@@ -19,7 +19,7 @@
 | **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 集成测试 | 阻止 PR 合并(分支保护要求状态检查通过) |
 | **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug/release 产物并上传 artifact | 不阻断主干,但 artifact 缺失可被发版流程检出 |
 | **`release.yml`(发版)** | `push` tag `v*.*.*` | 构建各平台 release 分发包、签名、创建 GitHub Release | 发版失败,不打 tag 不发版 |
-| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查(`dart pub outdated`)、安全审计、SDK 上限漂移检测 | 仅报告,开 issue 跟踪 |
+| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查(`fvm dart pub outdated`)、安全审计、SDK 上限漂移检测 | 仅报告,开 issue 跟踪 |
 
 > 触发器与 [GIT_WORKFLOW.md §1.1/§4.2](../GIT_WORKFLOW.md) 对齐:PR 必过 `ci.yml`,tag 触发 `release.yml`。
 
@@ -28,9 +28,9 @@
 | 维度 | 取值 | 说明 |
 |------|------|------|
 | OS | `ubuntu-latest` | 单元/widget/集成测试跑 Linux runner(成本低);平台真机签名在 `release.yml` 各自 OS runner 跑 |
-| Flutter 通道 | `stable` | 单通道;用 fvm 锁定具体版本(见 [DEVELOPMENT.md §1.1](../DEVELOPMENT.md)) |
+| Flutter 通道 | `stable` | 单通道;必须由 `.fvmrc` 锁定具体版本，开发与 CI 一律通过 `fvm flutter` / `fvm dart` 调用(见 [DEVELOPMENT.md §1.1](../DEVELOPMENT.md)) |
 | Dart SDK | 随 Flutter | 不单独约束 |
-| 测试目标 | `flutter test`(unit+widget)+ `integration_test` | 集成测试在 Linux 模拟器或 `integration_test` 桌面回退跑 |
+| 测试目标 | `fvm flutter test`(unit+widget)+ `integration_test` | 集成测试在 Linux 模拟器或 `integration_test` 桌面回退跑 |
 
 > 集成测试跑模拟器成本高且易抖动;若 Linux runner 跑移动端模拟器不稳,回退方案:集成测试在 `integration_test` 桌面宿主跑(平台无关逻辑),平台特异性集成(生物/Keychain/迁移)留作本地手动 + 发版前冒烟。**回退决策留待实现期**,本规格锁定"集成测试须在 CI 跑"的硬要求,具体承载实现期定。
 
@@ -38,13 +38,13 @@
 
 按"快失败在前"排序,任一失败即终止后续:
 
-1. **checkout + setup**(Flutter via `subosito/flutter-action`,锁定版本)
+1. **checkout + setup**(安装 FVM,执行 `fvm install` 读取入库 `.fvmrc`)
 2. **依赖缓存**(`pub-cache` 缓存,见 §5)
-3. **`dart pub get`**(基于入库的 `pubspec.lock`,可重放)
-4. **`dart format --set-exit-if-changed .`**(格式化把关)
-5. **`dart analyze`**(静态分析,严格档 [DEVELOPMENT.md §4](../DEVELOPMENT.md))
-6. **`flutter test`**(单元 + widget)
-7. **`flutter test integration_test/`**(集成测试)
+3. **`fvm flutter pub get`**(基于入库的 `pubspec.lock`,可重放)
+4. **`fvm dart format --set-exit-if-changed .`**(格式化把关)
+5. **`fvm dart analyze`**(静态分析,严格档 [DEVELOPMENT.md §4](../DEVELOPMENT.md))
+6. **`fvm flutter test`**(单元 + widget)
+7. **`fvm flutter test integration_test/`**(集成测试)
 
 > 顺序与 [GIT_WORKFLOW.md §3.3](../GIT_WORKFLOW.md) 提交前本地检查一致,CI 是同一套的强制重放。
 
@@ -62,7 +62,7 @@ job 启动
  │    ├─ 用 key 查缓存服务
  │    ├─ 命中 → 下载解压到 path,设 cache-hit=true
  │    └─ 未命中 → 留空,后续步骤正常装依赖
- ├─ dart pub get / flutter test …   ← 正常构建(复用缓存或新装)
+ ├─ fvm flutter pub get / fvm flutter test …   ← 正常构建(复用缓存或新装)
  └─ job 结束自动 save(post-run)      ← 由 cache action 自动追加
       ├─ key 命中过 → 不重存
       └─ key 未命中 → 打包(tar+zstd)上传,记为 key
@@ -83,7 +83,7 @@ job 启动
 3. 当前分支都没有 → 去**默认分支**重复 1、2。
 4. 都没有 → 完全 miss,空起步,job 结束存新缓存。
 
-**`restore-keys` 的真实角色**:部分恢复——给一份旧缓存作底,工具自己补差异。用 restore-keys 后**仍要跑 `dart pub get`**,它复用已存在的、补下新增的,而非全量重下。
+**`restore-keys` 的真实角色**:部分恢复——给一份旧缓存作底,工具自己补差异。用 restore-keys 后**仍要跑 `fvm flutter pub get`**,它复用已存在的、补下新增的,而非全量重下。
 
 ### 5.3 key 设计(本项目)
 
@@ -118,7 +118,7 @@ restore-keys: |
     key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}-flutter${{ env.FLUTTER_VERSION }}
     restore-keys: ${{ runner.os }}-pub-
 - if: steps.pub-cache.outputs.cache-hit != 'true'   # 仅未命中时装
-  run: dart pub get
+  run: fvm flutter pub get
 ```
 
 > `subosito/flutter-action` 自带 Flutter SDK 缓存,无需另写 cache step;版本经 `flutter-version: ${{ env.FLUTTER_VERSION }}` 钉死,与 pub-cache key 里的版本同源(共用 `env.FLUTTER_VERSION`)。
@@ -215,9 +215,9 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 ## 9. 依赖校验与安全
 
-- **`pubspec.lock` 入库**(已约定 [DEVELOPMENT.md §7](../DEVELOPMENT.md)):CI `dart pub get` 基于锁文件,保证可重放。
+- **`pubspec.lock` 入库**(已约定 [DEVELOPMENT.md §7](../DEVELOPMENT.md)):CI `fvm flutter pub get` 基于锁文件,保证可重放。
 - **依赖固定**:Actions 第三方 action 钉 tag + SHA(`uses: <action>@<tag>` 并注释 SHA),防供应链篡改。
-- **定期审计**(`scheduled.yml`):`dart pub outdated` + 安全公告扫描;发现高危依赖开 issue,按 `security:` 提交处理并优先发版([GIT_WORKFLOW.md §6.3](../GIT_WORKFLOW.md))。
+- **定期审计**(`scheduled.yml`):`fvm dart pub outdated` + 安全公告扫描;发现高危依赖开 issue,按 `security:` 提交处理并优先发版([GIT_WORKFLOW.md §6.3](../GIT_WORKFLOW.md))。
 - CI 中禁用打印 secrets;workflow 不含任何硬编码凭据。
 
 ## 10. 发版流水线(`release.yml`)
@@ -245,7 +245,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 本规格为设计依据,实际 YAML/脚本在代码骨架就绪后分阶段落:
 
-1. **`flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
+1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
 2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
 3. **首次发版前**:落 `release.yml` + `scripts/build_android.sh` / `scripts/build_ios.sh` + 签名 secret 配置;跑通一次 tag → Release。
 4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)。
@@ -255,4 +255,4 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 - [ ] 集成测试在 CI 的承载方式(Linux 模拟器 vs `integration_test` 桌面回退 vs 平台特异性本地手动)
 - [ ] 分发渠道最终取舍(仅 GitHub Release / 接 Firebase / 接商店)
 - [ ] iOS 签名方案确认(fastlane match 仓库选址 vs CI secret)
-- [ ] fvm 锁定的 Flutter 具体版本号
+- [x] Flutter `3.44.7` 已由 `.fvmrc` 锁定

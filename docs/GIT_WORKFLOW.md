@@ -138,9 +138,9 @@ git rebase origin/main
 每个提交前本地必须通过:
 
 ```bash
-dart format --set-exit-if-changed .
-dart analyze
-flutter test
+fvm dart format --set-exit-if-changed .
+fvm dart analyze
+fvm flutter test
 ```
 
 CI 上将运行相同检查 + 集成测试。任何失败将阻止合并。
@@ -247,7 +247,7 @@ git push origin v1.0.0
 ### 6.3 依赖审计
 
 - `pubspec.lock` 入库(已约定)。
-- 定期运行 `dart pub outdated` + 安全审计。
+- 定期运行 `fvm dart pub outdated` + 安全审计。
 - 安全补丁优先通过 `security:` 提交处理并优先发版。
 
 ## 7. 常见场景速查
@@ -258,7 +258,7 @@ git push origin v1.0.0
 git checkout main && git pull --rebase
 git checkout -b feat/my-feature
 # 开发 + 多次提交...
-dart format --set-exit-if-changed . && dart analyze && flutter test
+fvm dart format --set-exit-if-changed . && fvm dart analyze && fvm flutter test
 git push -u origin feat/my-feature
 # 创建 PR → 审查 → squash merge → 删除分支
 ```

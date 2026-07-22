@@ -6,7 +6,7 @@
 ## 1. 环境准备
 
 ### 1.1 基础工具
-- **Flutter**:稳定通道(stable),保持团队约定版本(见 `flutter --version`,建议用 fvm 锁定)。
+- **Flutter**:项目必须通过 [FVM](https://fvm.app/) 锁定并使用 `.fvmrc` 中的具体 stable 版本。首次进入仓库先运行 `fvm install`;后续一律使用 `fvm flutter ...` 与 `fvm dart ...`,禁止直接调用全局 `flutter` / `dart`,避免开发机 SDK 漂移。
 - **Dart**:随 Flutter 附带。
 - **Git**:仓库已初始化(`master` 分支,`.gitignore` 已配置);工作流规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
@@ -24,9 +24,9 @@
 
 > 仓库已 `git init` 并配置 `.gitignore`;以下为代码骨架初始化步骤。
 
-1. `flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
+1. `fvm flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
 2. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
-3. 引入依赖:`sodium_libs`、`flutter_bloc`(含 Cubit)、`intl`、测试与可观测性依赖(见 §6)。
+3. 引入应用骨架依赖:`get_it`、`go_router`、`flutter_bloc`(含 Cubit)、`intl`、`path_provider`、`test` 与可观测性依赖(见 §6)。`sodium_libs` 在 Phase 1d 的 isolate spike 开始时引入,使原生构建前置只在 crypto 工作实际开始时生效。
 4. 配置 `analysis_options.yaml`(lint 严格档,见 §4)。
 5. 添加 LICENSE(MIT)。
 
@@ -61,8 +61,8 @@ linter:
     public_member_api_docs: true
     # ... 按需追加
 ```
-- 格式化:`dart format`(提交前)。
-- 提交前本地:`dart analyze` + `dart test` 必须通过。
+- 格式化:`fvm dart format`(提交前)。
+- 提交前本地:`fvm dart analyze` + `fvm flutter test` 必须通过。
 
 ## 5. 测试体系
 
@@ -112,7 +112,7 @@ linter:
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
 ### 8.2 CI(GitHub Actions,示意)
-- **PR 检查**:`dart analyze` + `dart format --set-exit-if-changed` + `flutter test` + 集成测试(模拟器)。
+- **PR 检查**:`fvm dart analyze` + `fvm dart format --set-exit-if-changed` + `fvm flutter test` + 集成测试(模拟器)。
 - **主分支**:同上 + 构建 release 产物 + 上传为 artifact。
 - **发布**:打 tag 触发 release 流水线,构建各平台分发包并发布。
 - 安全:CI 中禁用打印 secrets;依赖固定版本与 hash 校验。
