@@ -5,6 +5,7 @@ import 'package:project_sw/app/app_router.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
+import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 
 /// Root application widget that wires presentation projections and the router.
 final class ProjectSwApp extends StatefulWidget {
@@ -14,6 +15,7 @@ final class ProjectSwApp extends StatefulWidget {
     required this.sessionController,
     required this.authCubit,
     this.setupCubit,
+    this.unlockCubit,
   });
 
   /// The global session source of truth.
@@ -25,6 +27,9 @@ final class ProjectSwApp extends StatefulWidget {
   /// The optional setup flow; omitted only by route-focused widget tests.
   final SetupCubit? setupCubit;
 
+  /// The optional unlock form; omitted only by route-focused widget tests.
+  final UnlockCubit? unlockCubit;
+
   @override
   State<ProjectSwApp> createState() => _ProjectSwAppState();
 }
@@ -33,6 +38,7 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
   late final GoRouter _router = buildAppRouter(
     widget.sessionController,
     setupCubit: widget.setupCubit,
+    unlockCubit: widget.unlockCubit,
   );
 
   @override

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:test/test.dart';
 
@@ -44,13 +46,26 @@ void main() {
       final OpenVaultFile opened = VaultFileEngine().openVaultFile(path);
       expect(opened.header.kdfParameters.memoryKiB, 64 * 1024);
       expect(opened.header.wrappedMasterVaultKey, hasLength(72));
-      final Uint8List unwrappedMvk = crypto.decryptWithAead(
-        Uint8List(32),
-        Uint8List.fromList(opened.header.wrappedMasterVaultKey.sublist(0, 24)),
-        Uint8List.fromList(opened.header.wrappedMasterVaultKey.sublist(24)),
-        Uint8List(0),
+      final Uint8List kek = await crypto.deriveKek(
+        'not logged',
+        opened.header.kdfSalt,
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+        parallelism: 1,
       );
-      expect(unwrappedMvk, List<int>.generate(32, (int index) => index + 1));
+      try {
+        final Uint8List unwrappedMvk = crypto.decryptWithAead(
+          kek,
+          Uint8List.fromList(
+            opened.header.wrappedMasterVaultKey.sublist(0, 24),
+          ),
+          Uint8List.fromList(opened.header.wrappedMasterVaultKey.sublist(24)),
+          Uint8List(0),
+        );
+        expect(unwrappedMvk, List<int>.generate(32, (int index) => index + 1));
+      } finally {
+        kek.fillRange(0, kek.length, 0);
+      }
       expect(crypto.derivedKeys.every(_isCleared), isTrue);
       expect(crypto.generatedKeys.every(_isCleared), isTrue);
     },
@@ -96,6 +111,37 @@ void main() {
       ),
       throwsA(isA<CryptoInitializationException>()),
     );
+  });
+
+  test('clears the unlocked MVK before the session publishes a lock', () async {
+    final FakeCryptoService crypto = FakeCryptoService();
+    final String path = '${temporaryDirectory.path}/unlockable.psw';
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: crypto,
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'correct password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('correct password');
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      secretCleaner: repository,
+    );
+    addTearDown(sessionController.dispose);
+
+    sessionController.lock(LockReason.manualLock);
+
+    expect(repository.hasUnlockedSession, isFalse);
+    expect(crypto.decryptedKeys.every(_isCleared), isTrue);
+    expect(sessionController.state, isA<LockedSession>());
   });
 }
 

@@ -28,6 +28,10 @@ final class EncryptedVaultRepository implements VaultRepository {
 
   /// Resolves the application-support vault path.
   final VaultPathResolver vaultPathResolver;
+  Uint8List? _masterVaultKey;
+
+  @override
+  bool get hasUnlockedSession => _masterVaultKey != null;
 
   @override
   Future<void> createEmptyVault({
@@ -125,7 +129,91 @@ final class EncryptedVaultRepository implements VaultRepository {
     }
   }
 
+  @override
+  Future<void> unlockWithMasterPassword(String masterPassword) async {
+    Uint8List? kek;
+    Uint8List? aad;
+    Uint8List? nonce;
+    Uint8List? ciphertext;
+    VaultFileHeader? header;
+    clearUnlockedSession();
+    try {
+      final String path = await vaultPathResolver();
+      header = vaultFileEngine.openVaultFile(path).header;
+      kek = await crypto.deriveKek(
+        masterPassword,
+        header.kdfSalt,
+        memoryKiB: header.kdfParameters.memoryKiB,
+        iterations: header.kdfParameters.iterations,
+        parallelism: header.kdfParameters.parallelism,
+      );
+      final Uint8List kdfBytes = _encodeVaultKdfParameters(
+        header.kdfParameters,
+      );
+      try {
+        aad = AadBuilder.forWrapMvk(
+          magic: vaultMagic,
+          formatVersion: vaultFormatVersion,
+          kdfAlgorithmId: header.kdfAlgorithmId,
+          kdfParameters: kdfBytes,
+          kdfSalt: header.kdfSalt,
+        );
+      } finally {
+        clearSensitiveBytes(kdfBytes);
+      }
+      nonce = Uint8List.fromList(header.wrappedMasterVaultKey.sublist(0, 24));
+      ciphertext = Uint8List.fromList(header.wrappedMasterVaultKey.sublist(24));
+      try {
+        _masterVaultKey = crypto.decryptWithAead(kek, nonce, ciphertext, aad);
+      } on VaultException {
+        rethrow;
+      } on Object {
+        throw const InvalidMasterPasswordException();
+      }
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } finally {
+      if (ciphertext != null) {
+        clearSensitiveBytes(ciphertext);
+      }
+      if (nonce != null) {
+        clearSensitiveBytes(nonce);
+      }
+      if (aad != null) {
+        clearSensitiveBytes(aad);
+      }
+      if (kek != null) {
+        clearSensitiveBytes(kek);
+      }
+      if (header != null) {
+        clearSensitiveBytes(header.kdfSalt);
+        clearSensitiveBytes(header.wrappedMasterVaultKey);
+      }
+    }
+  }
+
+  @override
+  void clearUnlockedSession() {
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    _masterVaultKey = null;
+    if (masterVaultKey != null) {
+      clearSensitiveBytes(masterVaultKey);
+    }
+  }
+
   Uint8List _encodeKdfParameters(Argon2idParameters parameters) {
+    final ByteData data = ByteData(12)
+      ..setUint32(0, parameters.memoryKiB, Endian.big)
+      ..setUint32(4, parameters.iterations, Endian.big)
+      ..setUint32(8, parameters.parallelism, Endian.big);
+    return data.buffer.asUint8List();
+  }
+
+  Uint8List _encodeVaultKdfParameters(VaultKdfParameters parameters) {
     final ByteData data = ByteData(12)
       ..setUint32(0, parameters.memoryKiB, Endian.big)
       ..setUint32(4, parameters.iterations, Endian.big)
