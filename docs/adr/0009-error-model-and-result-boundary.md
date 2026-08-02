@@ -160,7 +160,7 @@
 
 repository / use case 的公开边界上,禁止直接泄漏:
 
-- `sodium_libs` 或其他第三方密码学库异常
+- `sodium` 或其他第三方密码学库异常
 - 原始 `FileSystemException`
 - 任意底层平台/系统异常
 

@@ -147,7 +147,7 @@ _Avoid_: router-owned auth logic, redirect inference
 _Avoid_: 通用错误容器, monad result, 全面函数式返回
 
 **领域异常收束 (Domain Exception Normalization)**:
-repository 作为第一层边界,将第三方或底层异常收束为项目内异常族,禁止把 `sodium_libs` 异常、`FileSystemException` 等直接泄漏到 use case / presentation。
+repository 作为第一层边界,将第三方或底层异常收束为项目内异常族,禁止把 `sodium` 异常、`FileSystemException` 等直接泄漏到 use case / presentation。
 _Avoid_: 透传底层异常, raw exception passthrough
 
 **业务失败 (Business Failure)**:

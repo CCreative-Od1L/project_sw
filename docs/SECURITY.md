@@ -27,7 +27,7 @@ flowchart TB
 
         subgraph Native["平台原生"]
             KC["Keychain / Keystore<br/>━━━━━━━━━━━━━━<br/>K_bio (硬件门控)<br/>biometric_wrapped_mvk (可选)"]
-            CSP["🧊 CSPRNG<br/>sodium_libs · randombytes<br/>嵌入式原生二进制"]
+            CSP["🧊 CSPRNG<br/>sodium · randombytes<br/>嵌入式原生二进制"]
             FS["📁 本地文件系统<br/>━━━━━━━━━━━━━━<br/>vault 文件 (自定义二进制)<br/>脱敏明文日志 (滚动文件)<br/>.bak · journal 残留<br/>本地 app 设置 (非敏感)"]
         end
 
@@ -49,7 +49,7 @@ flowchart TB
 
 > **节点说明**:
 > - **Flutter 进程**:所有业务逻辑在设备本地完成,无网络依赖(迁移除外)。
-> - **平台原生**:`sodium_libs` 为嵌入式原生二进制(嵌入式,非外部服务);`Keychain/Keystore` 由 OS 管,`K_bio` 可选设生物门控;vault 文件与日志均在本地文件系统。
+> - **平台原生**:`sodium` 是 libsodium 的 Dart/Flutter 绑定；其原生库由 Flutter build hooks 处理,属于应用嵌入式组件而非外部服务。`Keychain/Keystore` 由 OS 管,`K_bio` 可选设生物门控;vault 文件与日志均在本地文件系统。
 > - **LAN 通道**:唯一跨信任边界数据流,经 QR 带外公钥 + `crypto_kx` 端到端加密,纯 P2P 无中转(§8 第 5 项)。
 > - **用户记忆**:主密码是唯一不由系统存储的秘密(零知识),离线记录为推荐的缓解措施([specs/lock_and_recovery.md §3](./specs/lock_and_recovery.md))。
 - **不保证**:设备已被 root/越狱、或恶意软件已拿到运行时内存时的绝对安全(此类场景超出本地应用可防御范围,见 §威胁模型)。
@@ -61,7 +61,7 @@ flowchart TB
 | KDF | **Argon2id** | OWASP 2024 默认推荐,抗 GPU/ASIC |
 | AEAD | **XChaCha20-Poly1305** | 192-bit nonce,随机 nonce 即安全,恒定时间 |
 | 加密粒度 | **逐条信封加密(envelope)** | 每条目独立 DEK,支持局部更新与元数据加密 |
-| 密码学库 | **`sodium_libs`**(libsodium 绑定) | 经广泛审计,全平台嵌入式二进制 |
+| 密码学库 | **`sodium`**(libsodium 的 Dart/Flutter 绑定) | 原生库由 Flutter build hooks 处理,作为应用嵌入式组件 |
 | 密钥安全存储 | 系统 Keychain/Keystore(硬件背书) | 生物解锁路径使用 |
 
 **选型理由摘要**:XChaCha20 的 24 字节 nonce 让随机 nonce 即可安全使用,几乎消除 nonce 重用风险——对缺乏专职安全审查的个人项目是关键降险。逐条信封加密与生物解锁、局域网迁移、本地搜索三大功能在架构上天然契合。完整选型对比与论证见会话记录(方案 A/B/C/D 对比)。
@@ -71,7 +71,7 @@ flowchart TB
 | 参数 | 起始值 | 说明 |
 |------|--------|------|
 | 内存 `m` | **64 MiB**(65536 KiB) | OWASP 现代档;低端 Android 可自适应下调至 19–46 MiB |
-| 迭代 `t` | **3** | 与 m=64MiB 配合,目标派生耗时 250–400ms(待实测验证的设计假设,无 benchmark 引用;v0.1 实现时须以目标设备实测数据校准) |
+| 迭代 `t` | **3** | 与 m=64MiB 配合,目标派生耗时 250–400ms；这是待 Argon2id 专项基准校准的设计假设(短生命周期 isolate 已独立验证,不等同于 KDF 基准) |
 | 并行 `p` | **1** | 移动端核心有限,p=1 更稳定;多核设备可 p=2 |
 | 盐长度 | **16 字节** | 每库唯一,CSPRNG 生成 |
 | 派生输出 | **32 字节**(256-bit) | 匹配 AEAD 密钥长度 |
@@ -274,7 +274,7 @@ sequenceDiagram
 | 局域网迁移被窃听/中间人 | 二维码带外公钥传递 + 临时会话密钥端到端加密 + transcript MAC(见 lan_migration.md) |
 | 剪贴板泄漏 | 超时自动清除(当前固定 20s)+ 倒计时提示 + iOS 禁用通用剪贴板 Handoff(见 data_hygiene.md) |
 | 第三方依赖漏洞 | 锁定依赖版本,定期审计,最小化依赖(见 DEVELOPMENT.md) |
-| 生成密码可预测(弱随机源) | 生成器随机源与加密同源(`sodium_libs` `randombytes`)+ 无偏抽样;禁用伪随机(见 password_generator.md) |
+| 生成密码可预测(弱随机源) | 生成器随机源与加密同源(`sodium` `randombytes`)+ 无偏抽样;禁用伪随机(见 password_generator.md) |
 
 ## 12. 密钥与参数演进
 

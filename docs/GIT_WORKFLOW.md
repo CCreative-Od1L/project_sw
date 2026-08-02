@@ -26,7 +26,7 @@
   feat/password-generator
   fix/clipboard-clear-on-suspend
   docs/git-workflow
-  security/update-sodium-libs
+  security/update-sodium
   ```
 
 ### 1.3 发布分支(临时)
@@ -95,13 +95,13 @@ Refs: DEVELOPMENT.md §7
 ```
 
 ```
-security(deps): bump sodium_libs to 2.1.0
+security(deps): bump sodium to 4.0.3
 
 Addresses CVE-2026-XXXXX (side-channel in XChaCha20
 implementation on ARMv7).
 
 BREAKING CHANGE: minimum Flutter SDK bumped to 3.27.0
-to support updated sodium_libs build hooks.
+to support updated sodium build hooks.
 ```
 
 ### 2.3 提交粒度
