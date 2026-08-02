@@ -1,5 +1,6 @@
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
+import 'package:project_sw/features/vault/domain/vault_entry.dart';
 
 /// Persists the first encrypted vault without exposing storage implementation.
 abstract interface class VaultRepository implements SessionSecretCleaner {
@@ -14,4 +15,10 @@ abstract interface class VaultRepository implements SessionSecretCleaner {
 
   /// Whether this repository currently holds unlocked vault key material.
   bool get hasUnlockedSession;
+
+  /// Adds one complete VaultEntry and returns only its safe EntrySummary.
+  Future<EntrySummary> addEntry(NewVaultEntry entry);
+
+  /// The current unlocked session's globally resident, safe EntrySummary list.
+  List<EntrySummary> get entrySummaries;
 }

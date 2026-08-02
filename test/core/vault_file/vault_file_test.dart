@@ -81,6 +81,80 @@ void main() {
       expect(opened.directory.sequence, 1);
     },
   );
+
+  for (final VaultFileCommitStage stage in VaultFileCommitStage.values) {
+    test('recovers an interrupted entry transaction after ${stage.name}', () {
+      final String path = '${temporaryDirectory.path}/${stage.name}.psw';
+      final VaultFileEngine setup = VaultFileEngine()
+        ..createEmptyVault(path, _header());
+      final OpenVaultFile opened = setup.openVaultFile(path);
+      final VaultEntryRecord record = VaultEntryRecord(
+        entryId: Uint8List.fromList(
+          List<int>.generate(16, (int index) => index),
+        ),
+        blockOffset: setup.allocateEntryBlockOffset(opened.directory),
+        blockLength: 112,
+        blockCapacity: 112,
+        plaintextFormatId: 1,
+        sequence: opened.header.sequenceCounter,
+      );
+      final VaultFileEngine interrupted = VaultFileEngine(
+        faultInjector: (VaultFileCommitStage current) {
+          if (current == stage) {
+            throw StateError('simulated interruption');
+          }
+        },
+      );
+
+      expect(
+        () => interrupted.commitEntryBlock(
+          path: path,
+          opened: opened,
+          record: record,
+          block: Uint8List(112),
+        ),
+        throwsStateError,
+      );
+
+      final OpenVaultFile recovered = VaultFileEngine().openVaultFile(path);
+      final int expectedCount = stage == VaultFileCommitStage.afterDirectory
+          ? 1
+          : 0;
+      expect(recovered.header.entryCount, expectedCount);
+      expect(recovered.directory.records, hasLength(expectedCount));
+      expect(
+        recovered.header.committedSequence,
+        stage == VaultFileCommitStage.afterDirectory ? 2 : 1,
+      );
+      expect(recovered.header.sequenceCounter, 3);
+    });
+  }
+
+  test('ignores the retained stale journal after a durable entry commit', () {
+    final String path = '${temporaryDirectory.path}/stale-journal.psw';
+    final VaultFileEngine engine = VaultFileEngine()
+      ..createEmptyVault(path, _header());
+    final OpenVaultFile opened = engine.openVaultFile(path);
+    final VaultEntryRecord record = VaultEntryRecord(
+      entryId: Uint8List.fromList(List<int>.filled(16, 4)),
+      blockOffset: engine.allocateEntryBlockOffset(opened.directory),
+      blockLength: 112,
+      blockCapacity: 112,
+      plaintextFormatId: 1,
+      sequence: opened.header.sequenceCounter,
+    );
+
+    engine.commitEntryBlock(
+      path: path,
+      opened: opened,
+      record: record,
+      block: Uint8List(112),
+    );
+
+    final OpenVaultFile reopened = engine.openVaultFile(path);
+    expect(reopened.header.committedSequence, 2);
+    expect(reopened.directory.records, hasLength(1));
+  });
 }
 
 VaultFileHeader _header() => VaultFileHeader(

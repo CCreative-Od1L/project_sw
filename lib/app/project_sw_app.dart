@@ -6,6 +6,7 @@ import 'package:project_sw/features/auth/domain/session/session_controller.dart'
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
+import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 
 /// Root application widget that wires presentation projections and the router.
 final class ProjectSwApp extends StatefulWidget {
@@ -16,6 +17,7 @@ final class ProjectSwApp extends StatefulWidget {
     required this.authCubit,
     this.setupCubit,
     this.unlockCubit,
+    this.vaultEntriesCubit,
   });
 
   /// The global session source of truth.
@@ -30,6 +32,9 @@ final class ProjectSwApp extends StatefulWidget {
   /// The optional unlock form; omitted only by route-focused widget tests.
   final UnlockCubit? unlockCubit;
 
+  /// Optional unlocked-entry projection, omitted only by route skeleton tests.
+  final VaultEntriesCubit? vaultEntriesCubit;
+
   @override
   State<ProjectSwApp> createState() => _ProjectSwAppState();
 }
@@ -39,6 +44,7 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     widget.sessionController,
     setupCubit: widget.setupCubit,
     unlockCubit: widget.unlockCubit,
+    vaultEntriesCubit: widget.vaultEntriesCubit,
   );
 
   @override
