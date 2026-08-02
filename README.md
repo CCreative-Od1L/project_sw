@@ -31,7 +31,7 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 | 客户端框架 | Flutter(移动端优先) |
 | 架构模式 | Clean Architecture(presentation / domain / data) |
 | 状态管理 | Cubit/Bloc + State + Pure Signal |
-| 密码学库 | `sodium_libs`(libsodium 的 Flutter 绑定,全平台嵌入式二进制) |
+| 密码学库 | `sodium`(libsodium 的 Dart/Flutter 绑定;原生库由 Flutter build hooks 处理) |
 | 密钥安全存储 | 系统原生 Keychain(iOS/macOS)/ Keystore(Android),硬件背书 |
 | KDF | Argon2id |
 | AEAD | XChaCha20-Poly1305 |
@@ -77,7 +77,7 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 # 1. 环境准备(详见 docs/DEVELOPMENT.md)
 fvm install                # 安装 .fvmrc 锁定的 Flutter stable 版本
 fvm flutter --version      # 不直接调用全局 flutter
-# libsodium 原生构建工具(macOS/Linux 需 make;Android 交叉编译见 sodium_libs 文档)
+# `sodium` 的原生库由 Flutter build hooks 处理；macOS/Linux 需 `make` 与基础编译工具链
 
 # 2. 获取依赖
 fvm flutter pub get

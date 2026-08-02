@@ -26,7 +26,7 @@
 
 1. `fvm flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
 2. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
-3. 引入应用骨架依赖:`get_it`、`go_router`、`flutter_bloc`(含 Cubit)、`intl`、`path_provider`、`test` 与可观测性依赖(见 §6)。`sodium` 在 Phase 1d 的 isolate spike 开始时引入,使原生构建前置只在 crypto 工作实际开始时生效。
+3. 引入应用骨架依赖:`get_it`、`go_router`、`flutter_bloc`(含 Cubit)、`intl`、`path_provider`、`test`、`sodium` 与可观测性依赖(见 §6)。`sodium` 是 libsodium 的 Dart/Flutter 绑定,原生库由 Flutter build hooks 处理。
 4. 配置 `analysis_options.yaml`(lint 严格档,见 §4)。
 5. 添加 LICENSE(MIT)。
 

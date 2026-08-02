@@ -8,7 +8,7 @@
 2. **本地优先** —— 所有持久化与加解密在设备本地完成,无网络依赖(局域网迁移为唯一例外,且作为独立 data source 隔离)。
 3. **可测试性** —— domain 层为纯 Dart,可脱离 Flutter/平台 SDK 单测;data 层通过接口注入便于 mock。
 4. **响应式状态** —— 表现层使用 Cubit/Bloc + State + Pure Signal,UI 为状态的纯函数。
-5. **加密方案与实现解耦** —— 密码学操作收敛到一个 `CryptoService` 抽象,底层可替换(`sodium_libs` ↔ 纯 Dart),信封架构不绑死具体库。
+5. **加密方案与实现解耦** —— 密码学操作收敛到一个 `CryptoService` 抽象,底层可替换(`sodium` ↔ 纯 Dart),信封架构不绑死具体库。
 
 ## 2. 分层结构
 
@@ -82,7 +82,7 @@ graph TB
             LM["LanMigration<br/>DataSource"]
         end
         RI_IMPL["Repository<br/>Implementations"]
-        CRYPTO["CryptoService<br/>sodium_libs 适配"]
+        CRYPTO["CryptoService<br/>sodium 适配"]
         RI_IMPL --> DS
         RI_IMPL --> CRYPTO
     end
@@ -126,7 +126,7 @@ graph TB
 
 | 模块 | 职责 | 关键依赖 |
 |------|------|----------|
-| `crypto` | KDF(Argon2id)、AEAD(XChaCha20-Poly1305)、信封加解密、随机数 | `sodium_libs` |
+| `crypto` | KDF(Argon2id)、AEAD(XChaCha20-Poly1305)、信封加解密、随机数 | `sodium` |
 | `vault` | 密码库结构、条目 CRUD、密钥层级包裹/解包 | `crypto`, `data` |
 | `biometric` | 生物识别授权、硬件密钥释放 | 平台生物识别 API, `SecureStorageDataSource` |
 | `session` | 全局会话状态机、生命周期事件适配、idle timer、step-up challenge、路由态派生 | `auth`, `biometric`, `observability` |
