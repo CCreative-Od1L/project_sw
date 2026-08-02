@@ -6,10 +6,12 @@ import 'package:project_sw/app/project_sw_app.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/create_vault.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/vault/domain/add_vault_entry.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 
@@ -45,6 +47,63 @@ void main() {
 
     expect(find.text('Unlock your vault'), findsOneWidget);
   });
+
+  testWidgets(
+    'setup confirms the selected parameters before routing to unlock',
+    (WidgetTester tester) async {
+      final Directory directory = Directory.systemTemp.createTempSync(
+        'project_sw_setup_page_test_',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final FakeCryptoService crypto = FakeCryptoService();
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: crypto,
+        vaultFileEngine: VaultFileEngine(),
+        vaultPathResolver: () async => '${directory.path}/vault.psw',
+      );
+      final SetupCubit setupCubit = SetupCubit(
+        CreateVault(
+          repository,
+          Argon2idBenchmark(
+            crypto,
+            samplesPerTier: 1,
+            profiles: const <Argon2idParameters>[
+              Argon2idParameters(memoryKiB: 64 * 1024, iterations: 3),
+            ],
+          ),
+        ),
+      );
+      final SessionController sessionController = SessionController();
+      final AuthCubit authCubit = AuthCubit(sessionController);
+      addTearDown(setupCubit.close);
+      addTearDown(authCubit.close);
+      addTearDown(sessionController.dispose);
+
+      await tester.pumpWidget(
+        ProjectSwApp(
+          sessionController: sessionController,
+          authCubit: authCubit,
+          setupCubit: setupCubit,
+        ),
+      );
+      await tester.enterText(
+        find.bySemanticsLabel('Master password'),
+        'test password',
+      );
+      await tester.tap(find.text('Create vault'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vault created'), findsOneWidget);
+      expect(find.text('Argon2id: m=64 MiB, t=3, p=1'), findsOneWidget);
+      expect(sessionController.routeState, SessionRouteState.setup);
+
+      await tester.tap(find.text('Continue to unlock'));
+      await tester.pumpAndSettle();
+
+      expect(sessionController.routeState, SessionRouteState.unlock);
+      expect(find.text('Unlock your vault'), findsOneWidget);
+    },
+  );
 
   testWidgets('home shows an entry on demand, updates it, and deletes it', (
     WidgetTester tester,

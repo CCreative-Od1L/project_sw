@@ -11,20 +11,21 @@ final class CreateVault {
   final Argon2idBenchmark _benchmark;
 
   /// Performs the non-cancellable parameter selection and first vault commit.
-  Future<void> call(
+  Future<Argon2idBenchmarkResult> call(
     String masterPassword, {
     void Function(Argon2idBenchmarkProgress progress)? onProgress,
   }) async {
     if (masterPassword.isEmpty) {
       throw const InvalidArgumentException('A master password is required.');
     }
-    final Argon2idParameters parameters = await _benchmark.selectParameters(
+    final Argon2idBenchmarkResult result = await _benchmark.selectParameters(
       masterPassword,
       onProgress: onProgress,
     );
     await _repository.createEmptyVault(
       masterPassword: masterPassword,
-      kdfParameters: parameters,
+      kdfParameters: result.selectedParameters,
     );
+    return result;
   }
 }

@@ -24,13 +24,22 @@ void main() {
 
       final List<Argon2idBenchmarkProgress> progress =
           <Argon2idBenchmarkProgress>[];
-      final Argon2idParameters selected = await benchmark.selectParameters(
+      final Argon2idBenchmarkResult result = await benchmark.selectParameters(
         'correct horse battery staple',
         onProgress: progress.add,
       );
 
-      expect(selected.memoryKiB, 32 * 1024);
+      expect(result.selectedParameters.memoryKiB, 32 * 1024);
+      expect(result.tiers, hasLength(3));
+      expect(result.tiers[0].parameters.memoryKiB, 19 * 1024);
+      expect(result.tiers[1].parameters.memoryKiB, 32 * 1024);
+      expect(result.tiers[2].parameters.memoryKiB, 48 * 1024);
+      expect(
+        result.tiers[2].medianDuration,
+        greaterThan(const Duration(milliseconds: 10)),
+      );
       expect(progress, hasLength(3));
+      expect(progress.last.tier, same(result.tiers.last));
       expect(crypto.derivedKeys.every(_isCleared), isTrue);
     },
   );

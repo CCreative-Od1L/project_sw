@@ -25,8 +25,11 @@ final class SetupOptimizing extends SetupViewState {
 
 /// The vault was written successfully.
 final class SetupCompleted extends SetupViewState {
-  /// Creates the success state.
-  const SetupCompleted();
+  /// Creates the success state with its non-sensitive benchmark [result].
+  const SetupCompleted(this.result);
+
+  /// The selected parameters and evaluated non-sensitive timing metadata.
+  final Argon2idBenchmarkResult result;
 }
 
 /// A normalized failure that can be shown without exposing secret data.
@@ -52,13 +55,13 @@ final class SetupCubit extends Cubit<SetupViewState> {
     }
     emit(const SetupOptimizing(null));
     try {
-      await _createVault(
+      final Argon2idBenchmarkResult result = await _createVault(
         masterPassword,
         onProgress: (Argon2idBenchmarkProgress progress) {
           emit(SetupOptimizing(progress));
         },
       );
-      emit(const SetupCompleted());
+      emit(SetupCompleted(result));
     } on Object {
       emit(const SetupFailure('Vault creation could not be completed.'));
     }
