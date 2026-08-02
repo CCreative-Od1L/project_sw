@@ -21,12 +21,43 @@ final class Argon2idParameters {
   final int parallelism;
 }
 
+/// The non-sensitive timing result for one completed Argon2id profile.
+final class Argon2idBenchmarkTier {
+  /// Creates a completed profile result from its [parameters] and median time.
+  const Argon2idBenchmarkTier({
+    required this.parameters,
+    required this.medianDuration,
+  });
+
+  /// The parameters measured for this tier.
+  final Argon2idParameters parameters;
+
+  /// The median of the tier's derivation samples.
+  final Duration medianDuration;
+}
+
+/// The non-sensitive outcome of first-vault Argon2id parameter selection.
+final class Argon2idBenchmarkResult {
+  /// Creates an immutable report of all evaluated tiers and the chosen profile.
+  Argon2idBenchmarkResult({
+    required List<Argon2idBenchmarkTier> tiers,
+    required this.selectedParameters,
+  }) : tiers = List<Argon2idBenchmarkTier>.unmodifiable(tiers);
+
+  /// Each profile evaluated before the selection rule stopped.
+  final List<Argon2idBenchmarkTier> tiers;
+
+  /// The strongest measured profile whose median met the target duration.
+  final Argon2idParameters selectedParameters;
+}
+
 /// Progress emitted after each benchmarked parameter tier.
 final class Argon2idBenchmarkProgress {
   /// Creates a benchmark progress update.
   const Argon2idBenchmarkProgress({
     required this.completedTiers,
     required this.totalTiers,
+    required this.tier,
   });
 
   /// Number of parameter tiers that have completed.
@@ -34,6 +65,9 @@ final class Argon2idBenchmarkProgress {
 
   /// Total number of parameter tiers in the protocol.
   final int totalTiers;
+
+  /// The completed tier's non-sensitive timing result.
+  final Argon2idBenchmarkTier tier;
 }
 
 /// Selects the strongest KDF profile whose median derivation fits the target.
@@ -68,7 +102,7 @@ final class Argon2idBenchmark {
   final List<Argon2idParameters> profiles;
 
   /// Benchmarks all viable tiers using the roadmap's three-sample median rule.
-  Future<Argon2idParameters> selectParameters(
+  Future<Argon2idBenchmarkResult> selectParameters(
     String password, {
     void Function(Argon2idBenchmarkProgress progress)? onProgress,
   }) async {
@@ -78,6 +112,7 @@ final class Argon2idBenchmark {
 
     final Uint8List salt = _crypto.randomBytes(16);
     Argon2idParameters selected = profiles.first;
+    final List<Argon2idBenchmarkTier> tiers = <Argon2idBenchmarkTier>[];
     try {
       for (var tierIndex = 0; tierIndex < profiles.length; tierIndex++) {
         final Argon2idParameters profile = profiles[tierIndex];
@@ -99,18 +134,30 @@ final class Argon2idBenchmark {
 
         samples.sort();
         final Duration median = samples[samples.length ~/ 2];
+        final Argon2idBenchmarkTier tier = Argon2idBenchmarkTier(
+          parameters: profile,
+          medianDuration: median,
+        );
+        tiers.add(tier);
         onProgress?.call(
           Argon2idBenchmarkProgress(
             completedTiers: tierIndex + 1,
             totalTiers: profiles.length,
+            tier: tier,
           ),
         );
         if (median > targetDuration) {
-          return selected;
+          return Argon2idBenchmarkResult(
+            tiers: tiers,
+            selectedParameters: selected,
+          );
         }
         selected = profile;
       }
-      return selected;
+      return Argon2idBenchmarkResult(
+        tiers: tiers,
+        selectedParameters: selected,
+      );
     } finally {
       clearSensitiveBytes(salt);
     }

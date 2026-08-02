@@ -66,7 +66,7 @@
     - **参数档位**(从低到高):最低档 m=19MiB/t=2/p=1(预估~50ms)、低档 m=32MiB/t=2/p=1(~100ms)、中档 m=48MiB/t=3/p=1(~200ms)、高档 m=64MiB/t=3/p=1(~300ms)、最高档 m=96MiB/t=4/p=1(~500ms)
     - **测试协议**:从最低档开始,每组跑 3 次取中位数(避免单次抖动);如果中位数 ≤ 目标延迟(默认 1s),尝试下一档;如果中位数 > 目标延迟,停止并选用上一档;如果最低档也超时,使用最低档并警告用户"设备性能不足,解锁可能较慢"
     - **UI 状态**:建库时显示"正在优化安全参数..."进度提示;基准测试期间禁用"取消"按钮(避免中断导致部分写入);完成后显示实际选用的参数档位
-    - **设计假设**:预估耗时基于中端移动设备经验估算;短生命周期 isolate 的 `sodium` 初始化已在 Redmi Note 9 Pro 上验证,但不构成 Argon2id 耗时数据。v0.1 实测校准阶段仍需用真实设备验证各档位耗时,必要时调整档位参数或目标延迟阈值
+    - **v0.1 实测校准(已完成)**:Xiaomi M2007J17C(Android 12) 上各档中位数为 19MiB/t=2:65ms、32MiB/t=2:95ms、48MiB/t=3:207ms、64MiB/t=3:280ms、96MiB/t=4:554ms;均在默认 1s 阈值内,选择最高档 96MiB/t=4/p=1。64MiB/t=3 的 280ms 验证 SECURITY.md §3 的 250–400ms 假设。该数据仅为设备基线,首次建库仍执行自适应基准。
 - **3b. features/auth/data**:`EncryptedVaultDataSource` 实现(调用 vault_file API + CryptoService);`VaultRepository` 实现(编排:读 header → 通过 ADR-0003 的后台机制执行 `deriveKek` → 解包 MVK → 通过同一后台机制批量解密条目并提取摘要模型)
   - **批量解密数据流(路径 A)**:主 isolate 预读全部 Entry Block 原始字节 + MVK + header 参数,再交给 ADR-0003 选定的后台执行机制;后台上下文内完成 AAD 组装 + 解包 DEK + 解密明文 + JSON 反序列化,随后仅提取 `entry_id/name/url/username/favorite/created_at/updated_at` 摘要字段返回摘要集合。后台执行上下文不碰文件 I/O,只做纯计算;完整 `VaultEntry` 明文不进入解锁态全局常驻内存(见 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md))。
   - **性能风险**:若采用 isolate 路线,全部密文字节经 message port 深拷贝(主 isolate → 后台执行上下文),双份内存占用。个人库规模(几百条 × ~1KB ≈ 几百 KB)下可接受;若库规模显著增大(数千条或单条明文很大),深拷贝开销和内存峰值可能成为瓶颈,届时需评估分批处理或长驻 crypto worker isolate 逐条返回。
@@ -100,7 +100,7 @@
 
 > **v0.1 不含**:生物解锁、SecureStorageDataSource、局域网迁移、本地搜索、密码生成器 UI、忘码恢复、死锁擦除、i18n、设置页、CI/CD workflow 文件。
 
-> **v0.1 实测校准**:Argon2id m=64MiB/t=3 在目标设备(或模拟器)上的真实耗时须在此阶段测量,据实测数据校准 SECURITY.md §3 的 250–400ms 假设与自适应基准的默认延迟上限(当前 1s)。这项基准独立于 #14 已完成的 `sodium` 短生命周期 isolate 初始化验证。
+> **v0.1 实测校准(已完成)**:在 Xiaomi M2007J17C(Android 12) 上,Argon2id m=64MiB/t=3 的 3 次中位数为 280ms,验证 SECURITY.md §3 的 250–400ms 假设;全部五档均在 1s 内,选中 96MiB/t=4/p=1。详情见 SECURITY.md §3.1。这项基准独立于 #14 已完成的 `sodium` 短生命周期 isolate 初始化验证。
 > **v0.1 已选路径**:#14 已在 Redmi Note 9 Pro 上完成 30 次 `sodium` 短生命周期 isolate 验证,全部样本有效且初始化 P95 `≤100ms`;Argon2id 与批量解密采用 `Isolate.run()`。若未来环境不达标或不可用,按 ADR-0003 切换到长驻 crypto worker isolate,再不行才使用主 isolate 受限 fallback。
 
 ---
@@ -173,6 +173,6 @@
 ## 假设与约束
 
 - 路线图基于当前文档体系(ARCHITECTURE/SECURITY/DEVELOPMENT + specs + ADR-0001~0004),新决策产生新 ADR 时路线图相应调整
-- v0.1 的 Argon2id 耗时为待实测假设(SECURITY.md §3),实测结果可能触发参数或默认延迟上限调整；这不影响已验证的 `sodium` 短生命周期 isolate 执行路径
+- v0.1 的 Argon2id 耗时已在 Xiaomi M2007J17C(Android 12) 上完成基线实测(SECURITY.md §3.1);其他设备仍由首次建库时的自适应基准选择参数,这不影响已验证的 `sodium` 短生命周期 isolate 执行路径
 - v0.5 与 v1.0 的里程碑级描述保留弹性,任务级分解在对应前置版本验收通过后进行,避免过早规划未验证的假设
 > Infra 组件(DI、observability、路由、错误体系)在 v0.1 Phase 0-1 就位,作为后续所有版本的地基
