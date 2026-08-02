@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
@@ -63,5 +65,40 @@ final class VaultEntriesCubit extends Cubit<VaultEntriesViewState>
         ),
       );
     }
+  }
+
+  /// Loads one complete entry for a page-local detail presentation.
+  Future<EntryDetail> detail(Uint8List entryId) =>
+      _repository.getEntryDetail(entryId);
+
+  /// Persists an edited detail and refreshes only its safe summary projection.
+  Future<void> update(VaultEntry entry) async {
+    final EntrySummary summary = await _repository.updateEntry(entry);
+    emit(
+      VaultEntriesReady(
+        state.summaries
+            .map(
+              (EntrySummary current) =>
+                  _sameBytes(current.entryId, summary.entryId)
+                  ? summary
+                  : current,
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  /// Deletes an entry and removes its safe summary projection.
+  Future<void> delete(Uint8List entryId) async {
+    await _repository.deleteEntry(entryId);
+    refresh();
+  }
+
+  bool _sameBytes(Uint8List first, Uint8List second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
   }
 }

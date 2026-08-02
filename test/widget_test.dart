@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/app/project_sw_app.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
@@ -45,7 +46,7 @@ void main() {
     expect(find.text('Unlock your vault'), findsOneWidget);
   });
 
-  testWidgets('home saves and displays only an EntrySummary', (
+  testWidgets('home shows an entry on demand, updates it, and deletes it', (
     WidgetTester tester,
   ) async {
     final Directory directory = Directory.systemTemp.createTempSync(
@@ -99,6 +100,36 @@ void main() {
     expect(find.text('Example'), findsOneWidget);
     expect(find.text('alice'), findsOneWidget);
     expect(find.text('detail secret'), findsNothing);
+
+    await tester.tap(find.text('Example'));
+    await tester.pumpAndSettle();
+
+    final Finder detailDialog = find.byType(AlertDialog);
+    expect(detailDialog, findsOneWidget);
+    expect(find.text('Entry detail'), findsOneWidget);
+    await tester.enterText(
+      find.descendant(
+        of: detailDialog,
+        matching: find.bySemanticsLabel('Name'),
+      ),
+      'Updated example',
+    );
+    await tester.tap(
+      find.descendant(of: detailDialog, matching: find.text('Save')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Updated example'), findsOneWidget);
+
+    await tester.tap(find.text('Updated example'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Delete'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No entries have been added yet.'), findsOneWidget);
 
     sessionController.lock(LockReason.manualLock);
     await tester.pumpAndSettle();

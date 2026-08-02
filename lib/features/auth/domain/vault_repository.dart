@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -21,4 +23,13 @@ abstract interface class VaultRepository implements SessionSecretCleaner {
 
   /// The current unlocked session's globally resident, safe EntrySummary list.
   List<EntrySummary> get entrySummaries;
+
+  /// Decrypts a complete entry only for a short-lived detail scope.
+  Future<EntryDetail> getEntryDetail(Uint8List entryId);
+
+  /// Persists a replacement complete entry and returns its safe summary.
+  Future<EntrySummary> updateEntry(VaultEntry entry);
+
+  /// Removes an entry and releases its encrypted block slot.
+  Future<void> deleteEntry(Uint8List entryId);
 }

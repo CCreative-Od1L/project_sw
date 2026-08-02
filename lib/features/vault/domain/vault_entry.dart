@@ -115,6 +115,38 @@ final class VaultEntry {
     createdAt: createdAt,
     updatedAt: updatedAt,
   );
+
+  /// Returns a complete replacement while preserving the immutable identity.
+  VaultEntry copyWith({
+    String? name,
+    String? url,
+    String? username,
+    String? password,
+    String? notes,
+    DateTime? updatedAt,
+    bool? favorite,
+    List<CustomField>? customFields,
+  }) => VaultEntry(
+    entryId: entryId,
+    name: name ?? this.name,
+    url: url ?? this.url,
+    username: username ?? this.username,
+    password: password ?? this.password,
+    notes: notes ?? this.notes,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    favorite: favorite ?? this.favorite,
+    customFields: customFields ?? this.customFields,
+  );
+}
+
+/// A page-local complete VaultEntry obtained only by on-demand decryption.
+final class EntryDetail {
+  /// Creates a detail projection with its complete plaintext entity.
+  const EntryDetail(this.entry);
+
+  /// Complete plaintext; callers must drop this object when leaving detail.
+  final VaultEntry entry;
 }
 
 /// The only entry model permitted to remain globally resident while unlocked.
