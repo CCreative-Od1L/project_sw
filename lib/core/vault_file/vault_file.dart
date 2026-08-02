@@ -279,6 +279,9 @@ enum VaultFileCommitStage {
 
   /// The replacement Directory was flushed.
   afterDirectory,
+
+  /// The committed sequence and replacement header were flushed.
+  afterCommittedSequence,
 }
 
 /// A test-only hook that can simulate a crash immediately after [stage].
@@ -511,6 +514,7 @@ final class VaultFileEngine {
       freeListHead: journal.freeListHead,
     );
     _overwriteRange(vault, 0, VaultFileCodec.encodeHeader(committed));
+    faultInjector?.call(VaultFileCommitStage.afterCommittedSequence);
     vault.copySync('$path.bak');
   }
 
@@ -572,6 +576,7 @@ final class VaultFileEngine {
         ),
       ),
     );
+    faultInjector?.call(VaultFileCommitStage.afterCommittedSequence);
     vault.copySync('$path.bak');
   }
 
