@@ -11,9 +11,9 @@
 - **Git**:仓库已初始化(`master` 分支,`.gitignore` 已配置);工作流规范见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
 ### 1.2 原生构建依赖(libsodium)
-本项目使用 `sodium_libs`(libsodium 的 Flutter 绑定,采用 Flutter build hooks 自动处理各平台二进制)。需准备的本地工具:
+本项目使用 `sodium`(libsodium 的 Flutter 绑定,采用 Flutter build hooks 自动处理各平台二进制)。需准备的本地工具:
 - macOS / Linux:`make`、基础编译工具链
-- Android 交叉编译(尤其 Windows 主机):参见 `sodium_libs` 文档的跨编译说明
+- Android 交叉编译(尤其 Windows 主机):参见 `sodium` 文档的跨编译说明
 - iOS:通过 Swift Package 静态链接(由 build hooks 处理)
 
 > 若原生构建成为负担,可临时降级为纯 Dart 方案 `cryptography_plus`(信封架构与具体库解耦,迁移成本可控,见 ARCHITECTURE.md §设计原则 5)。
@@ -26,7 +26,7 @@
 
 1. `fvm flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
 2. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
-3. 引入应用骨架依赖:`get_it`、`go_router`、`flutter_bloc`(含 Cubit)、`intl`、`path_provider`、`test` 与可观测性依赖(见 §6)。`sodium_libs` 在 Phase 1d 的 isolate spike 开始时引入,使原生构建前置只在 crypto 工作实际开始时生效。
+3. 引入应用骨架依赖:`get_it`、`go_router`、`flutter_bloc`(含 Cubit)、`intl`、`path_provider`、`test` 与可观测性依赖(见 §6)。`sodium` 在 Phase 1d 的 isolate spike 开始时引入,使原生构建前置只在 crypto 工作实际开始时生效。
 4. 配置 `analysis_options.yaml`(lint 严格档,见 §4)。
 5. 添加 LICENSE(MIT)。
 
@@ -133,7 +133,7 @@ linter:
 ## 10. 依赖策略
 
 - 最小化依赖,优先官方/高维护状态包;新增依赖需评估维护状态、许可证、安全记录。
-- 核心安全依赖(`sodium_libs`)锁定具体版本并追踪上游安全公告。
+- 核心安全依赖(`sodium`)锁定具体版本并追踪上游安全公告。
 - 禁止引入任何会上报外部/联网分析的"分析"类依赖(与本地优先原则冲突)。
 
 ## 11. 待补全
