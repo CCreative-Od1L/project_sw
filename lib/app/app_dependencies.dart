@@ -11,10 +11,13 @@ import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
+import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
+import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// The production dependency container used by the application composition root.
@@ -41,26 +44,21 @@ void registerAppDependencies(
     const NoopMetricsRecorder(),
   );
 
-  final SessionState initialState = config.vaultExistsAtLaunch
-      ? const LockedSession(reason: LockReason.coldStart)
-      : const VaultNotCreatedSession();
-  serviceLocator.registerSingleton<SessionController>(
-    SessionController(initialState: initialState),
-    dispose: (SessionController controller) => controller.dispose(),
-  );
-  serviceLocator.registerFactory<AuthCubit>(
-    () => AuthCubit(serviceLocator<SessionController>()),
-  );
-
   if (cryptoService != null && vaultPathResolver != null) {
     serviceLocator.registerSingleton<CryptoService>(cryptoService);
     serviceLocator.registerSingleton<VaultFileEngine>(VaultFileEngine());
-    serviceLocator.registerSingleton<VaultRepository>(
+    serviceLocator.registerSingleton<EncryptedVaultRepository>(
       EncryptedVaultRepository(
         crypto: serviceLocator<CryptoService>(),
         vaultFileEngine: serviceLocator<VaultFileEngine>(),
         vaultPathResolver: vaultPathResolver,
       ),
+    );
+    serviceLocator.registerSingleton<VaultRepository>(
+      serviceLocator<EncryptedVaultRepository>(),
+    );
+    serviceLocator.registerSingleton<SessionSecretCleaner>(
+      serviceLocator<EncryptedVaultRepository>(),
     );
     serviceLocator.registerSingleton<Argon2idBenchmark>(
       Argon2idBenchmark(serviceLocator<CryptoService>()),
@@ -73,6 +71,33 @@ void registerAppDependencies(
     );
     serviceLocator.registerFactory<SetupCubit>(
       () => SetupCubit(serviceLocator<CreateVault>()),
+    );
+  }
+
+  final SessionState initialState = config.vaultExistsAtLaunch
+      ? const LockedSession(reason: LockReason.coldStart)
+      : const VaultNotCreatedSession();
+  serviceLocator.registerSingleton<SessionController>(
+    SessionController(
+      initialState: initialState,
+      secretCleaner: serviceLocator.isRegistered<SessionSecretCleaner>()
+          ? serviceLocator<SessionSecretCleaner>()
+          : null,
+    ),
+    dispose: (SessionController controller) => controller.dispose(),
+  );
+  serviceLocator.registerFactory<AuthCubit>(
+    () => AuthCubit(serviceLocator<SessionController>()),
+  );
+  if (serviceLocator.isRegistered<VaultRepository>()) {
+    serviceLocator.registerSingleton<UnlockVault>(
+      UnlockVault(serviceLocator<VaultRepository>()),
+    );
+    serviceLocator.registerFactory<UnlockCubit>(
+      () => UnlockCubit(
+        serviceLocator<UnlockVault>(),
+        serviceLocator<SessionController>(),
+      ),
     );
   }
 }

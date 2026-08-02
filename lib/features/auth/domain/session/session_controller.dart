@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 
 /// Global session source of truth for route access and authentication state.
@@ -8,11 +9,15 @@ final class SessionController extends ChangeNotifier {
   /// Creates a session controller with an explicit bootstrap [initialState].
   SessionController({
     SessionState initialState = const VaultNotCreatedSession(),
+    this.secretCleaner,
   }) : _state = initialState;
 
   final StreamController<SessionState> _states =
       StreamController<SessionState>.broadcast(sync: true);
   SessionState _state;
+
+  /// Collaborator that clears sensitive unlocked state before routing to lock.
+  final SessionSecretCleaner? secretCleaner;
 
   /// The current immutable session state.
   SessionState get state => _state;
@@ -42,6 +47,7 @@ final class SessionController extends ChangeNotifier {
 
   /// Locks the current vault session for [reason].
   void lock(LockReason reason) {
+    secretCleaner?.clearUnlockedSession();
     _transition(LockedSession(reason: reason));
   }
 

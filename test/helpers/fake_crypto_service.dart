@@ -22,6 +22,9 @@ final class FakeCryptoService implements CryptoService {
   /// MVK buffers returned to callers.
   final List<Uint8List> generatedKeys = <Uint8List>[];
 
+  /// Plaintext buffers returned from successful AEAD decryptions.
+  final List<Uint8List> decryptedKeys = <Uint8List>[];
+
   var _counter = 1;
 
   @override
@@ -39,8 +42,12 @@ final class FakeCryptoService implements CryptoService {
     if (delay != null) {
       await Future<void>.delayed(delay);
     }
+    final int passwordFingerprint = password.codeUnits.fold<int>(
+      0,
+      (int value, int codeUnit) => (value + codeUnit) & 0xff,
+    );
     final Uint8List key = Uint8List.fromList(
-      List<int>.filled(32, memoryKiB & 0xff),
+      List<int>.filled(32, (memoryKiB & 0xff) ^ passwordFingerprint),
     );
     derivedKeys.add(key);
     return key;
@@ -74,6 +81,8 @@ final class FakeCryptoService implements CryptoService {
     for (var index = 0; index < plaintext.length; index++) {
       ciphertext[index] = plaintext[index] ^ key[index % key.length];
     }
+    final int tag = _authenticationTag(key);
+    ciphertext.fillRange(plaintext.length, ciphertext.length, tag);
     return AeadCiphertext(nonce: nonce, ciphertext: ciphertext);
   }
 
@@ -84,10 +93,20 @@ final class FakeCryptoService implements CryptoService {
     Uint8List ciphertext,
     Uint8List additionalData,
   ) {
+    final int expectedTag = _authenticationTag(key);
+    if (ciphertext
+        .sublist(ciphertext.length - 16)
+        .any((int byte) => byte != expectedTag)) {
+      throw StateError('authentication failed');
+    }
     final Uint8List plaintext = Uint8List(ciphertext.length - 16);
     for (var index = 0; index < plaintext.length; index++) {
       plaintext[index] = ciphertext[index] ^ key[index % key.length];
     }
+    decryptedKeys.add(plaintext);
     return plaintext;
   }
+
+  int _authenticationTag(Uint8List key) =>
+      key.fold<int>(0, (int sum, int byte) => sum + byte) & 0xff;
 }

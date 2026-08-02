@@ -6,11 +6,13 @@ import 'package:project_sw/app/pages/unlock_page.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
+import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 
 /// Builds the application router from one session-derived route state source.
 GoRouter buildAppRouter(
   SessionController sessionController, {
   SetupCubit? setupCubit,
+  UnlockCubit? unlockCubit,
 }) {
   return GoRouter(
     initialLocation: sessionController.routeState.path,
@@ -31,8 +33,10 @@ GoRouter buildAppRouter(
       ),
       GoRoute(
         path: SessionRouteState.unlock.path,
-        builder: (BuildContext context, GoRouterState state) =>
-            UnlockPage(sessionController: sessionController),
+        builder: (BuildContext context, GoRouterState state) => UnlockPage(
+          sessionController: sessionController,
+          unlockCubit: unlockCubit,
+        ),
       ),
       GoRoute(
         path: SessionRouteState.home.path,
