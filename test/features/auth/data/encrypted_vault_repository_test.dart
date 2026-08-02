@@ -196,6 +196,162 @@ void main() {
       expect(repository.entrySummaries.single.favorite, isTrue);
     },
   );
+  test('reads, updates, deletes, and reuses a released entry block', () async {
+    final String path = '${temporaryDirectory.path}/crud.psw';
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'correct password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('correct password');
+    final EntrySummary first = await repository.addEntry(
+      const NewVaultEntry(name: 'Before', password: 'secret'),
+    );
+    final VaultEntryRecord initial = VaultFileEngine()
+        .openVaultFile(path)
+        .directory
+        .records
+        .single;
+    final EntryDetail detail = await repository.getEntryDetail(first.entryId);
+    expect(detail.entry.password, 'secret');
+    await repository.updateEntry(
+      detail.entry.copyWith(name: 'After', password: 'new secret'),
+    );
+    expect(repository.entrySummaries.single.name, 'After');
+    final VaultEntryRecord updated = VaultFileEngine()
+        .openVaultFile(path)
+        .directory
+        .records
+        .single;
+    expect(updated.sequence, initial.sequence + 1);
+    await repository.deleteEntry(first.entryId);
+    expect(repository.entrySummaries, isEmpty);
+    expect(
+      VaultFileEngine().openVaultFile(path).header.freeListHead,
+      updated.blockOffset,
+    );
+    await repository.addEntry(const NewVaultEntry(name: 'Reused'));
+    expect(
+      VaultFileEngine()
+          .openVaultFile(path)
+          .directory
+          .records
+          .single
+          .blockOffset,
+      updated.blockOffset,
+    );
+    repository.clearUnlockedSession();
+    await repository.unlockWithMasterPassword('correct password');
+    expect(repository.entrySummaries.single.name, 'Reused');
+  });
+
+  test('rejects a detail whose authenticated entry block is damaged', () async {
+    final String path = '${temporaryDirectory.path}/damaged-detail.psw';
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'correct password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('correct password');
+    final EntrySummary summary = await repository.addEntry(
+      const NewVaultEntry(name: 'Damaged', password: 'secret'),
+    );
+    final VaultEntryRecord record = VaultFileEngine()
+        .openVaultFile(path)
+        .directory
+        .records
+        .single;
+    final Uint8List bytes = File(path).readAsBytesSync();
+    bytes[record.blockOffset + record.blockLength - 1] ^= 0xff;
+    File(path).writeAsBytesSync(bytes, flush: true);
+    bytes.fillRange(0, bytes.length, 0);
+
+    expect(
+      repository.getEntryDetail(summary.entryId),
+      throwsA(isA<VaultCorruptedException>()),
+    );
+  });
+
+  test(
+    'splits a large free slot and appends beyond a too-small remainder',
+    () async {
+      final String path = '${temporaryDirectory.path}/free-list-boundary.psw';
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: FakeCryptoService(),
+        vaultFileEngine: VaultFileEngine(),
+        vaultPathResolver: () async => path,
+      );
+      await repository.createEmptyVault(
+        masterPassword: 'correct password',
+        kdfParameters: const Argon2idParameters(
+          memoryKiB: 64 * 1024,
+          iterations: 3,
+        ),
+      );
+      await repository.unlockWithMasterPassword('correct password');
+      final EntrySummary large = await repository.addEntry(
+        NewVaultEntry(
+          name: 'Large',
+          password: List<String>.filled(512, 'x').join(),
+        ),
+      );
+      final VaultEntryRecord released = VaultFileEngine()
+          .openVaultFile(path)
+          .directory
+          .records
+          .single;
+      await repository.deleteEntry(large.entryId);
+      final EntrySummary small = await repository.addEntry(
+        const NewVaultEntry(name: 'Small'),
+      );
+      final OpenVaultFile afterSplit = VaultFileEngine().openVaultFile(path);
+      final VaultEntryRecord reused = afterSplit.directory.records.single;
+      expect(reused.entryId, small.entryId);
+      expect(reused.blockOffset, released.blockOffset);
+      expect(
+        afterSplit.header.freeListHead,
+        reused.blockOffset + reused.blockCapacity,
+      );
+
+      final int appendOffset = File(path).lengthSync();
+      final EntrySummary oversized = await repository.addEntry(
+        NewVaultEntry(
+          name: 'Oversized',
+          password: List<String>.filled(1024, 'y').join(),
+        ),
+      );
+      final OpenVaultFile afterAppend = VaultFileEngine().openVaultFile(path);
+      final VaultEntryRecord appended = afterAppend.directory.records
+          .firstWhere(
+            (VaultEntryRecord record) =>
+                _sameBytes(record.entryId, oversized.entryId),
+          );
+      expect(appended.blockOffset, appendOffset);
+      expect(afterAppend.header.freeListHead, afterSplit.header.freeListHead);
+    },
+  );
 }
 
 bool _isCleared(List<int> bytes) => bytes.every((int byte) => byte == 0);
+
+bool _sameBytes(Uint8List first, Uint8List second) {
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
+}

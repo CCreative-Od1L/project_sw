@@ -277,11 +277,16 @@ final class EncryptedVaultRepository implements VaultRepository {
       encryptedEntry = crypto.encryptWithAead(dek, plaintext, entryAad);
       entryCiphertext = _join(encryptedEntry.nonce, encryptedEntry.ciphertext);
       block = _join(wrappedDek, entryCiphertext);
+      final VaultFreeSlot slot = vaultFileEngine.allocateEntryBlockSlot(
+        path: path,
+        opened: opened,
+        requiredLength: block.length,
+      );
       final VaultEntryRecord record = VaultEntryRecord(
         entryId: entryId,
-        blockOffset: vaultFileEngine.allocateEntryBlockOffset(opened.directory),
+        blockOffset: slot.offset,
         blockLength: block.length,
-        blockCapacity: block.length,
+        blockCapacity: slot.capacity,
         plaintextFormatId: 1,
         sequence: opened.header.sequenceCounter,
       );
@@ -290,6 +295,8 @@ final class EncryptedVaultRepository implements VaultRepository {
         opened: opened,
         record: record,
         block: block,
+        nextFreeListHead: slot.nextFreeListHead,
+        splitFreeSlot: slot.remainder,
       );
       final EntrySummary summary = completeEntry.toSummary();
       _entrySummaries = List<EntrySummary>.unmodifiable(<EntrySummary>[
@@ -337,6 +344,169 @@ final class EncryptedVaultRepository implements VaultRepository {
       }
       if (entryId != null) {
         clearSensitiveBytes(entryId);
+      }
+    }
+  }
+
+  @override
+  Future<EntryDetail> getEntryDetail(Uint8List entryId) async {
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) throw const VaultLockedException();
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      final VaultEntryRecord record = _recordFor(opened.directory, entryId);
+      return EntryDetail(
+        _decryptEntry(path, opened.header, record, masterVaultKey),
+      );
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on Object catch (error) {
+      throw VaultCorruptedException(cause: error);
+    }
+  }
+
+  @override
+  Future<void> deleteEntry(Uint8List entryId) async {
+    if (_masterVaultKey == null) throw const VaultLockedException();
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      final VaultEntryRecord record = _recordFor(opened.directory, entryId);
+      vaultFileEngine.commitEntryDeletion(
+        path: path,
+        opened: opened,
+        record: record,
+      );
+      _entrySummaries = List<EntrySummary>.unmodifiable(
+        _entrySummaries.where(
+          (EntrySummary item) => !_sameBytes(item.entryId, entryId),
+        ),
+      );
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on Object catch (error) {
+      throw VaultCorruptedException(cause: error);
+    }
+  }
+
+  @override
+  Future<EntrySummary> updateEntry(VaultEntry entry) async {
+    if (entry.name.trim().isEmpty) {
+      throw const InvalidArgumentException('An entry name is required.');
+    }
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) throw const VaultLockedException();
+    Uint8List? plaintext;
+    Uint8List? dek;
+    Uint8List? wrapAad;
+    Uint8List? entryAad;
+    Uint8List? wrapped;
+    Uint8List? cipher;
+    Uint8List? block;
+    AeadCiphertext? wrappedCipher;
+    AeadCiphertext? encrypted;
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      final VaultEntryRecord current = _recordFor(
+        opened.directory,
+        entry.entryId,
+      );
+      final VaultEntry replacement = entry.copyWith(
+        updatedAt: DateTime.now().toUtc(),
+      );
+      plaintext = VaultEntryJsonCodec.encode(replacement);
+      dek = crypto.generateKey();
+      wrapAad = AadBuilder.forWrapDek(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: opened.header.aeadAlgorithmId,
+        entryId: entry.entryId,
+      );
+      wrappedCipher = crypto.encryptWithAead(masterVaultKey, dek, wrapAad);
+      wrapped = _join(wrappedCipher.nonce, wrappedCipher.ciphertext);
+      entryAad = AadBuilder.forEncryptEntry(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: opened.header.aeadAlgorithmId,
+        entryId: entry.entryId,
+        sequence: opened.header.sequenceCounter,
+      );
+      encrypted = crypto.encryptWithAead(dek, plaintext, entryAad);
+      cipher = _join(encrypted.nonce, encrypted.ciphertext);
+      block = _join(wrapped, cipher);
+      final bool inPlace = block.length <= current.blockCapacity;
+      final VaultFreeSlot slot = inPlace
+          ? VaultFreeSlot(
+              offset: current.blockOffset,
+              capacity: current.blockCapacity,
+              nextOffset: opened.header.freeListHead,
+            )
+          : vaultFileEngine.allocateEntryBlockSlot(
+              path: path,
+              opened: opened,
+              requiredLength: block.length,
+            );
+      final VaultEntryRecord record = VaultEntryRecord(
+        entryId: entry.entryId,
+        blockOffset: slot.offset,
+        blockLength: block.length,
+        blockCapacity: slot.capacity,
+        plaintextFormatId: 1,
+        sequence: opened.header.sequenceCounter,
+      );
+      final int nextFree = inPlace
+          ? opened.header.freeListHead
+          : current.blockOffset;
+      vaultFileEngine.commitEntryBlock(
+        path: path,
+        opened: opened,
+        record: record,
+        block: block,
+        replacedRecord: current,
+        freedRecord: inPlace ? null : current,
+        nextFreeListHead: nextFree,
+        freedNextOffset: slot.nextFreeListHead,
+        splitFreeSlot: inPlace ? null : slot.remainder,
+      );
+      final EntrySummary summary = replacement.toSummary();
+      _entrySummaries = List<EntrySummary>.unmodifiable(
+        _entrySummaries.map(
+          (EntrySummary item) =>
+              _sameBytes(item.entryId, entry.entryId) ? summary : item,
+        ),
+      );
+      return summary;
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on Object catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } finally {
+      for (final Uint8List? bytes in <Uint8List?>[
+        block,
+        cipher,
+        wrapped,
+        plaintext,
+        entryAad,
+        wrapAad,
+        dek,
+      ]) {
+        if (bytes != null) clearSensitiveBytes(bytes);
+      }
+      if (wrappedCipher != null) {
+        clearSensitiveBytes(wrappedCipher.nonce);
+        clearSensitiveBytes(wrappedCipher.ciphertext);
+      }
+      if (encrypted != null) {
+        clearSensitiveBytes(encrypted.nonce);
+        clearSensitiveBytes(encrypted.ciphertext);
       }
     }
   }
@@ -449,10 +619,84 @@ final class EncryptedVaultRepository implements VaultRepository {
     return List<EntrySummary>.unmodifiable(summaries);
   }
 
+  VaultEntryRecord _recordFor(VaultDirectory directory, Uint8List entryId) {
+    for (final VaultEntryRecord record in directory.records) {
+      if (_sameBytes(record.entryId, entryId)) return record;
+    }
+    throw const VaultCorruptedException();
+  }
+
+  VaultEntry _decryptEntry(
+    String path,
+    VaultFileHeader header,
+    VaultEntryRecord record,
+    Uint8List masterVaultKey,
+  ) {
+    Uint8List? block;
+    Uint8List? dek;
+    Uint8List? plaintext;
+    Uint8List? wrapAad;
+    Uint8List? entryAad;
+    try {
+      block = vaultFileEngine.readEntryBlock(path, record);
+      if (block.length < 112) {
+        throw const FormatException('Entry Block is invalid.');
+      }
+      wrapAad = AadBuilder.forWrapDek(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: header.aeadAlgorithmId,
+        entryId: record.entryId,
+      );
+      dek = crypto.decryptWithAead(
+        masterVaultKey,
+        Uint8List.fromList(block.sublist(0, 24)),
+        Uint8List.fromList(block.sublist(24, 72)),
+        wrapAad,
+      );
+      entryAad = AadBuilder.forEncryptEntry(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: header.aeadAlgorithmId,
+        entryId: record.entryId,
+        sequence: record.sequence,
+      );
+      plaintext = crypto.decryptWithAead(
+        dek,
+        Uint8List.fromList(block.sublist(72, 96)),
+        Uint8List.fromList(block.sublist(96)),
+        entryAad,
+      );
+      return VaultEntryJsonCodec.decode(plaintext, entryId: record.entryId);
+    } on VaultException {
+      rethrow;
+    } on Object catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } finally {
+      for (final Uint8List? bytes in <Uint8List?>[
+        entryAad,
+        wrapAad,
+        plaintext,
+        dek,
+        block,
+      ]) {
+        if (bytes != null) clearSensitiveBytes(bytes);
+      }
+    }
+  }
+
   Uint8List _join(Uint8List first, Uint8List second) {
     return Uint8List(first.length + second.length)
       ..setRange(0, first.length, first)
       ..setRange(first.length, first.length + second.length, second);
+  }
+
+  bool _sameBytes(Uint8List first, Uint8List second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
   }
 
   Uint8List _encodeKdfParameters(Argon2idParameters parameters) {

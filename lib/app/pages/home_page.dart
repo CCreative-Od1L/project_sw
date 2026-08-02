@@ -233,11 +233,147 @@ final class _EntriesPanel extends StatelessWidget {
                     trailing: summary.favorite
                         ? const Icon(Icons.star, semanticLabel: 'Favorite')
                         : null,
+                    onTap: () => _showDetail(context, summary),
                   ),
             ],
           );
         },
       ),
     );
+  }
+
+  Future<void> _showDetail(BuildContext context, EntrySummary summary) async {
+    final VaultEntriesCubit cubit = context.read<VaultEntriesCubit>();
+    final EntryDetail detail = await cubit.detail(summary.entryId);
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) =>
+          _EntryDetailDialog(cubit: cubit, detail: detail),
+    );
+  }
+}
+
+/// Owns detail plaintext and field controllers for exactly one modal route.
+final class _EntryDetailDialog extends StatefulWidget {
+  const _EntryDetailDialog({required this.cubit, required this.detail});
+
+  final VaultEntriesCubit cubit;
+  final EntryDetail detail;
+
+  @override
+  State<_EntryDetailDialog> createState() => _EntryDetailDialogState();
+}
+
+final class _EntryDetailDialogState extends State<_EntryDetailDialog> {
+  late final TextEditingController _name = TextEditingController(
+    text: widget.detail.entry.name,
+  );
+  late final TextEditingController _url = TextEditingController(
+    text: widget.detail.entry.url,
+  );
+  late final TextEditingController _username = TextEditingController(
+    text: widget.detail.entry.username,
+  );
+  late final TextEditingController _password = TextEditingController(
+    text: widget.detail.entry.password,
+  );
+  late final TextEditingController _notes = TextEditingController(
+    text: widget.detail.entry.notes,
+  );
+  late var _favorite = widget.detail.entry.favorite;
+
+  @override
+  void dispose() {
+    _name.clear();
+    _url.clear();
+    _username.clear();
+    _password.clear();
+    _notes.clear();
+    _name.dispose();
+    _url.dispose();
+    _username.dispose();
+    _password.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Entry detail'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          TextField(
+            controller: _url,
+            decoration: const InputDecoration(labelText: 'URL'),
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            enableSuggestions: false,
+          ),
+          TextField(
+            controller: _username,
+            decoration: const InputDecoration(labelText: 'Username'),
+            autocorrect: false,
+            enableSuggestions: false,
+          ),
+          TextField(
+            controller: _password,
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+            autocorrect: false,
+            enableSuggestions: false,
+          ),
+          TextField(
+            controller: _notes,
+            decoration: const InputDecoration(labelText: 'Notes'),
+            minLines: 1,
+            maxLines: 3,
+            autocorrect: false,
+            enableSuggestions: false,
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _favorite,
+            onChanged: (bool? value) {
+              setState(() => _favorite = value ?? false);
+            },
+            title: const Text('Favorite'),
+          ),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      TextButton(onPressed: _delete, child: const Text('Delete')),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Close'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Save')),
+    ],
+  );
+
+  Future<void> _delete() async {
+    await widget.cubit.delete(widget.detail.entry.entryId);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _save() async {
+    await widget.cubit.update(
+      widget.detail.entry.copyWith(
+        name: _name.text,
+        url: _url.text,
+        username: _username.text,
+        password: _password.text,
+        notes: _notes.text,
+        favorite: _favorite,
+      ),
+    );
+    if (mounted) Navigator.pop(context);
   }
 }

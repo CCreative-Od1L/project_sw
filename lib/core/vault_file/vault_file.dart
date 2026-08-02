@@ -151,6 +151,7 @@ final class VaultJournal {
     required this.sequence,
     required this.directoryOffset,
     required this.directoryLength,
+    this.freeListHead = 0,
   });
 
   /// Intended operation.
@@ -164,6 +165,35 @@ final class VaultJournal {
 
   /// Serialized length of the intended Directory.
   final int directoryLength;
+
+  /// Free-list head to publish with the intended Directory view.
+  final int freeListHead;
+}
+
+/// A reusable block slot read from the on-disk free list.
+final class VaultFreeSlot {
+  /// Creates a decoded free slot.
+  const VaultFreeSlot({
+    required this.offset,
+    required this.capacity,
+    required this.nextOffset,
+    this.remainder,
+  });
+
+  /// File offset of the reusable slot.
+  final int offset;
+
+  /// Total slot capacity.
+  final int capacity;
+
+  /// Next free-list node, or zero.
+  final int nextOffset;
+
+  /// Optional tail retained as a free-list node after this slot is allocated.
+  final VaultFreeSlot? remainder;
+
+  /// Free-list head after consuming this allocation, before any other release.
+  int get nextFreeListHead => remainder?.offset ?? nextOffset;
 }
 
 /// One active Directory record pointing to a sealed Entry Block.
@@ -332,6 +362,57 @@ final class VaultFileEngine {
     return nextOffset;
   }
 
+  /// Selects the free-list head when it has enough capacity, splitting a
+  /// meaningful tail; otherwise selects a non-overlapping append position.
+  VaultFreeSlot allocateEntryBlockSlot({
+    required String path,
+    required OpenVaultFile opened,
+    required int requiredLength,
+  }) {
+    if (opened.header.freeListHead == 0) {
+      return VaultFreeSlot(
+        offset: allocateEntryBlockOffset(opened.directory),
+        capacity: requiredLength,
+        nextOffset: 0,
+      );
+    }
+    final RandomAccessFile file = File(path).openSync();
+    try {
+      file.setPositionSync(opened.header.freeListHead);
+      final Uint8List bytes = file.readSync(12);
+      if (bytes.length != 12) {
+        throw const FormatException('Free slot is truncated.');
+      }
+      final ByteData data = ByteData.sublistView(bytes);
+      final int next = data.getUint64(0, Endian.big);
+      final int capacity = data.getUint32(8, Endian.big);
+      if (capacity >= requiredLength) {
+        final int remainderCapacity = capacity - requiredLength;
+        return VaultFreeSlot(
+          offset: opened.header.freeListHead,
+          capacity: remainderCapacity >= 12 ? requiredLength : capacity,
+          nextOffset: next,
+          remainder: remainderCapacity >= 12
+              ? VaultFreeSlot(
+                  offset: opened.header.freeListHead + requiredLength,
+                  capacity: remainderCapacity,
+                  nextOffset: next,
+                )
+              : null,
+        );
+      }
+    } finally {
+      file.closeSync();
+    }
+    return VaultFreeSlot(
+      // Active records do not describe released tails, so their maximum end
+      // is not a safe append position once the free list is non-empty.
+      offset: File(path).lengthSync(),
+      capacity: requiredLength,
+      nextOffset: opened.header.freeListHead,
+    );
+  }
+
   /// Commits an already-encrypted block and its new record as one transaction.
   ///
   /// The caller owns entry semantics and cryptography; this engine owns the
@@ -341,18 +422,38 @@ final class VaultFileEngine {
     required OpenVaultFile opened,
     required VaultEntryRecord record,
     required Uint8List block,
+    VaultEntryRecord? replacedRecord,
+    VaultEntryRecord? freedRecord,
+    int? nextFreeListHead,
+    int? freedNextOffset,
+    VaultFreeSlot? splitFreeSlot,
   }) {
     if (block.length != record.blockLength ||
-        record.sequence != opened.header.sequenceCounter ||
-        opened.directory.records.any(
-          (VaultEntryRecord current) =>
-              _sameBytes(current.entryId, record.entryId),
-        )) {
+        record.sequence != opened.header.sequenceCounter) {
       throw ArgumentError('Entry transaction does not match the active vault.');
+    }
+    final List<VaultEntryRecord> records = <VaultEntryRecord>[
+      ...opened.directory.records,
+    ];
+    final int existing = records.indexWhere(
+      (VaultEntryRecord current) => _sameBytes(current.entryId, record.entryId),
+    );
+    if (replacedRecord == null && existing >= 0) {
+      throw ArgumentError('Entry identity already exists.');
+    }
+    if (replacedRecord != null) {
+      if (existing < 0 || !_sameBytes(replacedRecord.entryId, record.entryId)) {
+        throw ArgumentError(
+          'Replacement record does not match the active Directory.',
+        );
+      }
+      records[existing] = record;
+    } else {
+      records.add(record);
     }
     final VaultDirectory nextDirectory = VaultDirectory(
       sequence: record.sequence,
-      records: <VaultEntryRecord>[...opened.directory.records, record],
+      records: records,
     );
     final Uint8List encodedDirectory = VaultFileCodec.encodeDirectory(
       nextDirectory,
@@ -366,6 +467,7 @@ final class VaultFileEngine {
       sequence: record.sequence,
       directoryOffset: opened.header.activeDirectoryOffset,
       directoryLength: encodedDirectory.length,
+      freeListHead: nextFreeListHead ?? opened.header.freeListHead,
     );
     final VaultFileHeader pending = opened.header.copyWith(journal: journal);
     final File vault = File(path);
@@ -373,6 +475,26 @@ final class VaultFileEngine {
     faultInjector?.call(VaultFileCommitStage.afterJournal);
 
     _overwriteRange(vault, record.blockOffset, block);
+    if (splitFreeSlot != null) {
+      _overwriteRange(
+        vault,
+        splitFreeSlot.offset,
+        _encodeFreeSlot(
+          nextOffset: splitFreeSlot.nextOffset,
+          capacity: splitFreeSlot.capacity,
+        ),
+      );
+    }
+    if (freedRecord != null) {
+      _overwriteRange(
+        vault,
+        freedRecord.blockOffset,
+        _encodeFreeSlot(
+          nextOffset: freedNextOffset ?? opened.header.freeListHead,
+          capacity: freedRecord.blockCapacity,
+        ),
+      );
+    }
     faultInjector?.call(VaultFileCommitStage.afterEntryBlock);
 
     _overwriteRange(
@@ -386,8 +508,70 @@ final class VaultFileEngine {
       entryCount: nextDirectory.records.length,
       committedSequence: record.sequence,
       sequenceCounter: record.sequence + 1,
+      freeListHead: journal.freeListHead,
     );
     _overwriteRange(vault, 0, VaultFileCodec.encodeHeader(committed));
+    vault.copySync('$path.bak');
+  }
+
+  /// Removes one record and turns its slot into the new free-list head.
+  void commitEntryDeletion({
+    required String path,
+    required OpenVaultFile opened,
+    required VaultEntryRecord record,
+  }) {
+    final List<VaultEntryRecord> records =
+        <VaultEntryRecord>[...opened.directory.records]..removeWhere(
+          (VaultEntryRecord current) =>
+              _sameBytes(current.entryId, record.entryId),
+        );
+    if (records.length + 1 != opened.directory.records.length) {
+      throw ArgumentError('Entry record is not active.');
+    }
+    final int sequence = opened.header.sequenceCounter;
+    final VaultDirectory directory = VaultDirectory(
+      sequence: sequence,
+      records: records,
+    );
+    final Uint8List encoded = VaultFileCodec.encodeDirectory(directory);
+    final VaultJournal journal = VaultJournal(
+      operation: VaultJournalOperation.entryUpsert,
+      sequence: sequence,
+      directoryOffset: opened.header.activeDirectoryOffset,
+      directoryLength: encoded.length,
+      freeListHead: record.blockOffset,
+    );
+    final File vault = File(path);
+    _overwriteRange(
+      vault,
+      0,
+      VaultFileCodec.encodeHeader(opened.header.copyWith(journal: journal)),
+    );
+    faultInjector?.call(VaultFileCommitStage.afterJournal);
+    _overwriteRange(
+      vault,
+      record.blockOffset,
+      _encodeFreeSlot(
+        nextOffset: opened.header.freeListHead,
+        capacity: record.blockCapacity,
+      ),
+    );
+    faultInjector?.call(VaultFileCommitStage.afterEntryBlock);
+    _overwriteRange(vault, opened.header.activeDirectoryOffset, encoded);
+    faultInjector?.call(VaultFileCommitStage.afterDirectory);
+    _overwriteRange(
+      vault,
+      0,
+      VaultFileCodec.encodeHeader(
+        opened.header.copyWith(
+          entryCount: records.length,
+          freeListHead: record.blockOffset,
+          committedSequence: sequence,
+          sequenceCounter: sequence + 1,
+          journal: journal,
+        ),
+      ),
+    );
     vault.copySync('$path.bak');
   }
 
@@ -411,6 +595,7 @@ final class VaultFileEngine {
             pendingDirectory.sequence == header.journal.sequence) {
           header = header.copyWith(
             entryCount: pendingDirectory.records.length,
+            freeListHead: header.journal.freeListHead,
             committedSequence: header.journal.sequence,
             sequenceCounter: header.journal.sequence + 1,
           );
@@ -430,6 +615,7 @@ final class VaultFileEngine {
               directoryLength:
                   vaultDirectoryLength +
                   header.entryCount * vaultEntryRecordLength,
+              freeListHead: header.freeListHead,
             ),
           );
           directory = _readDirectory(
@@ -506,6 +692,14 @@ final class VaultFileEngine {
       current.fillRange(0, current.length, 0);
       next.fillRange(0, next.length, 0);
     }
+  }
+
+  Uint8List _encodeFreeSlot({required int nextOffset, required int capacity}) {
+    final Uint8List bytes = Uint8List(12);
+    ByteData.sublistView(bytes)
+      ..setUint64(0, nextOffset, Endian.big)
+      ..setUint32(8, capacity, Endian.big);
+    return bytes;
   }
 }
 
@@ -718,6 +912,7 @@ abstract final class VaultFileCodec {
       ..setUint64(9, journal.directoryOffset, Endian.big)
       ..setUint32(17, journal.directoryLength, Endian.big);
     data.setUint32(24, _crc32(bytes.sublist(0, 24)), Endian.big);
+    data.setUint64(28, journal.freeListHead, Endian.big);
     return bytes;
   }
 
@@ -739,6 +934,7 @@ abstract final class VaultFileCodec {
       sequence: data.getUint64(1, Endian.big),
       directoryOffset: data.getUint64(9, Endian.big),
       directoryLength: data.getUint32(17, Endian.big),
+      freeListHead: data.getUint64(28, Endian.big),
     );
   }
 
