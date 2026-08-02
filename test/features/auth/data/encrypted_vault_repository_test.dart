@@ -7,6 +7,7 @@ import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
+import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:test/test.dart';
 
 import '../../../helpers/fake_crypto_service.dart';
@@ -143,6 +144,58 @@ void main() {
     expect(crypto.decryptedKeys.every(_isCleared), isTrue);
     expect(sessionController.state, isA<LockedSession>());
   });
+
+  test(
+    'persists an encrypted entry and retains only its summary after unlock',
+    () async {
+      final FakeCryptoService crypto = FakeCryptoService();
+      final String path = '${temporaryDirectory.path}/entries.psw';
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: crypto,
+        vaultFileEngine: VaultFileEngine(),
+        vaultPathResolver: () async => path,
+      );
+      await repository.createEmptyVault(
+        masterPassword: 'correct password',
+        kdfParameters: const Argon2idParameters(
+          memoryKiB: 64 * 1024,
+          iterations: 3,
+        ),
+      );
+      await repository.unlockWithMasterPassword('correct password');
+
+      final EntrySummary added = await repository.addEntry(
+        const NewVaultEntry(
+          name: 'Example',
+          url: 'https://example.test',
+          username: 'alice',
+          password: 'never-in-summary',
+          notes: 'also detail-only',
+          favorite: true,
+          customFields: <CustomField>[
+            CustomField(label: 'PIN', value: '1234', secret: true),
+          ],
+        ),
+      );
+
+      expect(added.name, 'Example');
+      expect(added.url, 'https://example.test');
+      expect(added.username, 'alice');
+      expect(added.favorite, isTrue);
+      expect(repository.entrySummaries, hasLength(1));
+      expect(
+        VaultFileEngine().openVaultFile(path).directory.records,
+        hasLength(1),
+      );
+
+      repository.clearUnlockedSession();
+      expect(repository.entrySummaries, isEmpty);
+      await repository.unlockWithMasterPassword('correct password');
+      expect(repository.entrySummaries, hasLength(1));
+      expect(repository.entrySummaries.single.name, 'Example');
+      expect(repository.entrySummaries.single.favorite, isTrue);
+    },
+  );
 }
 
 bool _isCleared(List<int> bytes) => bytes.every((int byte) => byte == 0);

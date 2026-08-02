@@ -1,0 +1,67 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
+import 'package:project_sw/features/vault/domain/add_vault_entry.dart';
+import 'package:project_sw/features/vault/domain/vault_entry.dart';
+
+/// UI projection of the unlocked session's safe EntrySummary collection.
+sealed class VaultEntriesViewState {
+  /// Creates an entries view state.
+  const VaultEntriesViewState(this.summaries);
+
+  /// Safe, globally resident list data.
+  final List<EntrySummary> summaries;
+}
+
+/// Entries are ready for display and another add action.
+final class VaultEntriesReady extends VaultEntriesViewState {
+  /// Creates a ready state with an optional safe form error.
+  const VaultEntriesReady(super.summaries, {this.errorMessage});
+
+  /// Generic error that deliberately contains no entry plaintext.
+  final String? errorMessage;
+}
+
+/// A complete entry is being encrypted and committed.
+final class VaultEntriesSaving extends VaultEntriesViewState {
+  /// Creates the saving state.
+  const VaultEntriesSaving(super.summaries);
+}
+
+/// Owns entry-list interaction state, not unlocked key material.
+final class VaultEntriesCubit extends Cubit<VaultEntriesViewState>
+    implements SessionSecretCleaner {
+  /// Creates the list projection from the repository's safe snapshot.
+  VaultEntriesCubit(this._addVaultEntry, this._repository)
+    : super(VaultEntriesReady(_repository.entrySummaries));
+
+  final AddVaultEntry _addVaultEntry;
+  final VaultRepository _repository;
+
+  /// Pulls the repository's current safe snapshot after a successful unlock.
+  void refresh() => emit(VaultEntriesReady(_repository.entrySummaries));
+
+  /// Drops the Cubit's duplicate summary projection on every session lock.
+  @override
+  void clearUnlockedSession() =>
+      emit(const VaultEntriesReady(<EntrySummary>[]));
+
+  /// Encrypts and commits a complete entry before publishing its summary.
+  Future<void> add(NewVaultEntry entry) async {
+    if (state is VaultEntriesSaving) {
+      return;
+    }
+    emit(VaultEntriesSaving(state.summaries));
+    try {
+      final EntrySummary summary = await _addVaultEntry(entry);
+      emit(VaultEntriesReady(<EntrySummary>[...state.summaries, summary]));
+    } on Object {
+      emit(
+        VaultEntriesReady(
+          state.summaries,
+          errorMessage: 'The entry could not be saved.',
+        ),
+      );
+    }
+  }
+}

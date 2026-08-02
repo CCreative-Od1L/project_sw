@@ -18,6 +18,8 @@ import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
+import 'package:project_sw/features/vault/domain/add_vault_entry.dart';
+import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// The production dependency container used by the application composition root.
@@ -57,9 +59,6 @@ void registerAppDependencies(
     serviceLocator.registerSingleton<VaultRepository>(
       serviceLocator<EncryptedVaultRepository>(),
     );
-    serviceLocator.registerSingleton<SessionSecretCleaner>(
-      serviceLocator<EncryptedVaultRepository>(),
-    );
     serviceLocator.registerSingleton<Argon2idBenchmark>(
       Argon2idBenchmark(serviceLocator<CryptoService>()),
     );
@@ -71,6 +70,22 @@ void registerAppDependencies(
     );
     serviceLocator.registerFactory<SetupCubit>(
       () => SetupCubit(serviceLocator<CreateVault>()),
+    );
+    serviceLocator.registerSingleton<AddVaultEntry>(
+      AddVaultEntry(serviceLocator<VaultRepository>()),
+    );
+    serviceLocator.registerSingleton<VaultEntriesCubit>(
+      VaultEntriesCubit(
+        serviceLocator<AddVaultEntry>(),
+        serviceLocator<VaultRepository>(),
+      ),
+      dispose: (VaultEntriesCubit cubit) => cubit.close(),
+    );
+    serviceLocator.registerSingleton<SessionSecretCleaner>(
+      SessionSecretCleaners(<SessionSecretCleaner>[
+        serviceLocator<EncryptedVaultRepository>(),
+        serviceLocator<VaultEntriesCubit>(),
+      ]),
     );
   }
 
@@ -97,6 +112,7 @@ void registerAppDependencies(
       () => UnlockCubit(
         serviceLocator<UnlockVault>(),
         serviceLocator<SessionController>(),
+        onUnlocked: serviceLocator<VaultEntriesCubit>().refresh,
       ),
     );
   }

@@ -1,11 +1,22 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-/// The fixed 512-byte file header defined by the vault format.
+/// The fixed 512-byte File Header defined by the vault format.
 const int vaultFileHeaderLength = 512;
 
-/// The fixed empty-directory record length used by the first vault commit.
+/// The fixed prefix of a Directory, before its 48-byte EntryRecords.
 const int vaultDirectoryLength = 16;
+
+/// The serialized size of one Directory EntryRecord.
+const int vaultEntryRecordLength = 48;
+
+/// Entry Blocks start after a reserved, fixed-size Directory region.
+///
+/// Keeping the Directory at a stable offset makes single-entry commits avoid
+/// moving existing blocks. The current v0.1 capacity is deliberately bounded
+/// to a personal vault's first 330 entries; compaction/directory COW owns any
+/// later format expansion.
+const int vaultEntryBlockRegionOffset = 16384;
 
 /// Binary magic that identifies a PROJECT_SW vault.
 final Uint8List vaultMagic = Uint8List.fromList(<int>[0x50, 0x53, 0x57, 0x56]);
@@ -48,7 +59,7 @@ final class VaultFileHeader {
   /// Offset of the active Directory.
   final int activeDirectoryOffset;
 
-  /// Number of active entries.
+  /// Number of active EntryRecords.
   final int entryCount;
 
   /// Head of the free-list, or zero when it is empty.
@@ -72,23 +83,35 @@ final class VaultFileHeader {
   /// Header feature flags.
   final int flags;
 
-  /// Returns a copy with the supplied durable sequence fields.
-  VaultFileHeader copyWithCommit({
-    required int committedSequence,
-    required int sequenceCounter,
+  /// Returns a copy for either the intent or durable half of a transaction.
+  VaultFileHeader copyWith({
+    int? entryCount,
+    int? freeListHead,
+    int? sequenceCounter,
+    int? committedSequence,
+    VaultJournal? journal,
   }) => VaultFileHeader(
     kdfParameters: kdfParameters,
     kdfSalt: kdfSalt,
     wrappedMasterVaultKey: wrappedMasterVaultKey,
     activeDirectoryOffset: activeDirectoryOffset,
-    entryCount: entryCount,
-    freeListHead: freeListHead,
-    sequenceCounter: sequenceCounter,
-    committedSequence: committedSequence,
-    journal: journal,
+    entryCount: entryCount ?? this.entryCount,
+    freeListHead: freeListHead ?? this.freeListHead,
+    sequenceCounter: sequenceCounter ?? this.sequenceCounter,
+    committedSequence: committedSequence ?? this.committedSequence,
+    journal: journal ?? this.journal,
     kdfAlgorithmId: kdfAlgorithmId,
     aeadAlgorithmId: aeadAlgorithmId,
     flags: flags,
+  );
+
+  /// Compatibility helper used by initial-vault creation.
+  VaultFileHeader copyWithCommit({
+    required int committedSequence,
+    required int sequenceCounter,
+  }) => copyWith(
+    committedSequence: committedSequence,
+    sequenceCounter: sequenceCounter,
   );
 }
 
@@ -115,11 +138,14 @@ final class VaultKdfParameters {
 enum VaultJournalOperation {
   /// The initial File Header and empty Directory creation operation.
   create,
+
+  /// A block write and replacement Directory containing one new record.
+  entryUpsert,
 }
 
 /// A checksummed journal intent record retained after a successful commit.
 final class VaultJournal {
-  /// Creates a journal intent record.
+  /// Creates a journal record that describes the intended Directory view.
   const VaultJournal({
     required this.operation,
     required this.sequence,
@@ -133,36 +159,109 @@ final class VaultJournal {
   /// Log sequence number.
   final int sequence;
 
-  /// The directory made durable by this operation.
+  /// The Directory to replay if its write reached durable storage.
   final int directoryOffset;
 
-  /// Serialized directory length.
+  /// Serialized length of the intended Directory.
   final int directoryLength;
 }
 
-/// The empty Directory persisted by the first vault commit.
-final class VaultDirectory {
-  /// Creates a Directory with no entry records.
-  const VaultDirectory.empty({required this.sequence});
+/// One active Directory record pointing to a sealed Entry Block.
+final class VaultEntryRecord {
+  /// Creates an immutable entry record.
+  VaultEntryRecord({
+    required Uint8List entryId,
+    required this.blockOffset,
+    required this.blockLength,
+    required this.blockCapacity,
+    required this.plaintextFormatId,
+    required this.sequence,
+    this.flags = 0,
+  }) : entryId = Uint8List.fromList(entryId) {
+    if (this.entryId.length != 16 ||
+        blockOffset < vaultEntryBlockRegionOffset ||
+        blockLength < 72 ||
+        blockCapacity < blockLength ||
+        plaintextFormatId != 1) {
+      throw ArgumentError('Vault EntryRecord is invalid.');
+    }
+  }
 
-  /// The commit sequence that created this directory view.
+  /// CSPRNG entry identity used by both AAD bindings.
+  final Uint8List entryId;
+
+  /// File offset of the Entry Block.
+  final int blockOffset;
+
+  /// Actual encrypted block size.
+  final int blockLength;
+
+  /// Allocated slot capacity.
+  final int blockCapacity;
+
+  /// Inner serialization selector; 1 is JSON.
+  final int plaintextFormatId;
+
+  /// Reserved per-entry flags.
+  final int flags;
+
+  /// Entry revision bound into entry-ciphertext AAD.
   final int sequence;
+}
+
+/// The active Directory and only its non-sensitive records.
+final class VaultDirectory {
+  /// Creates a decoded Directory.
+  VaultDirectory({
+    required this.sequence,
+    List<VaultEntryRecord> records = const [],
+  }) : records = List<VaultEntryRecord>.unmodifiable(records);
+
+  /// Creates an empty initial Directory.
+  const VaultDirectory.empty({required this.sequence}) : records = const [];
+
+  /// Commit sequence that created this Directory view.
+  final int sequence;
+
+  /// Active EntryRecords.
+  final List<VaultEntryRecord> records;
 }
 
 /// A parsed vault file after recovery has finished.
 final class OpenVaultFile {
-  /// Creates an opened empty-vault view.
+  /// Creates an opened vault view.
   const OpenVaultFile({required this.header, required this.directory});
 
   /// Validated File Header.
   final VaultFileHeader header;
 
-  /// Validated Directory.
+  /// Validated active Directory.
   final VaultDirectory directory;
 }
 
-/// A synchronous single-file storage engine for File Header and Directory data.
+/// Fault boundaries used solely to prove commit recovery in tests.
+enum VaultFileCommitStage {
+  /// The retained journal intent was flushed.
+  afterJournal,
+
+  /// The new Entry Block was flushed.
+  afterEntryBlock,
+
+  /// The replacement Directory was flushed.
+  afterDirectory,
+}
+
+/// A test-only hook that can simulate a crash immediately after [stage].
+typedef VaultFileFaultInjector = void Function(VaultFileCommitStage stage);
+
+/// A synchronous single-file storage engine for headers, records, and blocks.
 final class VaultFileEngine {
+  /// Creates the engine with an optional fault injector for recovery tests.
+  VaultFileEngine({this.faultInjector});
+
+  /// Test-only hook invoked after each durable transaction boundary.
+  final VaultFileFaultInjector? faultInjector;
+
   /// Creates an empty vault using journal → directory → committed-seq ordering.
   void createEmptyVault(String path, VaultFileHeader header) {
     final File vault = File(path);
@@ -170,21 +269,15 @@ final class VaultFileEngine {
     try {
       vault.parent.createSync(recursive: true);
       file = vault.openSync(mode: FileMode.write);
-
-      // 1. Persist the journal intent in the header before its target exists.
       file.writeFromSync(VaultFileCodec.encodeHeader(header));
       file.flushSync();
-
-      // 2. Persist the target empty Directory.
       file.setPositionSync(header.activeDirectoryOffset);
       file.writeFromSync(
-        VaultFileCodec.encodeEmptyDirectory(
+        VaultFileCodec.encodeDirectory(
           VaultDirectory.empty(sequence: header.journal.sequence),
         ),
       );
       file.flushSync();
-
-      // 3. Mark the retained journal intent committed and advance the LSN.
       final VaultFileHeader committed = header.copyWithCommit(
         committedSequence: header.journal.sequence,
         sequenceCounter: header.journal.sequence + 1,
@@ -195,12 +288,10 @@ final class VaultFileEngine {
     } finally {
       file?.closeSync();
     }
-
-    // The snapshot is a secondary recovery path, never the commit signal.
     vault.copySync('$path.bak');
   }
 
-  /// Opens an empty vault and replays a complete pending creation if necessary.
+  /// Opens a vault and resolves a valid pending journal before exposing data.
   OpenVaultFile openVaultFile(String path) {
     try {
       return _openVaultFile(path);
@@ -214,53 +305,206 @@ final class VaultFileEngine {
     }
   }
 
+  /// Reads one opaque Entry Block with its bounds validated by [record].
+  Uint8List readEntryBlock(String path, VaultEntryRecord record) {
+    final RandomAccessFile file = File(path).openSync();
+    try {
+      file.setPositionSync(record.blockOffset);
+      final Uint8List bytes = file.readSync(record.blockLength);
+      if (bytes.length != record.blockLength) {
+        throw const FormatException('Entry Block is truncated.');
+      }
+      return bytes;
+    } finally {
+      file.closeSync();
+    }
+  }
+
+  /// Allocates an append-only block offset for the current v0.1 Directory.
+  int allocateEntryBlockOffset(VaultDirectory directory) {
+    var nextOffset = vaultEntryBlockRegionOffset;
+    for (final VaultEntryRecord record in directory.records) {
+      final int end = record.blockOffset + record.blockCapacity;
+      if (end > nextOffset) {
+        nextOffset = end;
+      }
+    }
+    return nextOffset;
+  }
+
+  /// Commits an already-encrypted block and its new record as one transaction.
+  ///
+  /// The caller owns entry semantics and cryptography; this engine owns the
+  /// journal, block, Directory, header order, and crash recovery invariant.
+  void commitEntryBlock({
+    required String path,
+    required OpenVaultFile opened,
+    required VaultEntryRecord record,
+    required Uint8List block,
+  }) {
+    if (block.length != record.blockLength ||
+        record.sequence != opened.header.sequenceCounter ||
+        opened.directory.records.any(
+          (VaultEntryRecord current) =>
+              _sameBytes(current.entryId, record.entryId),
+        )) {
+      throw ArgumentError('Entry transaction does not match the active vault.');
+    }
+    final VaultDirectory nextDirectory = VaultDirectory(
+      sequence: record.sequence,
+      records: <VaultEntryRecord>[...opened.directory.records, record],
+    );
+    final Uint8List encodedDirectory = VaultFileCodec.encodeDirectory(
+      nextDirectory,
+    );
+    if (encodedDirectory.length >
+        vaultEntryBlockRegionOffset - vaultFileHeaderLength) {
+      throw const FormatException('Vault Directory capacity is exhausted.');
+    }
+    final VaultJournal journal = VaultJournal(
+      operation: VaultJournalOperation.entryUpsert,
+      sequence: record.sequence,
+      directoryOffset: opened.header.activeDirectoryOffset,
+      directoryLength: encodedDirectory.length,
+    );
+    final VaultFileHeader pending = opened.header.copyWith(journal: journal);
+    final File vault = File(path);
+    _overwriteRange(vault, 0, VaultFileCodec.encodeHeader(pending));
+    faultInjector?.call(VaultFileCommitStage.afterJournal);
+
+    _overwriteRange(vault, record.blockOffset, block);
+    faultInjector?.call(VaultFileCommitStage.afterEntryBlock);
+
+    _overwriteRange(
+      vault,
+      opened.header.activeDirectoryOffset,
+      encodedDirectory,
+    );
+    faultInjector?.call(VaultFileCommitStage.afterDirectory);
+
+    final VaultFileHeader committed = pending.copyWith(
+      entryCount: nextDirectory.records.length,
+      committedSequence: record.sequence,
+      sequenceCounter: record.sequence + 1,
+    );
+    _overwriteRange(vault, 0, VaultFileCodec.encodeHeader(committed));
+    vault.copySync('$path.bak');
+  }
+
   OpenVaultFile _openVaultFile(String path) {
     final File vault = File(path);
     RandomAccessFile? file;
     try {
       file = vault.openSync(mode: FileMode.append);
       file.setPositionSync(0);
-      final Uint8List headerBytes = file.readSync(vaultFileHeaderLength);
-      VaultFileHeader header = VaultFileCodec.decodeHeader(headerBytes);
-      file.setPositionSync(header.activeDirectoryOffset);
-      final Uint8List directoryBytes = file.readSync(vaultDirectoryLength);
-      final VaultDirectory directory = VaultFileCodec.decodeEmptyDirectory(
-        directoryBytes,
+      VaultFileHeader header = VaultFileCodec.decodeHeader(
+        file.readSync(vaultFileHeaderLength),
       );
+      VaultDirectory directory;
 
       if (header.journal.sequence > header.committedSequence) {
-        if (header.journal.operation != VaultJournalOperation.create ||
-            header.journal.directoryOffset != header.activeDirectoryOffset ||
-            header.journal.directoryLength != vaultDirectoryLength ||
-            directory.sequence != header.journal.sequence) {
-          throw const FormatException(
-            'A pending vault operation cannot replay.',
+        final VaultDirectory? pendingDirectory = _tryReadPendingDirectory(
+          file,
+          header.journal,
+        );
+        if (pendingDirectory != null &&
+            pendingDirectory.sequence == header.journal.sequence) {
+          header = header.copyWith(
+            entryCount: pendingDirectory.records.length,
+            committedSequence: header.journal.sequence,
+            sequenceCounter: header.journal.sequence + 1,
+          );
+          directory = pendingDirectory;
+        } else {
+          // No Directory reached disk. Resolve the intent as a rolled-back,
+          // stale journal so subsequent opens do not reinterpret it as pending.
+          // The committed Directory stays at its previous sequence; only the
+          // next allocatable LSN advances, avoiding a false header/directory
+          // disagreement after a clean rollback.
+          header = header.copyWith(
+            sequenceCounter: header.journal.sequence + 1,
+            journal: VaultJournal(
+              operation: VaultJournalOperation.create,
+              sequence: header.committedSequence,
+              directoryOffset: header.activeDirectoryOffset,
+              directoryLength:
+                  vaultDirectoryLength +
+                  header.entryCount * vaultEntryRecordLength,
+            ),
+          );
+          directory = _readDirectory(
+            file,
+            header.activeDirectoryOffset,
+            header.entryCount,
           );
         }
-        header = header.copyWithCommit(
-          committedSequence: header.journal.sequence,
-          sequenceCounter: header.journal.sequence + 1,
-        );
         file.closeSync();
         file = null;
-        final BytesBuilder recovered = BytesBuilder(copy: false)
-          ..add(VaultFileCodec.encodeHeader(header))
-          ..add(VaultFileCodec.encodeEmptyDirectory(directory));
-        vault.writeAsBytesSync(recovered.toBytes(), flush: true);
+        _overwriteRange(vault, 0, VaultFileCodec.encodeHeader(header));
+        vault.copySync('$path.bak');
+      } else {
+        directory = _readDirectory(
+          file,
+          header.activeDirectoryOffset,
+          header.entryCount,
+        );
       }
-      if (header.entryCount != 0 || header.freeListHead != 0) {
-        throw const FormatException('The first vault Directory is not empty.');
-      }
-      if (directory.sequence != header.committedSequence) {
+      if (directory.records.length != header.entryCount ||
+          directory.sequence != header.committedSequence) {
         throw const FormatException('Vault Directory and Header disagree.');
       }
       return OpenVaultFile(header: header, directory: directory);
-    } on FileSystemException {
-      rethrow;
-    } on FormatException {
-      rethrow;
     } finally {
       file?.closeSync();
+    }
+  }
+
+  VaultDirectory _readDirectory(RandomAccessFile file, int offset, int count) {
+    final int length = vaultDirectoryLength + count * vaultEntryRecordLength;
+    file.setPositionSync(offset);
+    final Uint8List bytes = file.readSync(length);
+    if (bytes.length != length) {
+      throw const FormatException('Vault Directory is truncated.');
+    }
+    return VaultFileCodec.decodeDirectory(bytes);
+  }
+
+  VaultDirectory? _tryReadPendingDirectory(
+    RandomAccessFile file,
+    VaultJournal journal,
+  ) {
+    if (journal.directoryOffset != vaultFileHeaderLength ||
+        journal.directoryLength < vaultDirectoryLength ||
+        journal.directoryLength >
+            vaultEntryBlockRegionOffset - vaultFileHeaderLength) {
+      throw const FormatException('A pending vault operation is invalid.');
+    }
+    file.setPositionSync(journal.directoryOffset);
+    final Uint8List bytes = file.readSync(journal.directoryLength);
+    if (bytes.length != journal.directoryLength) {
+      return null;
+    }
+    try {
+      return VaultFileCodec.decodeDirectory(bytes);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// Applies an in-place byte patch without opening the file in truncating or
+  /// append-only mode. Each call is synchronously flushed as a commit boundary.
+  void _overwriteRange(File vault, int offset, Uint8List replacement) {
+    final Uint8List current = vault.readAsBytesSync();
+    final int targetLength = offset + replacement.length;
+    final Uint8List next = Uint8List(
+      current.length > targetLength ? current.length : targetLength,
+    )..setRange(0, current.length, current);
+    next.setRange(offset, targetLength, replacement);
+    try {
+      vault.writeAsBytesSync(next, flush: true);
+    } finally {
+      current.fillRange(0, current.length, 0);
+      next.fillRange(0, next.length, 0);
     }
   }
 }
@@ -332,7 +576,7 @@ abstract final class VaultFileCodec {
     return bytes;
   }
 
-  /// Decodes a File Header and verifies its structural invariants and journal.
+  /// Decodes a File Header and verifies structural invariants and journal CRC.
   static VaultFileHeader decodeHeader(Uint8List bytes) {
     if (bytes.length != vaultFileHeaderLength ||
         !_sameBytes(bytes.sublist(0, vaultMagic.length), vaultMagic)) {
@@ -370,6 +614,11 @@ abstract final class VaultFileCodec {
       flags: data.getUint8(_flagsOffset),
     );
     if (header.activeDirectoryOffset != vaultFileHeaderLength ||
+        header.entryCount >
+            (vaultEntryBlockRegionOffset -
+                    vaultFileHeaderLength -
+                    vaultDirectoryLength) ~/
+                vaultEntryRecordLength ||
         header.sequenceCounter == 0 ||
         header.committedSequence > header.sequenceCounter ||
         header.kdfParameters.memoryKiB == 0 ||
@@ -380,21 +629,39 @@ abstract final class VaultFileCodec {
     return header;
   }
 
-  /// Encodes the first empty Directory.
-  static Uint8List encodeEmptyDirectory(VaultDirectory directory) {
-    final Uint8List bytes = Uint8List(vaultDirectoryLength);
+  /// Encodes a Directory prefix and its fixed-size EntryRecords.
+  static Uint8List encodeDirectory(VaultDirectory directory) {
+    final Uint8List bytes = Uint8List(
+      vaultDirectoryLength + directory.records.length * vaultEntryRecordLength,
+    );
     final ByteData data = ByteData.sublistView(bytes);
     bytes.setRange(0, 4, <int>[0x50, 0x44, 0x49, 0x52]);
     data
       ..setUint16(4, vaultFormatVersion, Endian.big)
-      ..setUint16(6, 0, Endian.big)
+      ..setUint16(6, directory.records.length, Endian.big)
       ..setUint64(8, directory.sequence, Endian.big);
+    var offset = vaultDirectoryLength;
+    for (final VaultEntryRecord record in directory.records) {
+      bytes.setRange(offset, offset + 16, record.entryId);
+      data
+        ..setUint64(offset + 16, record.blockOffset, Endian.big)
+        ..setUint32(offset + 24, record.blockLength, Endian.big)
+        ..setUint32(offset + 28, record.blockCapacity, Endian.big)
+        ..setUint8(offset + 32, record.plaintextFormatId)
+        ..setUint8(offset + 33, record.flags)
+        ..setUint64(offset + 34, record.sequence, Endian.big);
+      offset += vaultEntryRecordLength;
+    }
     return bytes;
   }
 
-  /// Decodes an empty Directory and rejects any unexpected entry records.
-  static VaultDirectory decodeEmptyDirectory(Uint8List bytes) {
-    if (bytes.length != vaultDirectoryLength ||
+  /// Compatibility name for the initial empty Directory encoding.
+  static Uint8List encodeEmptyDirectory(VaultDirectory directory) =>
+      encodeDirectory(directory);
+
+  /// Decodes a Directory and each EntryRecord's bounds.
+  static VaultDirectory decodeDirectory(Uint8List bytes) {
+    if (bytes.length < vaultDirectoryLength ||
         !_sameBytes(
           bytes.sublist(0, 4),
           Uint8List.fromList(<int>[0x50, 0x44, 0x49, 0x52]),
@@ -402,11 +669,44 @@ abstract final class VaultFileCodec {
       throw const FormatException('Vault Directory is invalid.');
     }
     final ByteData data = ByteData.sublistView(bytes);
+    final int count = data.getUint16(6, Endian.big);
     if (data.getUint16(4, Endian.big) != vaultFormatVersion ||
-        data.getUint16(6, Endian.big) != 0) {
+        bytes.length != vaultDirectoryLength + count * vaultEntryRecordLength) {
+      throw const FormatException('Vault Directory length is invalid.');
+    }
+    final List<VaultEntryRecord> records = <VaultEntryRecord>[];
+    var offset = vaultDirectoryLength;
+    for (var index = 0; index < count; index++) {
+      try {
+        records.add(
+          VaultEntryRecord(
+            entryId: Uint8List.fromList(bytes.sublist(offset, offset + 16)),
+            blockOffset: data.getUint64(offset + 16, Endian.big),
+            blockLength: data.getUint32(offset + 24, Endian.big),
+            blockCapacity: data.getUint32(offset + 28, Endian.big),
+            plaintextFormatId: data.getUint8(offset + 32),
+            flags: data.getUint8(offset + 33),
+            sequence: data.getUint64(offset + 34, Endian.big),
+          ),
+        );
+      } on ArgumentError {
+        throw const FormatException('Vault EntryRecord is invalid.');
+      }
+      offset += vaultEntryRecordLength;
+    }
+    return VaultDirectory(
+      sequence: data.getUint64(8, Endian.big),
+      records: records,
+    );
+  }
+
+  /// Compatibility decoder that rejects a non-empty Directory.
+  static VaultDirectory decodeEmptyDirectory(Uint8List bytes) {
+    final VaultDirectory directory = decodeDirectory(bytes);
+    if (directory.records.isNotEmpty) {
       throw const FormatException('Vault Directory is not empty.');
     }
-    return VaultDirectory.empty(sequence: data.getUint64(8, Endian.big));
+    return directory;
   }
 
   static Uint8List _encodeJournal(VaultJournal journal) {
@@ -465,4 +765,16 @@ abstract final class VaultFileCodec {
     }
     return (crc ^ 0xffffffff) & 0xffffffff;
   }
+}
+
+bool _sameBytes(Uint8List first, Uint8List second) {
+  if (first.length != second.length) {
+    return false;
+  }
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) {
+      return false;
+    }
+  }
+  return true;
 }

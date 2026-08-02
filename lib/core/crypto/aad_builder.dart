@@ -19,6 +19,41 @@ abstract final class AadBuilder {
     return builder.toBytes();
   }
 
+  /// Binds an MVK-wrapped DEK to its stable EntryRecord identity.
+  static Uint8List forWrapDek({
+    required Uint8List magic,
+    required int formatVersion,
+    required int aeadAlgorithmId,
+    required Uint8List entryId,
+  }) {
+    final BytesBuilder builder = BytesBuilder(copy: false)
+      ..add(magic)
+      ..add(_uint16(formatVersion))
+      ..addByte(aeadAlgorithmId)
+      ..add(entryId);
+    return builder.toBytes();
+  }
+
+  /// Binds encrypted entry plaintext to identity and its monotonic revision.
+  static Uint8List forEncryptEntry({
+    required Uint8List magic,
+    required int formatVersion,
+    required int aeadAlgorithmId,
+    required Uint8List entryId,
+    required int sequence,
+  }) {
+    final Uint8List sequenceBytes = (ByteData(
+      8,
+    )..setUint64(0, sequence, Endian.big)).buffer.asUint8List();
+    final BytesBuilder builder = BytesBuilder(copy: false)
+      ..add(magic)
+      ..add(_uint16(formatVersion))
+      ..addByte(aeadAlgorithmId)
+      ..add(entryId)
+      ..add(sequenceBytes);
+    return builder.toBytes();
+  }
+
   static Uint8List _uint16(int value) {
     final ByteData data = ByteData(2)..setUint16(0, value, Endian.big);
     return data.buffer.asUint8List();

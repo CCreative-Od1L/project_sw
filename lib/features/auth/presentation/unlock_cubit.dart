@@ -37,11 +37,14 @@ final class UnlockFault extends UnlockViewState {
 /// Owns only unlock-form interaction state, not the session state machine.
 final class UnlockCubit extends Cubit<UnlockViewState> {
   /// Creates a form coordinator around the use case and session source.
-  UnlockCubit(this._unlockVault, this._sessionController)
+  UnlockCubit(this._unlockVault, this._sessionController, {this.onUnlocked})
     : super(const UnlockReady());
 
   final UnlockVault _unlockVault;
   final SessionController _sessionController;
+
+  /// Invoked after the repository has rebuilt its unlocked safe projections.
+  final void Function()? onUnlocked;
 
   /// Submits a master password and updates the session only after success.
   Future<void> submit(String masterPassword) async {
@@ -56,6 +59,7 @@ final class UnlockCubit extends Cubit<UnlockViewState> {
       switch (result) {
         case Success<UnlockedVault, UnlockFailure>():
           _sessionController.unlock(AuthStrength.masterPassword);
+          onUnlocked?.call();
           emit(const UnlockReady());
         case Failure<UnlockedVault, UnlockFailure>():
           emit(const UnlockInvalidPassword());

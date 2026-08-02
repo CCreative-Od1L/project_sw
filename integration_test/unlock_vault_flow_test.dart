@@ -8,14 +8,18 @@ import 'package:project_sw/core/crypto/sodium_crypto_service.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
+import 'package:project_sw/features/vault/domain/add_vault_entry.dart';
+import 'package:project_sw/features/vault/domain/vault_entry.dart';
+import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('unlocks, manually locks, and re-unlocks an existing vault', (
+  testWidgets('adds an entry then locks and re-unlocks an existing vault', (
     WidgetTester tester,
   ) async {
     final Directory supportDirectory = await getApplicationSupportDirectory();
@@ -27,13 +31,21 @@ void main() {
       vaultFileEngine: VaultFileEngine(),
       vaultPathResolver: () async => vaultPath,
     );
+    final VaultEntriesCubit entriesCubit = VaultEntriesCubit(
+      AddVaultEntry(repository),
+      repository,
+    );
     final SessionController sessionController = SessionController(
       initialState: const LockedSession(reason: LockReason.coldStart),
-      secretCleaner: repository,
+      secretCleaner: SessionSecretCleaners(<SessionSecretCleaner>[
+        repository,
+        entriesCubit,
+      ]),
     );
     final UnlockCubit unlockCubit = UnlockCubit(
       UnlockVault(repository),
       sessionController,
+      onUnlocked: entriesCubit.refresh,
     );
 
     try {
@@ -49,16 +61,32 @@ void main() {
       await unlockCubit.submit('correct integration password');
       expect(repository.hasUnlockedSession, isTrue);
       expect(sessionController.routeState, SessionRouteState.home);
+      await entriesCubit.add(
+        const NewVaultEntry(
+          name: 'Integration entry',
+          username: 'integration-user',
+          password: 'integration-only-secret',
+          notes: 'detail-only integration notes',
+        ),
+      );
+      expect(repository.entrySummaries, hasLength(1));
+      expect(repository.entrySummaries.single.name, 'Integration entry');
+      expect(entriesCubit.state.summaries, hasLength(1));
 
       sessionController.lock(LockReason.manualLock);
       expect(repository.hasUnlockedSession, isFalse);
+      expect(repository.entrySummaries, isEmpty);
+      expect(entriesCubit.state.summaries, isEmpty);
       expect(sessionController.routeState, SessionRouteState.unlock);
 
       await unlockCubit.submit('correct integration password');
       expect(repository.hasUnlockedSession, isTrue);
       expect(sessionController.routeState, SessionRouteState.home);
+      expect(repository.entrySummaries.single.name, 'Integration entry');
+      expect(entriesCubit.state.summaries.single.name, 'Integration entry');
     } finally {
       unlockCubit.close();
+      entriesCubit.close();
       sessionController.dispose();
       repository.clearUnlockedSession();
       final File vault = File(vaultPath);
