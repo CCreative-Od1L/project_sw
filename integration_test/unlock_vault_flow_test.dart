@@ -77,6 +77,11 @@ void main() {
       );
       await entriesCubit.update(detail.entry.copyWith(name: 'Updated entry'));
       expect(repository.entrySummaries.single.name, 'Updated entry');
+      final EntryDetail updatedDetail = await entriesCubit.detail(
+        repository.entrySummaries.single.entryId,
+      );
+      expect(updatedDetail.entry.name, 'Updated entry');
+      expect(updatedDetail.entry.password, 'integration-only-secret');
 
       sessionController.lock(LockReason.manualLock);
       expect(repository.hasUnlockedSession, isFalse);
@@ -89,8 +94,17 @@ void main() {
       expect(sessionController.routeState, SessionRouteState.home);
       expect(repository.entrySummaries.single.name, 'Updated entry');
       expect(entriesCubit.state.summaries.single.name, 'Updated entry');
+      final EntryDetail reloadedDetail = await entriesCubit.detail(
+        repository.entrySummaries.single.entryId,
+      );
+      expect(reloadedDetail.entry.name, 'Updated entry');
+      expect(reloadedDetail.entry.password, 'integration-only-secret');
       await entriesCubit.delete(repository.entrySummaries.single.entryId);
       expect(repository.entrySummaries, isEmpty);
+      sessionController.lock(LockReason.manualLock);
+      await unlockCubit.submit('correct integration password');
+      expect(repository.entrySummaries, isEmpty);
+      expect(entriesCubit.state.summaries, isEmpty);
     } finally {
       unlockCubit.close();
       entriesCubit.close();
