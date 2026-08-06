@@ -32,6 +32,7 @@ final class EncryptedVaultRepository implements VaultRepository {
   final VaultPathResolver vaultPathResolver;
   Uint8List? _masterVaultKey;
   List<EntrySummary> _entrySummaries = const <EntrySummary>[];
+  Argon2idParameters? _activeKdfParameters;
 
   @override
   bool get hasUnlockedSession => _masterVaultKey != null;
@@ -39,6 +40,9 @@ final class EncryptedVaultRepository implements VaultRepository {
   @override
   List<EntrySummary> get entrySummaries =>
       List<EntrySummary>.unmodifiable(_entrySummaries);
+
+  @override
+  Argon2idParameters? get activeKdfParameters => _activeKdfParameters;
 
   @override
   Future<void> createEmptyVault({
@@ -184,6 +188,11 @@ final class EncryptedVaultRepository implements VaultRepository {
           header: header,
           directory: opened.directory,
           masterVaultKey: _masterVaultKey!,
+        );
+        _activeKdfParameters = Argon2idParameters(
+          memoryKiB: header.kdfParameters.memoryKiB,
+          iterations: header.kdfParameters.iterations,
+          parallelism: header.kdfParameters.parallelism,
         );
       } on VaultException {
         clearUnlockedSession();
@@ -519,6 +528,7 @@ final class EncryptedVaultRepository implements VaultRepository {
       clearSensitiveBytes(masterVaultKey);
     }
     _entrySummaries = const <EntrySummary>[];
+    _activeKdfParameters = null;
   }
 
   List<EntrySummary> _loadEntrySummaries({

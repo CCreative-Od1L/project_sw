@@ -217,6 +217,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noMatchingEntries => '没有匹配的条目。';
 
   @override
+  String get securitySettingsReadOnly => '安全设置（只读）';
+
+  @override
+  String get idleLockPolicy => '空闲锁定';
+
+  @override
+  String idleLockPolicyValue(int minutes) {
+    return '无操作 $minutes 分钟后锁定。';
+  }
+
+  @override
+  String get backgroundLockPolicy => '后台锁定';
+
+  @override
+  String get backgroundLockPolicyValue => '应用进入后台后立即锁定。';
+
+  @override
+  String get clipboardPolicy => '敏感剪贴板';
+
+  @override
+  String clipboardPolicyValue(int seconds) {
+    return '复制的值将在 $seconds 秒后清除。';
+  }
+
+  @override
+  String get kdfPolicy => '密码库密钥派生';
+
+  @override
+  String get kdfPolicyUnavailable => '解锁密码库后可查看。';
+
+  @override
+  String get settingsNoCredentials => '此处不显示凭据或密码库明文。';
+
+  @override
   String get generatorComingSoon => '密码生成器将在下一批功能中加入。';
 
   @override

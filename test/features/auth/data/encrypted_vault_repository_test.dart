@@ -72,6 +72,35 @@ void main() {
     },
   );
 
+  test('exposes active KDF parameters only while unlocked', () async {
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async =>
+          '${temporaryDirectory.path}/kdf-settings.psw',
+    );
+    const Argon2idParameters parameters = Argon2idParameters(
+      memoryKiB: 64 * 1024,
+      iterations: 3,
+      parallelism: 1,
+    );
+
+    expect(repository.activeKdfParameters, isNull);
+    await repository.createEmptyVault(
+      masterPassword: 'correct password',
+      kdfParameters: parameters,
+    );
+    expect(repository.activeKdfParameters, isNull);
+
+    await repository.unlockWithMasterPassword('correct password');
+    expect(repository.activeKdfParameters?.memoryKiB, parameters.memoryKiB);
+    expect(repository.activeKdfParameters?.iterations, parameters.iterations);
+    expect(repository.activeKdfParameters?.parallelism, parameters.parallelism);
+
+    repository.clearUnlockedSession();
+    expect(repository.activeKdfParameters, isNull);
+  });
+
   test('normalizes a storage location failure as VaultIoException', () async {
     final File blocker = File('${temporaryDirectory.path}/blocker')
       ..createSync();

@@ -137,6 +137,9 @@ final class InMemoryVaultRepository implements VaultRepository {
       List<EntrySummary>.unmodifiable(_summaries);
 
   @override
+  Argon2idParameters? get activeKdfParameters => null;
+
+  @override
   Future<EntryDetail> getEntryDetail(Uint8List entryId) async =>
       throw UnimplementedError();
 

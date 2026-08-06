@@ -24,6 +24,9 @@ abstract interface class VaultRepository implements SessionSecretCleaner {
   /// The current unlocked session's globally resident, safe EntrySummary list.
   List<EntrySummary> get entrySummaries;
 
+  /// The active vault KDF profile, available only while the vault is unlocked.
+  Argon2idParameters? get activeKdfParameters;
+
   /// Decrypts a complete entry only for a short-lived detail scope.
   Future<EntryDetail> getEntryDetail(Uint8List entryId);
 

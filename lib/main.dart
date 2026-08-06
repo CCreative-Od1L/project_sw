@@ -2,13 +2,16 @@ import 'package:flutter/widgets.dart';
 import 'package:project_sw/app/app_dependencies.dart';
 import 'package:project_sw/app/project_sw_app.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
+import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
 import 'package:project_sw/app/pages/generator_page.dart';
+import 'package:project_sw/app/pages/settings_page.dart';
 
 /// Starts the application after composing its process-wide dependencies.
 Future<void> main() async {
@@ -32,6 +35,10 @@ Future<void> main() async {
         sensitiveClipboardController:
             appServiceLocator<SensitiveClipboardController>(),
         sessionController: appServiceLocator<SessionController>(),
+      ),
+      settingsPageBuilder: (_) => SettingsPage(
+        config: appServiceLocator<AppConfig>(),
+        vaultRepository: appServiceLocator<VaultRepository>(),
       ),
     ),
   );
