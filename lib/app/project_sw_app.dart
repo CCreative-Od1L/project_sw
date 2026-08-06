@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:project_sw/app/app_router.dart';
 import 'package:project_sw/app/session_lifecycle_adapter.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
@@ -19,6 +21,7 @@ final class ProjectSwApp extends StatefulWidget {
     this.setupCubit,
     this.unlockCubit,
     this.vaultEntriesCubit,
+    this.sensitiveClipboardController,
   });
 
   /// The global session source of truth.
@@ -36,11 +39,16 @@ final class ProjectSwApp extends StatefulWidget {
   /// Optional unlocked-entry projection, omitted only by route skeleton tests.
   final VaultEntriesCubit? vaultEntriesCubit;
 
+  /// Shared sensitive clipboard cleanup coordinator.
+  final SensitiveClipboardController? sensitiveClipboardController;
+
   @override
   State<ProjectSwApp> createState() => _ProjectSwAppState();
 }
 
 final class _ProjectSwAppState extends State<ProjectSwApp> {
+  late final SensitiveClipboardController _fallbackClipboardController =
+      SensitiveClipboardController(const FlutterClipboardPort());
   late final GoRouter _router = buildAppRouter(
     widget.sessionController,
     setupCubit: widget.setupCubit,
@@ -51,6 +59,7 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
   @override
   void dispose() {
     _router.dispose();
+    _fallbackClipboardController.dispose();
     super.dispose();
   }
 
@@ -60,13 +69,19 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
       value: widget.authCubit,
       child: SessionLifecycleAdapter(
         sessionController: widget.sessionController,
-        child: MaterialApp.router(
-          title: 'Project SW',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-            useMaterial3: true,
+        onForegrounded: widget.sensitiveClipboardController?.onForegrounded,
+        child: SensitiveClipboardScope(
+          controller:
+              widget.sensitiveClipboardController ??
+              _fallbackClipboardController,
+          child: MaterialApp.router(
+            title: 'Project SW',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+              useMaterial3: true,
+            ),
+            routerConfig: _router,
           ),
-          routerConfig: _router,
         ),
       ),
     );

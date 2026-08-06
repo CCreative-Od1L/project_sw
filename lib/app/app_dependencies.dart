@@ -5,6 +5,7 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/crypto/crypto_service.dart';
 import 'package:project_sw/core/crypto/sodium_crypto_service.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/observability/logger.dart';
 import 'package:project_sw/core/observability/redaction_filter.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
@@ -31,6 +32,7 @@ void registerAppDependencies(
   AppConfig config = const AppConfig(),
   CryptoService? cryptoService,
   VaultPathResolver? vaultPathResolver,
+  ClipboardPort? clipboardPort,
 }) {
   serviceLocator.registerSingleton<AppConfig>(config);
   serviceLocator.registerSingleton<RedactionFilter>(const RedactionFilter());
@@ -44,6 +46,13 @@ void registerAppDependencies(
   serviceLocator.registerSingleton<EventTracker>(const NoopEventTracker());
   serviceLocator.registerSingleton<MetricsRecorder>(
     const NoopMetricsRecorder(),
+  );
+  serviceLocator.registerSingleton<SensitiveClipboardController>(
+    SensitiveClipboardController(
+      clipboardPort ?? const FlutterClipboardPort(),
+      timeout: config.sensitiveClipboardTimeout,
+    ),
+    dispose: (SensitiveClipboardController controller) => controller.dispose(),
   );
 
   if (cryptoService != null && vaultPathResolver != null) {

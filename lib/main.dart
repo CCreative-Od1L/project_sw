@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:project_sw/app/app_dependencies.dart';
 import 'package:project_sw/app/project_sw_app.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
@@ -19,6 +20,8 @@ Future<void> main() async {
       setupCubit: appServiceLocator<SetupCubit>(),
       unlockCubit: appServiceLocator<UnlockCubit>(),
       vaultEntriesCubit: appServiceLocator<VaultEntriesCubit>(),
+      sensitiveClipboardController:
+          appServiceLocator<SensitiveClipboardController>(),
     ),
   );
 }
