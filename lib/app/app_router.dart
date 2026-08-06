@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:project_sw/app/pages/home_page.dart';
 import 'package:project_sw/app/pages/setup_page.dart';
 import 'package:project_sw/app/pages/unlock_page.dart';
+import 'package:project_sw/app/session_lifecycle_adapter.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
@@ -18,6 +19,9 @@ GoRouter buildAppRouter(
 }) {
   return GoRouter(
     initialLocation: sessionController.routeState.path,
+    observers: <NavigatorObserver>[
+      SessionNavigationObserver(sessionController),
+    ],
     refreshListenable: sessionController,
     redirect: (BuildContext context, GoRouterState state) {
       return redirectForSessionRoute(

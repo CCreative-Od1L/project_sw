@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
@@ -47,7 +49,8 @@ final class _HomeContent extends StatefulWidget {
   State<_HomeContent> createState() => _HomeContentState();
 }
 
-final class _HomeContentState extends State<_HomeContent> {
+final class _HomeContentState extends State<_HomeContent>
+    implements SessionSecretCleaner {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
@@ -56,7 +59,14 @@ final class _HomeContentState extends State<_HomeContent> {
   var _favorite = false;
 
   @override
+  void initState() {
+    super.initState();
+    widget.sessionController.registerSecretCleaner(this);
+  }
+
+  @override
   void dispose() {
+    widget.sessionController.unregisterSecretCleaner(this);
     _clearForm();
     _nameController.dispose();
     _urlController.dispose();
@@ -64,6 +74,12 @@ final class _HomeContentState extends State<_HomeContent> {
     _passwordController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  @override
+  void clearUnlockedSession() {
+    _clearForm();
+    _favorite = false;
   }
 
   @override
@@ -81,7 +97,10 @@ final class _HomeContentState extends State<_HomeContent> {
           if (cubit == null)
             const Text('No entries have been added yet.')
           else
-            _EntriesPanel(onAdded: _clearForm),
+            _EntriesPanel(
+              onAdded: _clearForm,
+              sessionController: widget.sessionController,
+            ),
           if (cubit != null) ...<Widget>[
             const Divider(),
             Text('Add entry', style: Theme.of(context).textTheme.titleMedium),
@@ -90,6 +109,9 @@ final class _HomeContentState extends State<_HomeContent> {
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Name'),
               textInputAction: TextInputAction.next,
+              onChanged: (_) => widget.sessionController.handle(
+                SessionEvent.userInteractionObserved,
+              ),
             ),
             TextField(
               controller: _urlController,
@@ -97,12 +119,18 @@ final class _HomeContentState extends State<_HomeContent> {
               keyboardType: TextInputType.url,
               autocorrect: false,
               enableSuggestions: false,
+              onChanged: (_) => widget.sessionController.handle(
+                SessionEvent.userInteractionObserved,
+              ),
             ),
             TextField(
               controller: _usernameController,
               decoration: const InputDecoration(labelText: 'Username'),
               autocorrect: false,
               enableSuggestions: false,
+              onChanged: (_) => widget.sessionController.handle(
+                SessionEvent.userInteractionObserved,
+              ),
             ),
             TextField(
               controller: _passwordController,
@@ -110,6 +138,9 @@ final class _HomeContentState extends State<_HomeContent> {
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
+              onChanged: (_) => widget.sessionController.handle(
+                SessionEvent.userInteractionObserved,
+              ),
             ),
             TextField(
               controller: _notesController,
@@ -118,6 +149,9 @@ final class _HomeContentState extends State<_HomeContent> {
               maxLines: 2,
               autocorrect: false,
               enableSuggestions: false,
+              onChanged: (_) => widget.sessionController.handle(
+                SessionEvent.userInteractionObserved,
+              ),
             ),
             Row(
               children: <Widget>[
@@ -161,6 +195,7 @@ final class _HomeContentState extends State<_HomeContent> {
   }
 
   Future<void> _submit() async {
+    widget.sessionController.handle(SessionEvent.userInteractionObserved);
     final VaultEntriesCubit cubit = context.read<VaultEntriesCubit>();
     await cubit.add(
       NewVaultEntry(
@@ -188,9 +223,10 @@ final class _HomeContentState extends State<_HomeContent> {
 }
 
 final class _EntriesPanel extends StatelessWidget {
-  const _EntriesPanel({required this.onAdded});
+  const _EntriesPanel({required this.onAdded, required this.sessionController});
 
   final VoidCallback onAdded;
+  final SessionController sessionController;
 
   @override
   Widget build(BuildContext context) {
@@ -248,24 +284,33 @@ final class _EntriesPanel extends StatelessWidget {
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
-      builder: (BuildContext context) =>
-          _EntryDetailDialog(cubit: cubit, detail: detail),
+      builder: (BuildContext context) => _EntryDetailDialog(
+        cubit: cubit,
+        detail: detail,
+        sessionController: sessionController,
+      ),
     );
   }
 }
 
 /// Owns detail plaintext and field controllers for exactly one modal route.
 final class _EntryDetailDialog extends StatefulWidget {
-  const _EntryDetailDialog({required this.cubit, required this.detail});
+  const _EntryDetailDialog({
+    required this.cubit,
+    required this.detail,
+    required this.sessionController,
+  });
 
   final VaultEntriesCubit cubit;
   final EntryDetail detail;
+  final SessionController sessionController;
 
   @override
   State<_EntryDetailDialog> createState() => _EntryDetailDialogState();
 }
 
-final class _EntryDetailDialogState extends State<_EntryDetailDialog> {
+final class _EntryDetailDialogState extends State<_EntryDetailDialog>
+    implements SessionSecretCleaner {
   late final TextEditingController _name = TextEditingController(
     text: widget.detail.entry.name,
   );
@@ -284,7 +329,14 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog> {
   late var _favorite = widget.detail.entry.favorite;
 
   @override
+  void initState() {
+    super.initState();
+    widget.sessionController.registerSecretCleaner(this);
+  }
+
+  @override
   void dispose() {
+    widget.sessionController.unregisterSecretCleaner(this);
     _name.clear();
     _url.clear();
     _username.clear();
@@ -296,6 +348,15 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog> {
     _password.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  @override
+  void clearUnlockedSession() {
+    _name.clear();
+    _url.clear();
+    _username.clear();
+    _password.clear();
+    _notes.clear();
   }
 
   @override

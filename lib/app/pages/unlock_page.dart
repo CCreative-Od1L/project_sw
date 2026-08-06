@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 
 /// Locked-vault route that accepts the master-password unlock path.
@@ -23,22 +25,34 @@ final class UnlockPage extends StatefulWidget {
   State<UnlockPage> createState() => _UnlockPageState();
 }
 
-final class _UnlockPageState extends State<UnlockPage> {
+final class _UnlockPageState extends State<UnlockPage>
+    implements SessionSecretCleaner {
   final TextEditingController _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    widget.sessionController.registerSecretCleaner(this);
+  }
+
+  @override
   void dispose() {
+    widget.sessionController.unregisterSecretCleaner(this);
     _passwordController
       ..clear()
       ..dispose();
     super.dispose();
   }
 
+  @override
+  void clearUnlockedSession() => _passwordController.clear();
+
   Future<void> _submit() async {
     final UnlockCubit? unlockCubit = widget.unlockCubit;
     if (unlockCubit == null) {
       return;
     }
+    widget.sessionController.handle(SessionEvent.userInteractionObserved);
     await unlockCubit.submit(_passwordController.text);
     _passwordController.clear();
   }
@@ -49,6 +63,7 @@ final class _UnlockPageState extends State<UnlockPage> {
     if (unlockCubit == null) {
       return _UnlockContent(
         onSubmit: null,
+        onActivity: null,
         state: const UnlockReady(),
         controller: _passwordController,
       );
@@ -59,6 +74,9 @@ final class _UnlockPageState extends State<UnlockPage> {
         builder: (BuildContext context, UnlockViewState state) =>
             _UnlockContent(
               onSubmit: _submit,
+              onActivity: () => widget.sessionController.handle(
+                SessionEvent.userInteractionObserved,
+              ),
               state: state,
               controller: _passwordController,
             ),
@@ -70,11 +88,13 @@ final class _UnlockPageState extends State<UnlockPage> {
 final class _UnlockContent extends StatelessWidget {
   const _UnlockContent({
     required this.onSubmit,
+    required this.onActivity,
     required this.state,
     required this.controller,
   });
 
   final Future<void> Function()? onSubmit;
+  final VoidCallback? onActivity;
   final UnlockViewState state;
   final TextEditingController controller;
 
@@ -103,6 +123,7 @@ final class _UnlockContent extends StatelessWidget {
             autocorrect: false,
             enableSuggestions: false,
             decoration: const InputDecoration(labelText: 'Master password'),
+            onChanged: (_) => onActivity?.call(),
           ),
           const SizedBox(height: 16),
           if (unlocking)

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:project_sw/app/app_router.dart';
+import 'package:project_sw/app/session_lifecycle_adapter.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
@@ -57,13 +58,16 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
   Widget build(BuildContext context) {
     return BlocProvider<AuthCubit>.value(
       value: widget.authCubit,
-      child: MaterialApp.router(
-        title: 'Project SW',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-          useMaterial3: true,
+      child: SessionLifecycleAdapter(
+        sessionController: widget.sessionController,
+        child: MaterialApp.router(
+          title: 'Project SW',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+            useMaterial3: true,
+          ),
+          routerConfig: _router,
         ),
-        routerConfig: _router,
       ),
     );
   }
