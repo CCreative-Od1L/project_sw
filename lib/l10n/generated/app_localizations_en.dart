@@ -221,6 +221,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMatchingEntries => 'No entries match your search.';
 
   @override
+  String get securitySettingsReadOnly => 'Security settings (read-only)';
+
+  @override
+  String get idleLockPolicy => 'Idle lock';
+
+  @override
+  String idleLockPolicyValue(int minutes) {
+    return 'Locks after $minutes minutes without interaction.';
+  }
+
+  @override
+  String get backgroundLockPolicy => 'Background lock';
+
+  @override
+  String get backgroundLockPolicyValue =>
+      'Locks immediately when the app enters the background.';
+
+  @override
+  String get clipboardPolicy => 'Sensitive clipboard';
+
+  @override
+  String clipboardPolicyValue(int seconds) {
+    return 'Copied values are cleared after $seconds seconds.';
+  }
+
+  @override
+  String get kdfPolicy => 'Vault key derivation';
+
+  @override
+  String get kdfPolicyUnavailable => 'Available after the vault is unlocked.';
+
+  @override
+  String get settingsNoCredentials =>
+      'No credentials or vault plaintext are shown here.';
+
+  @override
   String get generatorComingSoon => 'Password generator is coming next.';
 
   @override

@@ -94,6 +94,26 @@
   "searchEntries": "Search entries",
   "favoritesOnly": "Favorites only",
   "noMatchingEntries": "No entries match your search.",
+  "securitySettingsReadOnly": "Security settings (read-only)",
+  "idleLockPolicy": "Idle lock",
+  "idleLockPolicyValue": "Locks after {minutes} minutes without interaction.",
+  "@idleLockPolicyValue": {
+    "placeholders": {
+      "minutes": {"type": "int"}
+    }
+  },
+  "backgroundLockPolicy": "Background lock",
+  "backgroundLockPolicyValue": "Locks immediately when the app enters the background.",
+  "clipboardPolicy": "Sensitive clipboard",
+  "clipboardPolicyValue": "Copied values are cleared after {seconds} seconds.",
+  "@clipboardPolicyValue": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "kdfPolicy": "Vault key derivation",
+  "kdfPolicyUnavailable": "Available after the vault is unlocked.",
+  "settingsNoCredentials": "No credentials or vault plaintext are shown here.",
   "generatorComingSoon": "Password generator is coming next.",
   "settingsComingSoon": "Security settings are coming next."
 }

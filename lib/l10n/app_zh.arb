@@ -94,6 +94,26 @@
   "searchEntries": "搜索条目",
   "favoritesOnly": "仅收藏",
   "noMatchingEntries": "没有匹配的条目。",
+  "securitySettingsReadOnly": "安全设置（只读）",
+  "idleLockPolicy": "空闲锁定",
+  "idleLockPolicyValue": "无操作 {minutes} 分钟后锁定。",
+  "@idleLockPolicyValue": {
+    "placeholders": {
+      "minutes": {"type": "int"}
+    }
+  },
+  "backgroundLockPolicy": "后台锁定",
+  "backgroundLockPolicyValue": "应用进入后台后立即锁定。",
+  "clipboardPolicy": "敏感剪贴板",
+  "clipboardPolicyValue": "复制的值将在 {seconds} 秒后清除。",
+  "@clipboardPolicyValue": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "kdfPolicy": "密码库密钥派生",
+  "kdfPolicyUnavailable": "解锁密码库后可查看。",
+  "settingsNoCredentials": "此处不显示凭据或密码库明文。",
   "generatorComingSoon": "密码生成器将在下一批功能中加入。",
   "settingsComingSoon": "安全设置将在下一批功能中加入。"
 }

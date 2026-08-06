@@ -494,6 +494,66 @@ abstract class AppLocalizations {
   /// **'No entries match your search.'**
   String get noMatchingEntries;
 
+  /// No description provided for @securitySettingsReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Security settings (read-only)'**
+  String get securitySettingsReadOnly;
+
+  /// No description provided for @idleLockPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Idle lock'**
+  String get idleLockPolicy;
+
+  /// No description provided for @idleLockPolicyValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Locks after {minutes} minutes without interaction.'**
+  String idleLockPolicyValue(int minutes);
+
+  /// No description provided for @backgroundLockPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Background lock'**
+  String get backgroundLockPolicy;
+
+  /// No description provided for @backgroundLockPolicyValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Locks immediately when the app enters the background.'**
+  String get backgroundLockPolicyValue;
+
+  /// No description provided for @clipboardPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Sensitive clipboard'**
+  String get clipboardPolicy;
+
+  /// No description provided for @clipboardPolicyValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied values are cleared after {seconds} seconds.'**
+  String clipboardPolicyValue(int seconds);
+
+  /// No description provided for @kdfPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault key derivation'**
+  String get kdfPolicy;
+
+  /// No description provided for @kdfPolicyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available after the vault is unlocked.'**
+  String get kdfPolicyUnavailable;
+
+  /// No description provided for @settingsNoCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'No credentials or vault plaintext are shown here.'**
+  String get settingsNoCredentials;
+
   /// No description provided for @generatorComingSoon.
   ///
   /// In en, this message translates to:
