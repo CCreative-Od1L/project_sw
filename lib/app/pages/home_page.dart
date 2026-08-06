@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard_feedback.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
@@ -288,6 +291,7 @@ final class _EntriesPanel extends StatelessWidget {
         cubit: cubit,
         detail: detail,
         sessionController: sessionController,
+        sensitiveClipboardController: SensitiveClipboardScope.maybeOf(context),
       ),
     );
   }
@@ -299,11 +303,13 @@ final class _EntryDetailDialog extends StatefulWidget {
     required this.cubit,
     required this.detail,
     required this.sessionController,
+    this.sensitiveClipboardController,
   });
 
   final VaultEntriesCubit cubit;
   final EntryDetail detail;
   final SessionController sessionController;
+  final SensitiveClipboardController? sensitiveClipboardController;
 
   @override
   State<_EntryDetailDialog> createState() => _EntryDetailDialogState();
@@ -383,13 +389,39 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
             autocorrect: false,
             enableSuggestions: false,
           ),
-          TextField(
-            controller: _password,
-            decoration: const InputDecoration(labelText: 'Password'),
-            obscureText: true,
-            autocorrect: false,
-            enableSuggestions: false,
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: _password,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                ),
+              ),
+              if (widget.sensitiveClipboardController != null)
+                SensitiveCopyButton(
+                  value: widget.detail.entry.password,
+                  controller: widget.sensitiveClipboardController!,
+                  tooltip: 'Copy password',
+                ),
+            ],
           ),
+          for (final CustomField field in widget.detail.entry.customFields)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(field.label),
+              subtitle: Text(field.secret ? '••••••••' : field.value),
+              trailing:
+                  field.secret && widget.sensitiveClipboardController != null
+                  ? SensitiveCopyButton(
+                      value: field.value,
+                      controller: widget.sensitiveClipboardController!,
+                      tooltip: 'Copy secret field',
+                    )
+                  : null,
+            ),
           TextField(
             controller: _notes,
             decoration: const InputDecoration(labelText: 'Notes'),
