@@ -208,6 +208,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get generationFailed => '无法生成密码。';
 
   @override
+  String get searchEntries => '搜索条目';
+
+  @override
+  String get favoritesOnly => '仅收藏';
+
+  @override
+  String get noMatchingEntries => '没有匹配的条目。';
+
+  @override
   String get generatorComingSoon => '密码生成器将在下一批功能中加入。';
 
   @override

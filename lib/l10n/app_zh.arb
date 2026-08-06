@@ -91,6 +91,9 @@
   "strengthStrong": "强",
   "strengthVeryStrong": "极强",
   "generationFailed": "无法生成密码。",
+  "searchEntries": "搜索条目",
+  "favoritesOnly": "仅收藏",
+  "noMatchingEntries": "没有匹配的条目。",
   "generatorComingSoon": "密码生成器将在下一批功能中加入。",
   "settingsComingSoon": "安全设置将在下一批功能中加入。"
 }
