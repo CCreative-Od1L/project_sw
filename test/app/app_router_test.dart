@@ -32,5 +32,33 @@ void main() {
       ),
       isNull,
     );
+    expect(
+      redirectForSessionRoute(
+        routeState: SessionRouteState.unlock,
+        location: '/generator',
+      ),
+      isNull,
+    );
+    expect(
+      redirectForSessionRoute(
+        routeState: SessionRouteState.unlock,
+        location: '/settings',
+      ),
+      '/unlock',
+    );
+    expect(
+      redirectForSessionRoute(
+        routeState: SessionRouteState.setup,
+        location: '/generator',
+      ),
+      '/setup',
+    );
+    expect(
+      redirectForSessionRoute(
+        routeState: SessionRouteState.home,
+        location: '/settings',
+      ),
+      isNull,
+    );
   });
 }

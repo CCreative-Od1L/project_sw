@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_feedback.dart';
+import 'package:project_sw/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('copy action uses the shared cleanup path without showing text', (
@@ -17,6 +18,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: SensitiveClipboardFeedback(
             controller: controller,

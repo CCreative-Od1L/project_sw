@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
@@ -123,10 +124,13 @@ final class _SetupContent extends StatelessWidget {
         ? state as SetupCompleted
         : null;
     final String progressText = progress?.progress == null
-        ? 'Optimizing security parameters…'
-        : 'Optimizing security parameters… ${progress!.progress!.completedTiers}/${progress.progress!.totalTiers}';
+        ? context.l10n.optimizingSecurityParameters
+        : context.l10n.optimizingSecurityParametersProgress(
+            progress!.progress!.completedTiers,
+            progress.progress!.totalTiers,
+          );
     return SessionPageScaffold(
-      title: 'Project SW',
+      title: context.l10n.setupTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -137,11 +141,11 @@ final class _SetupContent extends StatelessWidget {
             )
           else ...<Widget>[
             Text(
-              'Create your vault',
+              context.l10n.createYourVault,
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 12),
-            const Text('Your encrypted vault will be created on this device.'),
+            Text(context.l10n.vaultDescription),
             const SizedBox(height: 24),
             TextField(
               controller: controller,
@@ -149,7 +153,9 @@ final class _SetupContent extends StatelessWidget {
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(labelText: 'Master password'),
+              decoration: InputDecoration(
+                labelText: context.l10n.masterPassword,
+              ),
               onChanged: (_) => onActivity?.call(),
             ),
             const SizedBox(height: 16),
@@ -161,12 +167,12 @@ final class _SetupContent extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onSubmit == null ? null : () => onSubmit!(),
                 icon: const Icon(Icons.lock_outline),
-                label: const Text('Create vault'),
+                label: Text(context.l10n.createVault),
               ),
             if (failure != null) ...<Widget>[
               const SizedBox(height: 16),
               Text(
-                failure.message,
+                context.l10n.vaultCreationFailed,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
@@ -194,20 +200,23 @@ final class _SetupCompletedContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          'Vault created',
+          context.l10n.vaultCreated,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 12),
-        const Text('Security parameters optimized for this device:'),
+        Text(context.l10n.securityParametersOptimized),
         const SizedBox(height: 8),
         Text(
-          'Argon2id: m=$memoryMiB MiB, '
-          't=${parameters.iterations}, p=${parameters.parallelism}',
+          context.l10n.argon2idParameters(
+            memoryMiB,
+            parameters.iterations,
+            parameters.parallelism,
+          ),
         ),
         const SizedBox(height: 24),
         FilledButton(
           onPressed: onContinueToUnlock,
-          child: const Text('Continue to unlock'),
+          child: Text(context.l10n.continueToUnlock),
         ),
       ],
     );

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:project_sw/app/app_router.dart';
+import 'package:project_sw/app/app_theme.dart';
+import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/session_lifecycle_adapter.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
@@ -10,6 +12,7 @@ import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
+import 'package:project_sw/l10n/generated/app_localizations.dart';
 
 /// Root application widget that wires presentation projections and the router.
 final class ProjectSwApp extends StatefulWidget {
@@ -22,6 +25,8 @@ final class ProjectSwApp extends StatefulWidget {
     this.unlockCubit,
     this.vaultEntriesCubit,
     this.sensitiveClipboardController,
+    this.generatorPageBuilder,
+    this.settingsPageBuilder,
   });
 
   /// The global session source of truth.
@@ -42,6 +47,12 @@ final class ProjectSwApp extends StatefulWidget {
   /// Shared sensitive clipboard cleanup coordinator.
   final SensitiveClipboardController? sensitiveClipboardController;
 
+  /// Optional injected generator route used by the generator feature slice.
+  final WidgetBuilder? generatorPageBuilder;
+
+  /// Optional injected settings route used by the settings feature slice.
+  final WidgetBuilder? settingsPageBuilder;
+
   @override
   State<ProjectSwApp> createState() => _ProjectSwAppState();
 }
@@ -54,6 +65,8 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     setupCubit: widget.setupCubit,
     unlockCubit: widget.unlockCubit,
     vaultEntriesCubit: widget.vaultEntriesCubit,
+    generatorPageBuilder: widget.generatorPageBuilder,
+    settingsPageBuilder: widget.settingsPageBuilder,
   );
 
   @override
@@ -76,10 +89,15 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
               _fallbackClipboardController,
           child: MaterialApp.router(
             title: 'Project SW',
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-              useMaterial3: true,
-            ),
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: ThemeMode.system,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            localeResolutionCallback:
+                (Locale? deviceLocale, Iterable<Locale> supportedLocales) {
+                  return resolveAppLocale(deviceLocale);
+                },
             routerConfig: _router,
           ),
         ),

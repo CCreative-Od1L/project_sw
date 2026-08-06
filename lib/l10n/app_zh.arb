@@ -1,0 +1,66 @@
+{
+  "@@locale": "zh",
+  "appTitle": "Project SW",
+  "setupTitle": "Project SW",
+  "createYourVault": "创建密码库",
+  "vaultDescription": "加密密码库将创建在此设备上。",
+  "masterPassword": "主密码",
+  "optimizingSecurityParameters": "正在优化安全参数…",
+  "optimizingSecurityParametersProgress": "正在优化安全参数… {completed}/{total}",
+  "@optimizingSecurityParametersProgress": {
+    "placeholders": {
+      "completed": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "createVault": "创建密码库",
+  "vaultCreated": "密码库已创建",
+  "securityParametersOptimized": "已针对本设备优化安全参数：",
+  "argon2idParameters": "Argon2id：m={memoryMiB} MiB，t={iterations}，p={parallelism}",
+  "@argon2idParameters": {
+    "placeholders": {
+      "memoryMiB": {"type": "int"},
+      "iterations": {"type": "int"},
+      "parallelism": {"type": "int"}
+    }
+  },
+  "continueToUnlock": "继续解锁",
+  "vaultCreationFailed": "无法完成密码库创建。",
+  "unlockVault": "解锁密码库",
+  "unlockYourVault": "解锁你的密码库",
+  "incorrectMasterPassword": "主密码不正确。",
+  "vaultUnlockFailed": "无法完成密码库解锁。",
+  "unlock": "解锁",
+  "vault": "密码库",
+  "generator": "密码生成器",
+  "settings": "设置",
+  "vaultUnlocked": "密码库已解锁",
+  "noEntries": "还没有添加条目。",
+  "addEntry": "添加条目",
+  "name": "名称",
+  "url": "网址",
+  "username": "用户名",
+  "password": "密码",
+  "notes": "备注",
+  "favorite": "收藏",
+  "saveEntry": "保存条目",
+  "lockVault": "锁定密码库",
+  "entryDetail": "条目详情",
+  "delete": "删除",
+  "close": "关闭",
+  "save": "保存",
+  "entrySaveFailed": "无法保存条目。",
+  "copySensitiveValue": "复制敏感值",
+  "copyPassword": "复制密码",
+  "copySecretField": "复制秘密字段",
+  "sensitiveCopiedClearsIn": "敏感值已复制，将在 {seconds} 秒后清除",
+  "@sensitiveCopiedClearsIn": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "clipboardCleared": "剪贴板已清除",
+  "clipboardChangedNewerKept": "剪贴板内容已变化，保留新内容",
+  "generatorComingSoon": "密码生成器将在下一批功能中加入。",
+  "settingsComingSoon": "安全设置将在下一批功能中加入。"
+}

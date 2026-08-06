@@ -1,8 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+import 'package:project_sw/app/pages/app_shell.dart';
+import 'package:project_sw/app/pages/generator_page.dart';
 import 'package:project_sw/app/pages/home_page.dart';
 import 'package:project_sw/app/pages/setup_page.dart';
+import 'package:project_sw/app/pages/settings_page.dart';
 import 'package:project_sw/app/pages/unlock_page.dart';
+import 'package:project_sw/app/route_paths.dart';
 import 'package:project_sw/app/session_lifecycle_adapter.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
@@ -16,6 +20,8 @@ GoRouter buildAppRouter(
   SetupCubit? setupCubit,
   UnlockCubit? unlockCubit,
   VaultEntriesCubit? vaultEntriesCubit,
+  WidgetBuilder? generatorPageBuilder,
+  WidgetBuilder? settingsPageBuilder,
 }) {
   return GoRouter(
     initialLocation: sessionController.routeState.path,
@@ -44,12 +50,28 @@ GoRouter buildAppRouter(
           unlockCubit: unlockCubit,
         ),
       ),
-      GoRoute(
-        path: SessionRouteState.home.path,
-        builder: (BuildContext context, GoRouterState state) => HomePage(
-          sessionController: sessionController,
-          vaultEntriesCubit: vaultEntriesCubit,
-        ),
+      ShellRoute(
+        builder: (BuildContext context, GoRouterState state, Widget child) =>
+            AppShell(currentLocation: state.uri.path, child: child),
+        routes: <RouteBase>[
+          GoRoute(
+            path: vaultRoutePath,
+            builder: (BuildContext context, GoRouterState state) => HomePage(
+              sessionController: sessionController,
+              vaultEntriesCubit: vaultEntriesCubit,
+            ),
+          ),
+          GoRoute(
+            path: generatorRoutePath,
+            builder: (BuildContext context, GoRouterState state) =>
+                generatorPageBuilder?.call(context) ?? const GeneratorPage(),
+          ),
+          GoRoute(
+            path: settingsRoutePath,
+            builder: (BuildContext context, GoRouterState state) =>
+                settingsPageBuilder?.call(context) ?? const SettingsPage(),
+          ),
+        ],
       ),
     ],
   );
@@ -60,6 +82,18 @@ String? redirectForSessionRoute({
   required SessionRouteState routeState,
   required String location,
 }) {
-  final String expectedPath = routeState.path;
-  return location == expectedPath ? null : expectedPath;
+  return switch (routeState) {
+    SessionRouteState.setup =>
+      location == SessionRouteState.setup.path
+          ? null
+          : SessionRouteState.setup.path,
+    SessionRouteState.unlock => switch (location) {
+      '/unlock' || generatorRoutePath => null,
+      _ => SessionRouteState.unlock.path,
+    },
+    SessionRouteState.home => switch (location) {
+      vaultRoutePath || generatorRoutePath || settingsRoutePath => null,
+      _ => vaultRoutePath,
+    },
+  };
 }
