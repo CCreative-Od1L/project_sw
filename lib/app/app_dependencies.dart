@@ -19,6 +19,7 @@ import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
+import 'package:project_sw/features/generator/domain/password_generator.dart';
 import 'package:project_sw/features/vault/domain/add_vault_entry.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:path_provider/path_provider.dart';
@@ -95,6 +96,15 @@ void registerAppDependencies(
         serviceLocator<EncryptedVaultRepository>(),
         serviceLocator<VaultEntriesCubit>(),
       ]),
+    );
+  }
+
+  if (cryptoService != null) {
+    serviceLocator.registerSingleton<PasswordRandomSource>(
+      CryptoPasswordRandomSource(cryptoService),
+    );
+    serviceLocator.registerSingleton<GeneratePassword>(
+      GeneratePassword(serviceLocator<PasswordRandomSource>()),
     );
   }
 

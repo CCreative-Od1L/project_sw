@@ -356,6 +356,126 @@ abstract class AppLocalizations {
   /// **'Clipboard changed; newer content kept'**
   String get clipboardChangedNewerKept;
 
+  /// No description provided for @generationMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get generationMode;
+
+  /// No description provided for @randomMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Random'**
+  String get randomMode;
+
+  /// No description provided for @pronounceableMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronounceable'**
+  String get pronounceableMode;
+
+  /// No description provided for @generatorLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Length: {length}'**
+  String generatorLength(int length);
+
+  /// No description provided for @characterSets.
+  ///
+  /// In en, this message translates to:
+  /// **'Character sets'**
+  String get characterSets;
+
+  /// No description provided for @lowercase.
+  ///
+  /// In en, this message translates to:
+  /// **'Lowercase'**
+  String get lowercase;
+
+  /// No description provided for @uppercase.
+  ///
+  /// In en, this message translates to:
+  /// **'Uppercase'**
+  String get uppercase;
+
+  /// No description provided for @digits.
+  ///
+  /// In en, this message translates to:
+  /// **'Digits'**
+  String get digits;
+
+  /// No description provided for @symbols.
+  ///
+  /// In en, this message translates to:
+  /// **'Symbols'**
+  String get symbols;
+
+  /// No description provided for @excludeAmbiguous.
+  ///
+  /// In en, this message translates to:
+  /// **'Exclude ambiguous characters'**
+  String get excludeAmbiguous;
+
+  /// No description provided for @pronounceableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronounceable mode uses alternating consonants and vowels.'**
+  String get pronounceableHint;
+
+  /// No description provided for @generate.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate'**
+  String get generate;
+
+  /// No description provided for @copyGeneratedPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy generated password'**
+  String get copyGeneratedPassword;
+
+  /// No description provided for @useInEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Use in entry'**
+  String get useInEntry;
+
+  /// No description provided for @theoreticalEntropy.
+  ///
+  /// In en, this message translates to:
+  /// **'Theoretical entropy: {bits} bits'**
+  String theoreticalEntropy(String bits);
+
+  /// No description provided for @strengthWeak.
+  ///
+  /// In en, this message translates to:
+  /// **'Weak'**
+  String get strengthWeak;
+
+  /// No description provided for @strengthMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get strengthMedium;
+
+  /// No description provided for @strengthStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Strong'**
+  String get strengthStrong;
+
+  /// No description provided for @strengthVeryStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Very strong'**
+  String get strengthVeryStrong;
+
+  /// No description provided for @generationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Password could not be generated.'**
+  String get generationFailed;
+
   /// No description provided for @generatorComingSoon.
   ///
   /// In en, this message translates to:

@@ -17,6 +17,9 @@ abstract interface class CryptoService {
   /// Generates cryptographically secure random bytes.
   Uint8List randomBytes(int length);
 
+  /// Selects an unbiased integer in the range [0, upperBound).
+  int randomBytesUniform(int upperBound);
+
   /// Encrypts [plaintext] with XChaCha20-Poly1305 and a fresh nonce.
   AeadCiphertext encryptWithAead(
     Uint8List key,

@@ -61,6 +61,36 @@
   },
   "clipboardCleared": "Clipboard cleared",
   "clipboardChangedNewerKept": "Clipboard changed; newer content kept",
+  "generationMode": "Mode",
+  "randomMode": "Random",
+  "pronounceableMode": "Pronounceable",
+  "generatorLength": "Length: {length}",
+  "@generatorLength": {
+    "placeholders": {
+      "length": {"type": "int"}
+    }
+  },
+  "characterSets": "Character sets",
+  "lowercase": "Lowercase",
+  "uppercase": "Uppercase",
+  "digits": "Digits",
+  "symbols": "Symbols",
+  "excludeAmbiguous": "Exclude ambiguous characters",
+  "pronounceableHint": "Pronounceable mode uses alternating consonants and vowels.",
+  "generate": "Generate",
+  "copyGeneratedPassword": "Copy generated password",
+  "useInEntry": "Use in entry",
+  "theoreticalEntropy": "Theoretical entropy: {bits} bits",
+  "@theoreticalEntropy": {
+    "placeholders": {
+      "bits": {"type": "String"}
+    }
+  },
+  "strengthWeak": "Weak",
+  "strengthMedium": "Medium",
+  "strengthStrong": "Strong",
+  "strengthVeryStrong": "Very strong",
+  "generationFailed": "Password could not be generated.",
   "generatorComingSoon": "Password generator is coming next.",
   "settingsComingSoon": "Security settings are coming next."
 }

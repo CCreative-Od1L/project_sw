@@ -7,6 +7,8 @@ import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
+import 'package:project_sw/features/generator/domain/password_generator.dart';
+import 'package:project_sw/app/pages/generator_page.dart';
 
 /// Starts the application after composing its process-wide dependencies.
 Future<void> main() async {
@@ -22,6 +24,15 @@ Future<void> main() async {
       vaultEntriesCubit: appServiceLocator<VaultEntriesCubit>(),
       sensitiveClipboardController:
           appServiceLocator<SensitiveClipboardController>(),
+      generatePassword: appServiceLocator<GeneratePassword>(),
+      passwordRandomSource: appServiceLocator<PasswordRandomSource>(),
+      generatorPageBuilder: (_) => GeneratorPage(
+        generatePassword: appServiceLocator<GeneratePassword>(),
+        randomSource: appServiceLocator<PasswordRandomSource>(),
+        sensitiveClipboardController:
+            appServiceLocator<SensitiveClipboardController>(),
+        sessionController: appServiceLocator<SessionController>(),
+      ),
     ),
   );
 }

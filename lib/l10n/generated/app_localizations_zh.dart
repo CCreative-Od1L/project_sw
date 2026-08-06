@@ -144,6 +144,70 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clipboardChangedNewerKept => '剪贴板内容已变化，保留新内容';
 
   @override
+  String get generationMode => '模式';
+
+  @override
+  String get randomMode => '随机';
+
+  @override
+  String get pronounceableMode => '可发音';
+
+  @override
+  String generatorLength(int length) {
+    return '长度：$length';
+  }
+
+  @override
+  String get characterSets => '字符集';
+
+  @override
+  String get lowercase => '小写字母';
+
+  @override
+  String get uppercase => '大写字母';
+
+  @override
+  String get digits => '数字';
+
+  @override
+  String get symbols => '符号';
+
+  @override
+  String get excludeAmbiguous => '排除易混字符';
+
+  @override
+  String get pronounceableHint => '可发音模式使用辅音与元音交替组合。';
+
+  @override
+  String get generate => '生成';
+
+  @override
+  String get copyGeneratedPassword => '复制生成的密码';
+
+  @override
+  String get useInEntry => '填入条目';
+
+  @override
+  String theoreticalEntropy(String bits) {
+    return '理论熵：$bits bit';
+  }
+
+  @override
+  String get strengthWeak => '弱';
+
+  @override
+  String get strengthMedium => '中';
+
+  @override
+  String get strengthStrong => '强';
+
+  @override
+  String get strengthVeryStrong => '极强';
+
+  @override
+  String get generationFailed => '无法生成密码。';
+
+  @override
   String get generatorComingSoon => '密码生成器将在下一批功能中加入。';
 
   @override
