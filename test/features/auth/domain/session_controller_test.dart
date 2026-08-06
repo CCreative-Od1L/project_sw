@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
+import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 
 void main() {
   group('SessionController', () {
@@ -54,5 +57,95 @@ void main() {
 
       expect(() => controller.unlock(AuthStrength.none), throwsArgumentError);
     });
+
+    test('owns and resets a controllable idle timer while unlocked', () {
+      final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+      final SessionController controller = SessionController(
+        timerFactory: (Duration duration, void Function() callback) {
+          final FakeSessionTimer timer = FakeSessionTimer(callback);
+          timers.add(timer);
+          return timer;
+        },
+      );
+      addTearDown(controller.dispose);
+
+      controller.unlock(AuthStrength.masterPassword);
+      expect(controller.hasActiveIdleTimer, isTrue);
+      expect(timers, hasLength(1));
+
+      final FakeSessionTimer firstTimer = timers.single;
+      controller.handle(SessionEvent.userInteractionObserved);
+
+      expect(firstTimer.isActive, isFalse);
+      expect(timers, hasLength(2));
+      expect(controller.hasActiveIdleTimer, isTrue);
+
+      timers.last.fire();
+      expect(controller.state, isA<LockedSession>());
+      expect(controller.hasActiveIdleTimer, isFalse);
+    });
+
+    test('cleans unlocked state before an idempotent background lock', () {
+      final RecordingCleaner cleaner = RecordingCleaner();
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+        secretCleaner: cleaner,
+        timerFactory: (Duration duration, void Function() callback) =>
+            FakeSessionTimer(callback),
+      );
+      addTearDown(controller.dispose);
+
+      controller.handle(SessionEvent.appBackgrounded);
+      controller.handle(SessionEvent.appBackgrounded);
+
+      expect(cleaner.clearCount, 1);
+      expect(controller.state, isA<LockedSession>());
+      expect(controller.hasActiveIdleTimer, isFalse);
+    });
+
+    test('locked sessions do not start an idle timer on interaction', () {
+      final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+      final SessionController controller = SessionController(
+        timerFactory: (Duration duration, void Function() callback) {
+          final FakeSessionTimer timer = FakeSessionTimer(callback);
+          timers.add(timer);
+          return timer;
+        },
+      );
+      addTearDown(controller.dispose);
+
+      controller.handle(SessionEvent.userInteractionObserved);
+
+      expect(timers, isEmpty);
+      expect(controller.hasActiveIdleTimer, isFalse);
+    });
   });
+}
+
+final class FakeSessionTimer implements SessionTimer {
+  FakeSessionTimer(this._callback);
+
+  final void Function() _callback;
+  var _active = true;
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  void cancel() => _active = false;
+
+  void fire() {
+    if (!_active) return;
+    _active = false;
+    _callback();
+  }
+}
+
+final class RecordingCleaner implements SessionSecretCleaner {
+  var clearCount = 0;
+
+  @override
+  void clearUnlockedSession() => clearCount++;
 }

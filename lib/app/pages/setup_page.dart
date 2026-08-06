@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
+import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 
 /// First-run route that creates an encrypted vault on this device.
@@ -24,22 +26,34 @@ final class SetupPage extends StatefulWidget {
   State<SetupPage> createState() => _SetupPageState();
 }
 
-final class _SetupPageState extends State<SetupPage> {
+final class _SetupPageState extends State<SetupPage>
+    implements SessionSecretCleaner {
   final TextEditingController _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    widget.sessionController.registerSecretCleaner(this);
+  }
+
+  @override
   void dispose() {
+    widget.sessionController.unregisterSecretCleaner(this);
     _passwordController
       ..clear()
       ..dispose();
     super.dispose();
   }
 
+  @override
+  void clearUnlockedSession() => _passwordController.clear();
+
   Future<void> _submit() async {
     final SetupCubit? setupCubit = widget.setupCubit;
     if (setupCubit == null) {
       return;
     }
+    widget.sessionController.handle(SessionEvent.userInteractionObserved);
     await setupCubit.submit(_passwordController.text);
     _passwordController.clear();
   }
@@ -59,6 +73,7 @@ final class _SetupPageState extends State<SetupPage> {
       return _SetupContent(
         onSubmit: null,
         onContinueToUnlock: null,
+        onActivity: null,
         state: const SetupReady(),
         controller: _passwordController,
       );
@@ -69,6 +84,9 @@ final class _SetupPageState extends State<SetupPage> {
         builder: (BuildContext context, SetupViewState state) => _SetupContent(
           onSubmit: _submit,
           onContinueToUnlock: _continueToUnlock,
+          onActivity: () => widget.sessionController.handle(
+            SessionEvent.userInteractionObserved,
+          ),
           state: state,
           controller: _passwordController,
         ),
@@ -81,12 +99,14 @@ final class _SetupContent extends StatelessWidget {
   const _SetupContent({
     required this.onSubmit,
     required this.onContinueToUnlock,
+    required this.onActivity,
     required this.state,
     required this.controller,
   });
 
   final Future<void> Function()? onSubmit;
   final VoidCallback? onContinueToUnlock;
+  final VoidCallback? onActivity;
   final SetupViewState state;
   final TextEditingController controller;
 
@@ -130,6 +150,7 @@ final class _SetupContent extends StatelessWidget {
               autocorrect: false,
               enableSuggestions: false,
               decoration: const InputDecoration(labelText: 'Master password'),
+              onChanged: (_) => onActivity?.call(),
             ),
             const SizedBox(height: 16),
             if (optimizing) ...<Widget>[
