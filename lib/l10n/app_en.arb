@@ -91,6 +91,9 @@
   "strengthStrong": "Strong",
   "strengthVeryStrong": "Very strong",
   "generationFailed": "Password could not be generated.",
+  "searchEntries": "Search entries",
+  "favoritesOnly": "Favorites only",
+  "noMatchingEntries": "No entries match your search.",
   "generatorComingSoon": "Password generator is coming next.",
   "settingsComingSoon": "Security settings are coming next."
 }

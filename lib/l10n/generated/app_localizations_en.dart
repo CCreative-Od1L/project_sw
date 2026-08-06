@@ -212,6 +212,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get generationFailed => 'Password could not be generated.';
 
   @override
+  String get searchEntries => 'Search entries';
+
+  @override
+  String get favoritesOnly => 'Favorites only';
+
+  @override
+  String get noMatchingEntries => 'No entries match your search.';
+
+  @override
   String get generatorComingSoon => 'Password generator is coming next.';
 
   @override

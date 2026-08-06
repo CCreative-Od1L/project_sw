@@ -13,6 +13,7 @@ import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
 import 'package:project_sw/app/pages/generator_page.dart';
+import 'package:project_sw/features/search/domain/search_entries.dart';
 
 /// Unlocked home route with the EntrySummary list and add-entry form.
 final class HomePage extends StatelessWidget {
@@ -83,7 +84,10 @@ final class _HomeContentState extends State<_HomeContent>
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  final SearchEntries _searchEntries = const SearchEntries();
   var _favorite = false;
+  var _favoritesOnly = false;
 
   @override
   void initState() {
@@ -100,13 +104,25 @@ final class _HomeContentState extends State<_HomeContent>
     _usernameController.dispose();
     _passwordController.dispose();
     _notesController.dispose();
+    _searchController
+      ..clear()
+      ..dispose();
     super.dispose();
   }
 
   @override
   void clearUnlockedSession() {
     _clearForm();
-    _favorite = false;
+    _searchController.clear();
+    if (!mounted) {
+      _favorite = false;
+      _favoritesOnly = false;
+      return;
+    }
+    setState(() {
+      _favorite = false;
+      _favoritesOnly = false;
+    });
   }
 
   @override
@@ -127,6 +143,11 @@ final class _HomeContentState extends State<_HomeContent>
             _EntriesPanel(
               onAdded: _clearForm,
               sessionController: widget.sessionController,
+              searchEntries: _searchEntries,
+              searchController: _searchController,
+              favoritesOnly: _favoritesOnly,
+              onSearchChanged: _onSearchChanged,
+              onFavoritesChanged: _onFavoritesChanged,
             ),
           if (cubit != null) ...<Widget>[
             const Divider(),
@@ -258,6 +279,16 @@ final class _HomeContentState extends State<_HomeContent>
     }
   }
 
+  void _onSearchChanged(String _) {
+    widget.sessionController.handle(SessionEvent.userInteractionObserved);
+    setState(() {});
+  }
+
+  void _onFavoritesChanged(bool value) {
+    widget.sessionController.handle(SessionEvent.userInteractionObserved);
+    setState(() => _favoritesOnly = value);
+  }
+
   Future<void> _openGenerator() async {
     final GeneratePassword? generator = widget.generatePassword;
     final PasswordRandomSource? random = widget.passwordRandomSource;
@@ -297,10 +328,23 @@ final class _HomeContentState extends State<_HomeContent>
 }
 
 final class _EntriesPanel extends StatelessWidget {
-  const _EntriesPanel({required this.onAdded, required this.sessionController});
+  const _EntriesPanel({
+    required this.onAdded,
+    required this.sessionController,
+    required this.searchEntries,
+    required this.searchController,
+    required this.favoritesOnly,
+    required this.onSearchChanged,
+    required this.onFavoritesChanged,
+  });
 
   final VoidCallback onAdded;
   final SessionController sessionController;
+  final SearchEntries searchEntries;
+  final TextEditingController searchController;
+  final bool favoritesOnly;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<bool> onFavoritesChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +363,11 @@ final class _EntriesPanel extends StatelessWidget {
           if (state.summaries.isEmpty) {
             return Text(context.l10n.noEntries);
           }
+          final List<EntrySummary> visibleSummaries = searchEntries(
+            state.summaries,
+            query: searchController.text,
+            favoritesOnly: favoritesOnly,
+          );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -327,10 +376,26 @@ final class _EntriesPanel extends StatelessWidget {
                   context.l10n.entrySaveFailed,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-              if (state.summaries.isEmpty)
-                Text(context.l10n.noEntries)
+              TextField(
+                controller: searchController,
+                decoration: InputDecoration(
+                  labelText: context.l10n.searchEntries,
+                  prefixIcon: const Icon(Icons.search),
+                ),
+                autocorrect: false,
+                onChanged: onSearchChanged,
+              ),
+              const SizedBox(height: 8),
+              FilterChip(
+                label: Text(context.l10n.favoritesOnly),
+                selected: favoritesOnly,
+                onSelected: onFavoritesChanged,
+              ),
+              const SizedBox(height: 8),
+              if (visibleSummaries.isEmpty)
+                Text(context.l10n.noMatchingEntries)
               else
-                for (final EntrySummary summary in state.summaries)
+                for (final EntrySummary summary in visibleSummaries)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(summary.name),

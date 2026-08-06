@@ -476,6 +476,24 @@ abstract class AppLocalizations {
   /// **'Password could not be generated.'**
   String get generationFailed;
 
+  /// No description provided for @searchEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'Search entries'**
+  String get searchEntries;
+
+  /// No description provided for @favoritesOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites only'**
+  String get favoritesOnly;
+
+  /// No description provided for @noMatchingEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'No entries match your search.'**
+  String get noMatchingEntries;
+
   /// No description provided for @generatorComingSoon.
   ///
   /// In en, this message translates to:
