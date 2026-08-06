@@ -147,6 +147,71 @@ class AppLocalizationsEn extends AppLocalizations {
       'Clipboard changed; newer content kept';
 
   @override
+  String get generationMode => 'Mode';
+
+  @override
+  String get randomMode => 'Random';
+
+  @override
+  String get pronounceableMode => 'Pronounceable';
+
+  @override
+  String generatorLength(int length) {
+    return 'Length: $length';
+  }
+
+  @override
+  String get characterSets => 'Character sets';
+
+  @override
+  String get lowercase => 'Lowercase';
+
+  @override
+  String get uppercase => 'Uppercase';
+
+  @override
+  String get digits => 'Digits';
+
+  @override
+  String get symbols => 'Symbols';
+
+  @override
+  String get excludeAmbiguous => 'Exclude ambiguous characters';
+
+  @override
+  String get pronounceableHint =>
+      'Pronounceable mode uses alternating consonants and vowels.';
+
+  @override
+  String get generate => 'Generate';
+
+  @override
+  String get copyGeneratedPassword => 'Copy generated password';
+
+  @override
+  String get useInEntry => 'Use in entry';
+
+  @override
+  String theoreticalEntropy(String bits) {
+    return 'Theoretical entropy: $bits bits';
+  }
+
+  @override
+  String get strengthWeak => 'Weak';
+
+  @override
+  String get strengthMedium => 'Medium';
+
+  @override
+  String get strengthStrong => 'Strong';
+
+  @override
+  String get strengthVeryStrong => 'Very strong';
+
+  @override
+  String get generationFailed => 'Password could not be generated.';
+
+  @override
   String get generatorComingSoon => 'Password generator is coming next.';
 
   @override

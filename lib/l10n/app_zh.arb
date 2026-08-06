@@ -61,6 +61,36 @@
   },
   "clipboardCleared": "剪贴板已清除",
   "clipboardChangedNewerKept": "剪贴板内容已变化，保留新内容",
+  "generationMode": "模式",
+  "randomMode": "随机",
+  "pronounceableMode": "可发音",
+  "generatorLength": "长度：{length}",
+  "@generatorLength": {
+    "placeholders": {
+      "length": {"type": "int"}
+    }
+  },
+  "characterSets": "字符集",
+  "lowercase": "小写字母",
+  "uppercase": "大写字母",
+  "digits": "数字",
+  "symbols": "符号",
+  "excludeAmbiguous": "排除易混字符",
+  "pronounceableHint": "可发音模式使用辅音与元音交替组合。",
+  "generate": "生成",
+  "copyGeneratedPassword": "复制生成的密码",
+  "useInEntry": "填入条目",
+  "theoreticalEntropy": "理论熵：{bits} bit",
+  "@theoreticalEntropy": {
+    "placeholders": {
+      "bits": {"type": "String"}
+    }
+  },
+  "strengthWeak": "弱",
+  "strengthMedium": "中",
+  "strengthStrong": "强",
+  "strengthVeryStrong": "极强",
+  "generationFailed": "无法生成密码。",
   "generatorComingSoon": "密码生成器将在下一批功能中加入。",
   "settingsComingSoon": "安全设置将在下一批功能中加入。"
 }

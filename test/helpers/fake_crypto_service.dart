@@ -69,6 +69,16 @@ final class FakeCryptoService implements CryptoService {
   );
 
   @override
+  int randomBytesUniform(int upperBound) {
+    if (upperBound <= 0) {
+      throw ArgumentError.value(upperBound, 'upperBound');
+    }
+    final int value = _counter % upperBound;
+    _counter++;
+    return value;
+  }
+
+  @override
   AeadCiphertext encryptWithAead(
     Uint8List key,
     Uint8List plaintext,

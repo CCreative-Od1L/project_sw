@@ -11,6 +11,8 @@ import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.d
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
+import 'package:project_sw/features/generator/domain/password_generator.dart';
+import 'package:project_sw/app/pages/generator_page.dart';
 
 /// Unlocked home route with the EntrySummary list and add-entry form.
 final class HomePage extends StatelessWidget {
@@ -19,6 +21,8 @@ final class HomePage extends StatelessWidget {
     super.key,
     required this.sessionController,
     this.vaultEntriesCubit,
+    this.generatePassword,
+    this.passwordRandomSource,
   });
 
   /// The session source of truth that owns locking.
@@ -27,27 +31,46 @@ final class HomePage extends StatelessWidget {
   /// The optional list workflow, omitted by route-skeleton tests only.
   final VaultEntriesCubit? vaultEntriesCubit;
 
+  /// Optional generator dependencies supplied by the composition root.
+  final GeneratePassword? generatePassword;
+
+  /// Optional unbiased random source for the entry-form generator sheet.
+  final PasswordRandomSource? passwordRandomSource;
+
   @override
   Widget build(BuildContext context) {
     final VaultEntriesCubit? cubit = vaultEntriesCubit;
     if (cubit == null) {
-      return _HomeContent(sessionController: sessionController);
+      return _HomeContent(
+        sessionController: sessionController,
+        generatePassword: generatePassword,
+        passwordRandomSource: passwordRandomSource,
+      );
     }
     return BlocProvider<VaultEntriesCubit>.value(
       value: cubit,
       child: _HomeContent(
         sessionController: sessionController,
         vaultEntriesCubit: cubit,
+        generatePassword: generatePassword,
+        passwordRandomSource: passwordRandomSource,
       ),
     );
   }
 }
 
 final class _HomeContent extends StatefulWidget {
-  const _HomeContent({required this.sessionController, this.vaultEntriesCubit});
+  const _HomeContent({
+    required this.sessionController,
+    this.vaultEntriesCubit,
+    this.generatePassword,
+    this.passwordRandomSource,
+  });
 
   final SessionController sessionController;
   final VaultEntriesCubit? vaultEntriesCubit;
+  final GeneratePassword? generatePassword;
+  final PasswordRandomSource? passwordRandomSource;
 
   @override
   State<_HomeContent> createState() => _HomeContentState();
@@ -139,15 +162,30 @@ final class _HomeContentState extends State<_HomeContent>
                 SessionEvent.userInteractionObserved,
               ),
             ),
-            TextField(
-              controller: _passwordController,
-              decoration: InputDecoration(labelText: context.l10n.password),
-              obscureText: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              onChanged: (_) => widget.sessionController.handle(
-                SessionEvent.userInteractionObserved,
-              ),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.password,
+                    ),
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    onChanged: (_) => widget.sessionController.handle(
+                      SessionEvent.userInteractionObserved,
+                    ),
+                  ),
+                ),
+                if (widget.generatePassword != null &&
+                    widget.passwordRandomSource != null)
+                  IconButton(
+                    tooltip: context.l10n.generator,
+                    icon: const Icon(Icons.password_outlined),
+                    onPressed: _openGenerator,
+                  ),
+              ],
             ),
             TextField(
               controller: _notesController,
@@ -218,6 +256,35 @@ final class _HomeContentState extends State<_HomeContent>
     if (state is VaultEntriesReady && state.errorMessage == null) {
       _clearForm();
     }
+  }
+
+  Future<void> _openGenerator() async {
+    final GeneratePassword? generator = widget.generatePassword;
+    final PasswordRandomSource? random = widget.passwordRandomSource;
+    final SensitiveClipboardController? clipboard =
+        SensitiveClipboardScope.maybeOf(context);
+    if (generator == null || random == null || clipboard == null) return;
+    final String? generated = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          child: PasswordGeneratorPanel(
+            generatePassword: generator,
+            randomSource: random,
+            sensitiveClipboardController: clipboard,
+            sessionController: widget.sessionController,
+            onGenerated: (String value) => Navigator.pop(sheetContext, value),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || generated == null) return;
+    _passwordController
+      ..text = generated
+      ..selection = TextSelection.collapsed(offset: generated.length);
+    widget.sessionController.handle(SessionEvent.userInteractionObserved);
   }
 
   void _clearForm() {

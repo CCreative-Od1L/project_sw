@@ -63,6 +63,18 @@ final class SodiumCryptoService implements CryptoService {
   }
 
   @override
+  int randomBytesUniform(int upperBound) {
+    if (upperBound <= 0) {
+      throw ArgumentError.value(upperBound, 'upperBound');
+    }
+    try {
+      return _sodium.randombytes.uniform(upperBound);
+    } on Object catch (error) {
+      throw EntropyUnavailableException(cause: error);
+    }
+  }
+
+  @override
   AeadCiphertext encryptWithAead(
     Uint8List key,
     Uint8List plaintext,

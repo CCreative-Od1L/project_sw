@@ -12,6 +12,7 @@ import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
+import 'package:project_sw/features/generator/domain/password_generator.dart';
 import 'package:project_sw/l10n/generated/app_localizations.dart';
 
 /// Root application widget that wires presentation projections and the router.
@@ -27,6 +28,8 @@ final class ProjectSwApp extends StatefulWidget {
     this.sensitiveClipboardController,
     this.generatorPageBuilder,
     this.settingsPageBuilder,
+    this.generatePassword,
+    this.passwordRandomSource,
   });
 
   /// The global session source of truth.
@@ -53,6 +56,12 @@ final class ProjectSwApp extends StatefulWidget {
   /// Optional injected settings route used by the settings feature slice.
   final WidgetBuilder? settingsPageBuilder;
 
+  /// Generator use case injected at the application composition root.
+  final GeneratePassword? generatePassword;
+
+  /// Generator CSPRNG boundary injected at the application composition root.
+  final PasswordRandomSource? passwordRandomSource;
+
   @override
   State<ProjectSwApp> createState() => _ProjectSwAppState();
 }
@@ -67,6 +76,8 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     vaultEntriesCubit: widget.vaultEntriesCubit,
     generatorPageBuilder: widget.generatorPageBuilder,
     settingsPageBuilder: widget.settingsPageBuilder,
+    generatePassword: widget.generatePassword,
+    passwordRandomSource: widget.passwordRandomSource,
   );
 
   @override
