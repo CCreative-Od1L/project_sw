@@ -115,17 +115,17 @@
 
 - **完整 UI 体系**:正式主题(深色/浅色)、组件规范(按钮、列表项、对话框、表单)、导航结构(底部导航栏 + ShellRoute 嵌套);UI 设计 token 定义
 - **i18n 挂载**:ARB 骨架(`app_en.arb` / `app_zh.arb`)+ `flutter gen-l10n` 配置 + key 命名规范;所有 UI 文字走 l10n key
-- **密码生成器**:`features/generator` 全链——`GenerationProfile` 实体、`GeneratePassword` use case(随机/可发音模式、字符集、无偏抽样、理论熵估算)、生成器 UI(模式切换、长度滑块、字符集 toggle、强度指示器);锁定态可独立使用;生成输出走剪贴板 20s 清除
+- **密码生成器**:`features/generator` 全链——`GenerationProfile` 实体、`GeneratePassword` use case(随机/可发音模式、字符集、无偏抽样、理论熵估算)、生成器 UI(模式切换、长度滑块、字符集 toggle、强度指示器);锁定态可独立使用;生成输出可复制到系统剪贴板。应用侧固定时限自动清除暂不纳入 v0.5,待平台专项方案确定后再规划
 - **本地搜索**:`features/search` 全链——`SearchEntries` use case(基于解锁态摘要模型的内存内线性检索、子串+大小写不敏感、字段卫生);搜索 UI(搜索栏 + 结果列表精简展示)。常规搜索仅覆盖 `name/url/username` 与 `favorite` 过滤,不搜索 `notes`、`custom_fields`、`password`(见 [ADR-0007](../adr/0007-unlocked-residency-and-summary-detail-split.md))
 - **锁定与超时**:`features/auth` 扩展——按 ADR-0010 的会话真相源模型实现空闲超时 5min、切后台立即锁、主动锁定;`WidgetsBindingObserver` 仅作 lifecycle adapter;idle timer 归会话真相源统一管理;锁定时清零全部内存明文与密钥
-- **数据卫生**:`core/observability` 扩展——剪贴板 20s 自动清除 + 倒计时提示 + iOS Handoff 禁用;内存清零策略落地
-- **设置页(只读)**:`features/settings` 最小版——超时参数、剪贴板超时、Argon2id 参数展示(只读,标注"未来可配置")
+- **数据卫生**:`core/observability` 扩展——内存清零策略落地,并明确剪贴板的系统平台边界;应用侧固定时限自动清除暂缓
+- **设置页(只读)**:`features/settings` 最小版——锁定策略与 Argon2id 参数展示(只读,标注"未来可配置")
 
 **验收标准**:
-1. 用户可完成完整日常流程:解锁 → 搜索/浏览摘要条目 → 进入详情页按需查看单条详情 → 添加条目(含生成密码)→ 复制密码(20s 自动清除)→ 锁定
+1. 用户可完成完整日常流程:解锁 → 搜索/浏览摘要条目 → 进入详情页按需查看单条详情 → 添加条目(含生成密码)→ 复制密码→ 锁定
 2. 切后台立即锁,回前台须重新解锁
 3. 中英文切换正确
-4. 密码生成器在锁定态可独立使用,输出复制走 20s 清除
+4. 密码生成器在锁定态可独立使用,输出可复制到系统剪贴板
 5. 搜索结果不暴露 `password` / `notes` / `custom_fields` / `secret` 字段,详情页退出后完整详情对象不残留在全局状态
 6. `fvm dart analyze` 零 warning,`fvm flutter test` + 集成测试全绿
 
@@ -145,7 +145,7 @@
 - **局域网迁移**:`features/migration` 全链——二维码配对、crypto_kx 握手、版本/算法匹配、逐条重包裹、seq 透传、entry_id 冲突覆盖、transcript MAC、目录双写原子提交;平台权限(`CAMERA`、`NSCameraUsageDescription`、`NSLocalNetworkUsageDescription`);迁移期间超时抑制
 - **忘码恢复与死锁擦除**:忘码恢复通道(改密码错 ≥3 次浮现、一周冷却、二次生物确认、salt 重生);死锁擦除(特定手势浮现、四重摩擦、延迟倒计时);擦除覆盖(库文件、.bak、journal、日志、Keychain/Keystore)
 - **完整状态机**:lock_and_recovery.md §5 的 12 状态全部实现,由 ADR-0010 所定义的全局会话真相源统一驱动,含 S5 生物失效、S6/S7 冷却期、S9/S10 迁移状态、S11 擦除
-- **设置页(可配置预留)**:超时参数、剪贴板超时当前固定值展示(标注"未来可配置")
+- **设置页(可配置预留)**:会话超时参数当前固定值展示(标注"未来可配置");剪贴板自动清除待平台专项方案确定
 - **CI/CD 落地**:按 [ci_cd.md §12](ci_cd.md) 里程碑——`ci.yml`(PR 检查)、`build.yml`(产物)、`release.yml`(签名发版)、`scheduled.yml`(依赖审计);`scripts/build_android.sh`、`scripts/build_ios.sh`;master 分支保护配置;签名 secret 配置
 - **CHANGELOG.md**:初始化,记录 v1.0 用户可见变化
 
@@ -165,7 +165,7 @@
 ## 后续版本(v1.1+,预留)
 
 - 超时参数用户可配置(空闲 1/5/15/30min、切后台延迟档)
-- 剪贴板清除超时可配置(10/20/30/60s)
+- 平台原生剪贴板生命周期方案(含清除语义、后台生命周期和厂商剪贴板历史)评估完成后,再决定是否提供应用侧自动清除及其可配置时限
 - CBOR 内层格式(plaintext_format_id=2)
 - 桌面/Web 平台扩展
 - 分发渠道接入(Firebase App Distribution / TestFlight / 商店)

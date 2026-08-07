@@ -72,17 +72,16 @@ Refs: SECURITY.md §4, specs/vault_format.md §5
 ```
 
 ```
-fix(clipboard): clear clipboard on app suspend for iOS
+docs(clipboard): document platform cleanup boundaries
 
-iOS suspends Dart timers when app enters background,
-which could leave copied passwords in the system pasteboard
-beyond the 20s intended window.
+Native clipboard APIs can clear the current primary clip,
+but cannot guarantee removal from vendor clipboard history,
+already-read copies, or an app process that has been suspended.
 
-Mitigation: register an OS-level pasteboard expiration
-(iOS UIPasteboard expirationDate) as fallback when the
-in-app timer cannot fire.
+Keep fixed-time clipboard cleanup out of the product security
+boundary until a platform-specific design is verified.
 
-Closes: #42
+Refs: docs/specs/data_hygiene.md, ADR-0011
 ```
 
 ```

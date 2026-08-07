@@ -265,7 +265,7 @@ sequenceDiagram
 
 ## 7. 数据卫生
 
-> **详见**: [数据卫生规范](specs/data_hygiene.md) — 内存与日志卫生、剪贴板 20s 自动清除 + iOS Handoff 禁用 + 平台后台限制
+> **详见**: [数据卫生规范](specs/data_hygiene.md) — 内存与日志卫生、剪贴板复制的系统平台边界与暂缓的自动清除方案
 
 ## 8. 局域网迁移
 
@@ -291,7 +291,7 @@ sequenceDiagram
 | 运行时内存被恶意进程读取 | 及时清零、切后台锁定、摘要/详情分层、敏感数据短生命周期;root/越狱设备不保证 |
 | 日志/埋点泄漏明文 | 脱敏规范(见 data_hygiene.md),禁止记录敏感字段 |
 | 局域网迁移被窃听/中间人 | 二维码带外公钥传递 + 临时会话密钥端到端加密 + transcript MAC(见 lan_migration.md) |
-| 剪贴板泄漏 | 超时自动清除(当前固定 20s)+ 倒计时提示 + iOS 禁用通用剪贴板 Handoff(见 data_hygiene.md) |
+| 剪贴板泄漏 | 敏感复制路径最小化暴露、禁止日志记录、遵循系统剪贴板隐私能力;不把应用侧固定时限自动清除作为安全保证(见 data_hygiene.md) |
 | 第三方依赖漏洞 | 锁定依赖版本,定期审计,最小化依赖(见 DEVELOPMENT.md) |
 | 生成密码可预测(弱随机源) | 生成器随机源与加密同源(`sodium` `randombytes`)+ 无偏抽样;禁用伪随机(见 password_generator.md) |
 
