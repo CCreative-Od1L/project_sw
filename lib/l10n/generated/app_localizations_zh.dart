@@ -230,7 +230,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String clipboardPolicyValue(int seconds) {
-    return '复制的值将在 $seconds 秒后清除。';
+    return '应用将尝试在 $seconds 秒后清除复制的值；不保证 Android 各厂商及第三方输入法的剪贴板能够被正常清除。';
   }
 
   @override

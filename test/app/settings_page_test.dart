@@ -43,7 +43,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Copied values are cleared after 20 seconds.'),
+      find.text(
+        'The app attempts to clear copied values after 20 seconds; '
+        'Android vendor clipboards and third-party keyboard clipboards may '
+        'not be cleared.',
+      ),
       findsOneWidget,
     );
     expect(find.text('Argon2id: m=64 MiB, t=3, p=1'), findsOneWidget);
@@ -51,6 +55,37 @@ void main() {
     expect(find.byType(TextField), findsNothing);
     expect(find.byType(Switch), findsNothing);
     expect(find.byType(Checkbox), findsNothing);
+  });
+
+  testWidgets('settings explains Android clipboard limits in Chinese', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SettingsPage(
+          config: const AppConfig(
+            sensitiveClipboardTimeout: Duration(seconds: 20),
+          ),
+          vaultRepository: SettingsVaultRepository(
+            const Argon2idParameters(
+              memoryKiB: 64 * 1024,
+              iterations: 3,
+              parallelism: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text(
+        '应用将尝试在 20 秒后清除复制的值；不保证 Android 各厂商及第三方输入法的剪贴板能够被正常清除。',
+      ),
+      findsOneWidget,
+    );
   });
 }
 
