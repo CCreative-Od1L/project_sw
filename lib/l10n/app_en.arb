@@ -53,14 +53,7 @@
   "copySensitiveValue": "Copy sensitive value",
   "copyPassword": "Copy password",
   "copySecretField": "Copy secret field",
-  "sensitiveCopiedClearsIn": "Sensitive value copied · clears in {seconds}s",
-  "@sensitiveCopiedClearsIn": {
-    "placeholders": {
-      "seconds": {"type": "int"}
-    }
-  },
-  "clipboardCleared": "Clipboard cleared",
-  "clipboardChangedNewerKept": "Clipboard changed; newer content kept",
+  "sensitiveCopied": "Sensitive value copied to clipboard",
   "generationMode": "Mode",
   "randomMode": "Random",
   "pronounceableMode": "Pronounceable",

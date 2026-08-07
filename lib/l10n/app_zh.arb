@@ -53,14 +53,7 @@
   "copySensitiveValue": "复制敏感值",
   "copyPassword": "复制密码",
   "copySecretField": "复制秘密字段",
-  "sensitiveCopiedClearsIn": "敏感值已复制，将在 {seconds} 秒后清除",
-  "@sensitiveCopiedClearsIn": {
-    "placeholders": {
-      "seconds": {"type": "int"}
-    }
-  },
-  "clipboardCleared": "剪贴板已清除",
-  "clipboardChangedNewerKept": "剪贴板内容已变化，保留新内容",
+  "sensitiveCopied": "敏感值已复制到剪贴板",
   "generationMode": "模式",
   "randomMode": "随机",
   "pronounceableMode": "可发音",
