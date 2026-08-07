@@ -98,7 +98,7 @@
   "backgroundLockPolicy": "后台锁定",
   "backgroundLockPolicyValue": "应用进入后台后立即锁定。",
   "clipboardPolicy": "敏感剪贴板",
-  "clipboardPolicyValue": "复制的值将在 {seconds} 秒后清除。",
+  "clipboardPolicyValue": "应用将尝试在 {seconds} 秒后清除复制的值；不保证 Android 各厂商及第三方输入法的剪贴板能够被正常清除。",
   "@clipboardPolicyValue": {
     "placeholders": {
       "seconds": {"type": "int"}

@@ -98,7 +98,7 @@
   "backgroundLockPolicy": "Background lock",
   "backgroundLockPolicyValue": "Locks immediately when the app enters the background.",
   "clipboardPolicy": "Sensitive clipboard",
-  "clipboardPolicyValue": "Copied values are cleared after {seconds} seconds.",
+  "clipboardPolicyValue": "The app attempts to clear copied values after {seconds} seconds; Android vendor clipboards and third-party keyboard clipboards may not be cleared.",
   "@clipboardPolicyValue": {
     "placeholders": {
       "seconds": {"type": "int"}

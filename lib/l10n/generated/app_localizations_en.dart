@@ -234,7 +234,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String clipboardPolicyValue(int seconds) {
-    return 'Copied values are cleared after $seconds seconds.';
+    return 'The app attempts to clear copied values after $seconds seconds; Android vendor clipboards and third-party keyboard clipboards may not be cleared.';
   }
 
   @override

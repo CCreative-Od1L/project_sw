@@ -521,7 +521,7 @@ abstract class AppLocalizations {
   /// No description provided for @clipboardPolicyValue.
   ///
   /// In en, this message translates to:
-  /// **'Copied values are cleared after {seconds} seconds.'**
+  /// **'The app attempts to clear copied values after {seconds} seconds; Android vendor clipboards and third-party keyboard clipboards may not be cleared.'**
   String clipboardPolicyValue(int seconds);
 
   /// No description provided for @kdfPolicy.

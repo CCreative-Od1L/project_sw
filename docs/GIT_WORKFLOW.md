@@ -75,8 +75,9 @@ Refs: SECURITY.md §4, specs/vault_format.md §5
 docs(clipboard): document platform cleanup boundaries
 
 Native clipboard APIs can clear the current primary clip,
-but cannot guarantee removal from vendor clipboard history,
-already-read copies, or an app process that has been suspended.
+but cannot guarantee removal from vendor or third-party keyboard
+clipboard history, already-read copies, or an app process that
+has been suspended.
 
 Keep fixed-time clipboard cleanup out of the product security
 boundary until a platform-specific design is verified.
