@@ -64,4 +64,4 @@ GenerationProfile {
 }
 ```
 
-`GeneratePassword(profile) → String` 为纯函数(domain 层),随机源经抽象注入便于单测(测试注入固定随机源以可复现)。**生成器输出流向**:生成器输出经用户确认后填入 VaultEntry.password 或 custom_fields.value(见 [vault_entry.md](vault_entry.md)),随条目走 [vault_format.md §3](vault_format.md) 信封加密;输出未存入 vault 前为短暂 UI 态,按 [data_hygiene.md §1](data_hygiene.md) 内存卫生持有与清零。**生成器可在锁定态独立使用**(不依赖 vault/MVK),此时输出复制应同样走 [data_hygiene.md §2](data_hygiene.md) 剪贴板 20s 清除。
+`GeneratePassword(profile) → String` 为纯函数(domain 层),随机源经抽象注入便于单测(测试注入固定随机源以可复现)。**生成器输出流向**:生成器输出经用户确认后填入 VaultEntry.password 或 custom_fields.value(见 [vault_entry.md](vault_entry.md)),随条目走 [vault_format.md §3](vault_format.md) 信封加密;输出未存入 vault 前为短暂 UI 态,按 [data_hygiene.md §1](data_hygiene.md) 内存卫生持有与清零。**生成器可在锁定态独立使用**(不依赖 vault/MVK),此时输出可复制到系统剪贴板,但不承诺应用侧固定时限自动清除。
