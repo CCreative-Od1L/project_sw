@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 
 /// Shows non-sensitive copy countdown and cleanup feedback above [child].
@@ -68,20 +69,18 @@ final class _SensitiveClipboardFeedbackState
                       .remaining
                       .inSeconds
                       .ceil();
-                  return Text('Sensitive value copied · clears in ${seconds}s');
+                  return Text(context.l10n.sensitiveCopiedClearsIn(seconds));
                 },
               ),
             ),
           );
         case SensitiveClipboardStatus.cleared:
           messenger.showSnackBar(
-            const SnackBar(content: Text('Clipboard cleared')),
+            SnackBar(content: Text(context.l10n.clipboardCleared)),
           );
         case SensitiveClipboardStatus.preservedReplacement:
           messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Clipboard changed; newer content kept'),
-            ),
+            SnackBar(content: Text(context.l10n.clipboardChangedNewerKept)),
           );
         case SensitiveClipboardStatus.idle:
           break;
@@ -97,7 +96,7 @@ final class SensitiveCopyButton extends StatelessWidget {
     super.key,
     required this.value,
     required this.controller,
-    this.tooltip = 'Copy sensitive value',
+    this.tooltip,
   });
 
   /// Detail-local plaintext to copy.
@@ -107,11 +106,11 @@ final class SensitiveCopyButton extends StatelessWidget {
   final SensitiveClipboardController controller;
 
   /// Non-sensitive accessibility label.
-  final String tooltip;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) => IconButton(
-    tooltip: tooltip,
+    tooltip: tooltip ?? context.l10n.copySensitiveValue,
     icon: const Icon(Icons.copy_outlined),
     onPressed: () => controller.copySensitive(value),
   );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_feedback.dart';
@@ -89,16 +90,16 @@ final class _HomeContentState extends State<_HomeContent>
   Widget build(BuildContext context) {
     final VaultEntriesCubit? cubit = widget.vaultEntriesCubit;
     return SessionPageScaffold(
-      title: 'Vault',
+      title: context.l10n.vault,
       child: ListView(
         children: <Widget>[
           Text(
-            'Vault unlocked',
+            context.l10n.vaultUnlocked,
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 12),
           if (cubit == null)
-            const Text('No entries have been added yet.')
+            Text(context.l10n.noEntries)
           else
             _EntriesPanel(
               onAdded: _clearForm,
@@ -106,11 +107,14 @@ final class _HomeContentState extends State<_HomeContent>
             ),
           if (cubit != null) ...<Widget>[
             const Divider(),
-            Text('Add entry', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              context.l10n.addEntry,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(labelText: context.l10n.name),
               textInputAction: TextInputAction.next,
               onChanged: (_) => widget.sessionController.handle(
                 SessionEvent.userInteractionObserved,
@@ -118,7 +122,7 @@ final class _HomeContentState extends State<_HomeContent>
             ),
             TextField(
               controller: _urlController,
-              decoration: const InputDecoration(labelText: 'URL'),
+              decoration: InputDecoration(labelText: context.l10n.url),
               keyboardType: TextInputType.url,
               autocorrect: false,
               enableSuggestions: false,
@@ -128,7 +132,7 @@ final class _HomeContentState extends State<_HomeContent>
             ),
             TextField(
               controller: _usernameController,
-              decoration: const InputDecoration(labelText: 'Username'),
+              decoration: InputDecoration(labelText: context.l10n.username),
               autocorrect: false,
               enableSuggestions: false,
               onChanged: (_) => widget.sessionController.handle(
@@ -137,7 +141,7 @@ final class _HomeContentState extends State<_HomeContent>
             ),
             TextField(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
+              decoration: InputDecoration(labelText: context.l10n.password),
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
@@ -147,7 +151,7 @@ final class _HomeContentState extends State<_HomeContent>
             ),
             TextField(
               controller: _notesController,
-              decoration: const InputDecoration(labelText: 'Notes'),
+              decoration: InputDecoration(labelText: context.l10n.notes),
               minLines: 1,
               maxLines: 2,
               autocorrect: false,
@@ -164,7 +168,7 @@ final class _HomeContentState extends State<_HomeContent>
                     setState(() => _favorite = value ?? false);
                   },
                 ),
-                const Text('Favorite'),
+                Text(context.l10n.favorite),
                 const Spacer(),
                 BlocBuilder<VaultEntriesCubit, VaultEntriesViewState>(
                   builder: (BuildContext context, VaultEntriesViewState state) {
@@ -176,7 +180,7 @@ final class _HomeContentState extends State<_HomeContent>
                               width: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Save entry'),
+                          : Text(context.l10n.saveEntry),
                     );
                   },
                 ),
@@ -187,7 +191,7 @@ final class _HomeContentState extends State<_HomeContent>
             alignment: Alignment.centerRight,
             child: IconButton(
               icon: const Icon(Icons.lock_outline),
-              tooltip: 'Lock vault',
+              tooltip: context.l10n.lockVault,
               onPressed: () =>
                   widget.sessionController.lock(LockReason.manualLock),
             ),
@@ -246,18 +250,18 @@ final class _EntriesPanel extends StatelessWidget {
       child: BlocBuilder<VaultEntriesCubit, VaultEntriesViewState>(
         builder: (BuildContext context, VaultEntriesViewState state) {
           if (state.summaries.isEmpty) {
-            return const Text('No entries have been added yet.');
+            return Text(context.l10n.noEntries);
           }
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               if (state is VaultEntriesReady && state.errorMessage != null)
                 Text(
-                  state.errorMessage!,
+                  context.l10n.entrySaveFailed,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               if (state.summaries.isEmpty)
-                const Text('No entries have been added yet.')
+                Text(context.l10n.noEntries)
               else
                 for (final EntrySummary summary in state.summaries)
                   ListTile(
@@ -270,7 +274,7 @@ final class _EntriesPanel extends StatelessWidget {
                       ].where((String value) => value.isNotEmpty).join(' · '),
                     ),
                     trailing: summary.favorite
-                        ? const Icon(Icons.star, semanticLabel: 'Favorite')
+                        ? Icon(Icons.star, semanticLabel: context.l10n.favorite)
                         : null,
                     onTap: () => _showDetail(context, summary),
                   ),
@@ -367,25 +371,25 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Entry detail'),
+    title: Text(context.l10n.entryDetail),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           TextField(
             controller: _name,
-            decoration: const InputDecoration(labelText: 'Name'),
+            decoration: InputDecoration(labelText: context.l10n.name),
           ),
           TextField(
             controller: _url,
-            decoration: const InputDecoration(labelText: 'URL'),
+            decoration: InputDecoration(labelText: context.l10n.url),
             keyboardType: TextInputType.url,
             autocorrect: false,
             enableSuggestions: false,
           ),
           TextField(
             controller: _username,
-            decoration: const InputDecoration(labelText: 'Username'),
+            decoration: InputDecoration(labelText: context.l10n.username),
             autocorrect: false,
             enableSuggestions: false,
           ),
@@ -394,7 +398,7 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
               Expanded(
                 child: TextField(
                   controller: _password,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  decoration: InputDecoration(labelText: context.l10n.password),
                   obscureText: true,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -404,7 +408,7 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
                 SensitiveCopyButton(
                   value: widget.detail.entry.password,
                   controller: widget.sensitiveClipboardController!,
-                  tooltip: 'Copy password',
+                  tooltip: context.l10n.copyPassword,
                 ),
             ],
           ),
@@ -418,13 +422,13 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
                   ? SensitiveCopyButton(
                       value: field.value,
                       controller: widget.sensitiveClipboardController!,
-                      tooltip: 'Copy secret field',
+                      tooltip: context.l10n.copySecretField,
                     )
                   : null,
             ),
           TextField(
             controller: _notes,
-            decoration: const InputDecoration(labelText: 'Notes'),
+            decoration: InputDecoration(labelText: context.l10n.notes),
             minLines: 1,
             maxLines: 3,
             autocorrect: false,
@@ -436,18 +440,18 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
             onChanged: (bool? value) {
               setState(() => _favorite = value ?? false);
             },
-            title: const Text('Favorite'),
+            title: Text(context.l10n.favorite),
           ),
         ],
       ),
     ),
     actions: <Widget>[
-      TextButton(onPressed: _delete, child: const Text('Delete')),
+      TextButton(onPressed: _delete, child: Text(context.l10n.delete)),
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Close'),
+        child: Text(context.l10n.close),
       ),
-      FilledButton(onPressed: _save, child: const Text('Save')),
+      FilledButton(onPressed: _save, child: Text(context.l10n.save)),
     ],
   );
 

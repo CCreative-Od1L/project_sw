@@ -27,24 +27,7 @@ final class SessionPageScaffold extends StatelessWidget {
     final Widget scaffold = Scaffold(
       appBar: AppBar(title: Text(title)),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              BlocBuilder<AuthCubit, AuthViewState>(
-                builder: (BuildContext context, AuthViewState state) {
-                  return Text(
-                    'Session route: ${state.routeState.name}',
-                    style: Theme.of(context).textTheme.labelMedium,
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              Expanded(child: child),
-            ],
-          ),
-        ),
+        child: Padding(padding: const EdgeInsets.all(24), child: child),
       ),
     );
     if (clipboard == null) return scaffold;

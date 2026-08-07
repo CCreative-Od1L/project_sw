@@ -1,0 +1,66 @@
+{
+  "@@locale": "en",
+  "appTitle": "Project SW",
+  "setupTitle": "Project SW",
+  "createYourVault": "Create your vault",
+  "vaultDescription": "Your encrypted vault will be created on this device.",
+  "masterPassword": "Master password",
+  "optimizingSecurityParameters": "Optimizing security parameters…",
+  "optimizingSecurityParametersProgress": "Optimizing security parameters… {completed}/{total}",
+  "@optimizingSecurityParametersProgress": {
+    "placeholders": {
+      "completed": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "createVault": "Create vault",
+  "vaultCreated": "Vault created",
+  "securityParametersOptimized": "Security parameters optimized for this device:",
+  "argon2idParameters": "Argon2id: m={memoryMiB} MiB, t={iterations}, p={parallelism}",
+  "@argon2idParameters": {
+    "placeholders": {
+      "memoryMiB": {"type": "int"},
+      "iterations": {"type": "int"},
+      "parallelism": {"type": "int"}
+    }
+  },
+  "continueToUnlock": "Continue to unlock",
+  "vaultCreationFailed": "Vault creation could not be completed.",
+  "unlockVault": "Unlock vault",
+  "unlockYourVault": "Unlock your vault",
+  "incorrectMasterPassword": "Master password is incorrect.",
+  "vaultUnlockFailed": "Vault unlock could not be completed.",
+  "unlock": "Unlock",
+  "vault": "Vault",
+  "generator": "Generator",
+  "settings": "Settings",
+  "vaultUnlocked": "Vault unlocked",
+  "noEntries": "No entries have been added yet.",
+  "addEntry": "Add entry",
+  "name": "Name",
+  "url": "URL",
+  "username": "Username",
+  "password": "Password",
+  "notes": "Notes",
+  "favorite": "Favorite",
+  "saveEntry": "Save entry",
+  "lockVault": "Lock vault",
+  "entryDetail": "Entry detail",
+  "delete": "Delete",
+  "close": "Close",
+  "save": "Save",
+  "entrySaveFailed": "The entry could not be saved.",
+  "copySensitiveValue": "Copy sensitive value",
+  "copyPassword": "Copy password",
+  "copySecretField": "Copy secret field",
+  "sensitiveCopiedClearsIn": "Sensitive value copied · clears in {seconds}s",
+  "@sensitiveCopiedClearsIn": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "clipboardCleared": "Clipboard cleared",
+  "clipboardChangedNewerKept": "Clipboard changed; newer content kept",
+  "generatorComingSoon": "Password generator is coming next.",
+  "settingsComingSoon": "Security settings are coming next."
+}

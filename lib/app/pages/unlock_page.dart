@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_events.dart';
@@ -102,17 +103,17 @@ final class _UnlockContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool unlocking = state is Unlocking;
     final String? message = switch (state) {
-      UnlockInvalidPassword() => 'Master password is incorrect.',
-      UnlockFault() => 'Vault unlock could not be completed.',
+      UnlockInvalidPassword() => context.l10n.incorrectMasterPassword,
+      UnlockFault() => context.l10n.vaultUnlockFailed,
       _ => null,
     };
     return SessionPageScaffold(
-      title: 'Unlock vault',
+      title: context.l10n.unlockVault,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Unlock your vault',
+            context.l10n.unlockYourVault,
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 24),
@@ -122,7 +123,7 @@ final class _UnlockContent extends StatelessWidget {
             obscureText: true,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: const InputDecoration(labelText: 'Master password'),
+            decoration: InputDecoration(labelText: context.l10n.masterPassword),
             onChanged: (_) => onActivity?.call(),
           ),
           const SizedBox(height: 16),
@@ -132,7 +133,7 @@ final class _UnlockContent extends StatelessWidget {
             FilledButton.icon(
               onPressed: onSubmit == null ? null : () => onSubmit!(),
               icon: const Icon(Icons.lock_open_outlined),
-              label: const Text('Unlock'),
+              label: Text(context.l10n.unlock),
             ),
           if (message != null) ...<Widget>[
             const SizedBox(height: 16),
