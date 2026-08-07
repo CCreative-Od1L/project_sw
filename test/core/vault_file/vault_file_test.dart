@@ -36,6 +36,64 @@ void main() {
     },
   );
 
+  test('round-trips the optional biometric MVK envelope and feature flag', () {
+    final VaultFileHeader header = VaultFileHeader(
+      kdfParameters: const VaultKdfParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+        parallelism: 1,
+      ),
+      kdfSalt: Uint8List.fromList(List<int>.filled(16, 1)),
+      wrappedMasterVaultKey: Uint8List.fromList(List<int>.filled(72, 2)),
+      biometricWrappedMasterVaultKey: Uint8List.fromList(
+        List<int>.filled(72, 3),
+      ),
+      activeDirectoryOffset: vaultFileHeaderLength,
+      entryCount: 0,
+      freeListHead: 0,
+      sequenceCounter: 1,
+      committedSequence: 0,
+      journal: const VaultJournal(
+        operation: VaultJournalOperation.create,
+        sequence: 1,
+        directoryOffset: vaultFileHeaderLength,
+        directoryLength: vaultDirectoryLength,
+      ),
+    );
+
+    final VaultFileHeader decoded = VaultFileCodec.decodeHeader(
+      VaultFileCodec.encodeHeader(header),
+    );
+
+    expect(decoded.flags & 0x01, 0x01);
+    expect(decoded.biometricWrappedMasterVaultKey, hasLength(72));
+    expect(
+      decoded.biometricWrappedMasterVaultKey,
+      orderedEquals(List<int>.filled(72, 3)),
+    );
+  });
+
+  test(
+    'atomically persists a biometric header change without changing data state',
+    () {
+      final String path = '${temporaryDirectory.path}/biometric-header.psw';
+      final VaultFileEngine engine = VaultFileEngine()
+        ..createEmptyVault(path, _header());
+      final OpenVaultFile opened = engine.openVaultFile(path);
+      final VaultFileHeader next = opened.header.copyWithBiometric(
+        Uint8List.fromList(List<int>.filled(72, 9)),
+      );
+
+      engine.commitHeaderUpdate(path: path, opened: opened, header: next);
+
+      final OpenVaultFile updated = engine.openVaultFile(path);
+      expect(updated.header.biometricWrappedMasterVaultKey, hasLength(72));
+      expect(updated.header.entryCount, opened.header.entryCount);
+      expect(updated.header.sequenceCounter, opened.header.sequenceCounter);
+      expect(updated.directory.sequence, opened.directory.sequence);
+    },
+  );
+
   test(
     'replays a valid pending initial create without losing the directory',
     () {

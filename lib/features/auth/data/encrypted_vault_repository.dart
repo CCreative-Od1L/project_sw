@@ -5,6 +5,8 @@ import 'package:project_sw/core/crypto/aad_builder.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/crypto/crypto_service.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
+import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/data/vault_entry_json_codec.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -14,12 +16,14 @@ import 'package:project_sw/shared/errors/vault_exception.dart';
 typedef VaultPathResolver = Future<String> Function();
 
 /// Coordinates KDF, MVK wrapping, and the empty-vault file commit.
-final class EncryptedVaultRepository implements VaultRepository {
+final class EncryptedVaultRepository
+    implements VaultRepository, BiometricVaultRepository {
   /// Creates a repository with a production or test [vaultPathResolver].
   EncryptedVaultRepository({
     required this.crypto,
     required this.vaultFileEngine,
     required this.vaultPathResolver,
+    this.biometricKeyStore,
   });
 
   /// Crypto primitives used to create and wrap the initial keys.
@@ -30,9 +34,13 @@ final class EncryptedVaultRepository implements VaultRepository {
 
   /// Resolves the application-support vault path.
   final VaultPathResolver vaultPathResolver;
+
+  /// Platform adapter that gates transient K_bio release with biometrics.
+  final BiometricKeyStore? biometricKeyStore;
   Uint8List? _masterVaultKey;
   List<EntrySummary> _entrySummaries = const <EntrySummary>[];
   Argon2idParameters? _activeKdfParameters;
+  var _hasBiometricUnlock = false;
 
   @override
   bool get hasUnlockedSession => _masterVaultKey != null;
@@ -43,6 +51,225 @@ final class EncryptedVaultRepository implements VaultRepository {
 
   @override
   Argon2idParameters? get activeKdfParameters => _activeKdfParameters;
+
+  @override
+  bool get hasBiometricUnlock => _hasBiometricUnlock;
+
+  @override
+  Future<bool> hasConfiguredBiometricUnlock() async {
+    VaultFileHeader? header;
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      _hasBiometricUnlock = header.biometricWrappedMasterVaultKey != null;
+      return _hasBiometricUnlock;
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
+    } finally {
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+    }
+  }
+
+  @override
+  Future<void> enableBiometricUnlock() async {
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) {
+      throw const VaultLockedException();
+    }
+    final BiometricKeyStore store = _requireBiometricKeyStore();
+    Uint8List? biometricKey;
+    Uint8List? aad;
+    Uint8List? wrappedMvk;
+    AeadCiphertext? encrypted;
+    VaultFileHeader? header;
+    try {
+      if (await store.availability != BiometricAvailability.available) {
+        throw const BiometricUnavailableException();
+      }
+      biometricKey = await store.createAndStoreKey();
+      _validateBiometricKey(biometricKey);
+      aad = AadBuilder.forWrapBiometricMvk(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: 1,
+      );
+      encrypted = crypto.encryptWithAead(biometricKey, masterVaultKey, aad);
+      wrappedMvk = _join(encrypted.nonce, encrypted.ciphertext);
+      if (wrappedMvk.length != 72) {
+        throw const CryptoInitializationException();
+      }
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      vaultFileEngine.commitHeaderUpdate(
+        path: path,
+        opened: opened,
+        header: header.copyWithBiometric(wrappedMvk),
+      );
+      _hasBiometricUnlock = true;
+    } on BiometricKeyStoreException {
+      rethrow;
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
+    } finally {
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+      if (encrypted != null) {
+        clearSensitiveBytes(encrypted.nonce);
+        clearSensitiveBytes(encrypted.ciphertext);
+      }
+      if (wrappedMvk != null) {
+        clearSensitiveBytes(wrappedMvk);
+      }
+      if (aad != null) {
+        clearSensitiveBytes(aad);
+      }
+      if (biometricKey != null) {
+        clearSensitiveBytes(biometricKey);
+      }
+    }
+  }
+
+  @override
+  Future<void> disableBiometricUnlock() async {
+    if (_masterVaultKey == null) {
+      throw const VaultLockedException();
+    }
+    final BiometricKeyStore store = _requireBiometricKeyStore();
+    VaultFileHeader? header;
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      if (header.biometricWrappedMasterVaultKey == null) {
+        _hasBiometricUnlock = false;
+        await store.deleteKey();
+        return;
+      }
+      vaultFileEngine.commitHeaderUpdate(
+        path: path,
+        opened: opened,
+        header: header.copyWithBiometric(null),
+      );
+      _hasBiometricUnlock = false;
+      await store.deleteKey();
+    } on BiometricKeyStoreException {
+      rethrow;
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
+    } finally {
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+    }
+  }
+
+  @override
+  Future<void> unlockWithBiometric() async {
+    clearUnlockedSession();
+    final BiometricKeyStore store = _requireBiometricKeyStore();
+    Uint8List? biometricKey;
+    Uint8List? aad;
+    Uint8List? nonce;
+    Uint8List? ciphertext;
+    VaultFileHeader? header;
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      final Uint8List? wrappedMvk = header.biometricWrappedMasterVaultKey;
+      if (wrappedMvk == null) {
+        throw const BiometricUnavailableException();
+      }
+      biometricKey = await store.loadKey();
+      _validateBiometricKey(biometricKey);
+      aad = AadBuilder.forWrapBiometricMvk(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: header.aeadAlgorithmId,
+      );
+      nonce = Uint8List.fromList(wrappedMvk.sublist(0, 24));
+      ciphertext = Uint8List.fromList(wrappedMvk.sublist(24));
+      try {
+        _masterVaultKey = crypto.decryptWithAead(
+          biometricKey,
+          nonce,
+          ciphertext,
+          aad,
+        );
+      } on Object catch (error) {
+        throw VaultCorruptedException(cause: error);
+      }
+      try {
+        _entrySummaries = _loadEntrySummaries(
+          path: path,
+          header: header,
+          directory: opened.directory,
+          masterVaultKey: _masterVaultKey!,
+        );
+        _activeKdfParameters = Argon2idParameters(
+          memoryKiB: header.kdfParameters.memoryKiB,
+          iterations: header.kdfParameters.iterations,
+          parallelism: header.kdfParameters.parallelism,
+        );
+        _hasBiometricUnlock = true;
+      } on VaultException {
+        clearUnlockedSession();
+        rethrow;
+      } on Object catch (error) {
+        clearUnlockedSession();
+        throw VaultCorruptedException(cause: error);
+      }
+    } on BiometricKeyStoreException {
+      rethrow;
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
+    } finally {
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+      if (ciphertext != null) {
+        clearSensitiveBytes(ciphertext);
+      }
+      if (nonce != null) {
+        clearSensitiveBytes(nonce);
+      }
+      if (aad != null) {
+        clearSensitiveBytes(aad);
+      }
+      if (biometricKey != null) {
+        clearSensitiveBytes(biometricKey);
+      }
+    }
+  }
 
   @override
   Future<void> createEmptyVault({
@@ -152,6 +379,7 @@ final class EncryptedVaultRepository implements VaultRepository {
       final String path = await vaultPathResolver();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
+      _hasBiometricUnlock = header.biometricWrappedMasterVaultKey != null;
       kek = await crypto.deriveKek(
         masterPassword,
         header.kdfSalt,
@@ -221,8 +449,7 @@ final class EncryptedVaultRepository implements VaultRepository {
         clearSensitiveBytes(kek);
       }
       if (header != null) {
-        clearSensitiveBytes(header.kdfSalt);
-        clearSensitiveBytes(header.wrappedMasterVaultKey);
+        _clearHeaderKeyMaterial(header);
       }
     }
   }
@@ -723,5 +950,28 @@ final class EncryptedVaultRepository implements VaultRepository {
       ..setUint32(4, parameters.iterations, Endian.big)
       ..setUint32(8, parameters.parallelism, Endian.big);
     return data.buffer.asUint8List();
+  }
+
+  BiometricKeyStore _requireBiometricKeyStore() {
+    final BiometricKeyStore? store = biometricKeyStore;
+    if (store == null) {
+      throw const BiometricUnavailableException();
+    }
+    return store;
+  }
+
+  void _validateBiometricKey(Uint8List key) {
+    if (key.length != 32) {
+      throw const CryptoInitializationException();
+    }
+  }
+
+  void _clearHeaderKeyMaterial(VaultFileHeader header) {
+    clearSensitiveBytes(header.kdfSalt);
+    clearSensitiveBytes(header.wrappedMasterVaultKey);
+    final Uint8List? biometricWrapped = header.biometricWrappedMasterVaultKey;
+    if (biometricWrapped != null) {
+      clearSensitiveBytes(biometricWrapped);
+    }
   }
 }
