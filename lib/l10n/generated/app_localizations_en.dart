@@ -135,16 +135,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copySecretField => 'Copy secret field';
 
   @override
-  String sensitiveCopiedClearsIn(int seconds) {
-    return 'Sensitive value copied · clears in ${seconds}s';
-  }
-
-  @override
-  String get clipboardCleared => 'Clipboard cleared';
-
-  @override
-  String get clipboardChangedNewerKept =>
-      'Clipboard changed; newer content kept';
+  String get sensitiveCopied => 'Sensitive value copied to clipboard';
 
   @override
   String get generationMode => 'Mode';

@@ -338,23 +338,11 @@ abstract class AppLocalizations {
   /// **'Copy secret field'**
   String get copySecretField;
 
-  /// No description provided for @sensitiveCopiedClearsIn.
+  /// No description provided for @sensitiveCopied.
   ///
   /// In en, this message translates to:
-  /// **'Sensitive value copied · clears in {seconds}s'**
-  String sensitiveCopiedClearsIn(int seconds);
-
-  /// No description provided for @clipboardCleared.
-  ///
-  /// In en, this message translates to:
-  /// **'Clipboard cleared'**
-  String get clipboardCleared;
-
-  /// No description provided for @clipboardChangedNewerKept.
-  ///
-  /// In en, this message translates to:
-  /// **'Clipboard changed; newer content kept'**
-  String get clipboardChangedNewerKept;
+  /// **'Sensitive value copied to clipboard'**
+  String get sensitiveCopied;
 
   /// No description provided for @generationMode.
   ///

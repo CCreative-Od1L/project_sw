@@ -21,12 +21,9 @@ void main() {
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: SensitiveClipboardFeedback(
+          body: SensitiveCopyButton(
+            value: 'widget-only-secret',
             controller: controller,
-            child: SensitiveCopyButton(
-              value: 'widget-only-secret',
-              controller: controller,
-            ),
           ),
         ),
       ),
@@ -38,12 +35,59 @@ void main() {
 
     expect(clipboard.value, 'widget-only-secret');
     expect(find.text('widget-only-secret'), findsNothing);
-    expect(find.textContaining('Sensitive value copied'), findsOneWidget);
+    expect(find.text('Sensitive value copied to clipboard'), findsOneWidget);
   });
+
+  testWidgets(
+    'copy shows one confirmation and expires without a cleanup snackbar',
+    (WidgetTester tester) async {
+      final FakeClipboard clipboard = FakeClipboard();
+      final MutableClock clock = MutableClock();
+      final ManualTimerFactory timers = ManualTimerFactory();
+      final SensitiveClipboardController controller =
+          SensitiveClipboardController(
+            clipboard,
+            clock: clock.now,
+            timerFactory: timers.create,
+          );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SensitiveCopyButton(
+              value: 'widget-only-secret',
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Copy sensitive value'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Sensitive value copied to clipboard'), findsOneWidget);
+      expect(find.textContaining('clears in'), findsNothing);
+
+      clock.advance(const Duration(seconds: 20));
+      timers.fireLatest();
+      await tester.pump();
+      await tester.pump();
+
+      expect(clipboard.value, isEmpty);
+      expect(clipboard.clearCount, 1);
+      expect(find.text('Sensitive value copied to clipboard'), findsOneWidget);
+      expect(find.text('Clipboard cleared'), findsNothing);
+    },
+  );
 }
 
 final class FakeClipboard implements ClipboardPort {
   String value = '';
+  var clearCount = 0;
 
   @override
   Future<void> writeText(String value) async => this.value = value;
@@ -52,7 +96,10 @@ final class FakeClipboard implements ClipboardPort {
   Future<String?> readText() async => value;
 
   @override
-  Future<void> clearText() async => value = '';
+  Future<void> clearText() async {
+    value = '';
+    clearCount++;
+  }
 }
 
 final class NoopTimer implements SensitiveClipboardTimer {
@@ -63,4 +110,43 @@ final class NoopTimer implements SensitiveClipboardTimer {
 
   @override
   void cancel() => _active = false;
+}
+
+final class MutableClock {
+  DateTime value = DateTime.utc(2026, 1, 1);
+
+  DateTime now() => value;
+
+  void advance(Duration duration) => value = value.add(duration);
+}
+
+final class ManualTimerFactory {
+  final List<ManualTimer> timers = <ManualTimer>[];
+
+  SensitiveClipboardTimer create(Duration _, void Function() callback) {
+    final ManualTimer timer = ManualTimer(callback);
+    timers.add(timer);
+    return timer;
+  }
+
+  void fireLatest() => timers.last.fire();
+}
+
+final class ManualTimer implements SensitiveClipboardTimer {
+  ManualTimer(this._callback);
+
+  final void Function() _callback;
+  var _active = true;
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  void cancel() => _active = false;
+
+  void fire() {
+    if (!_active) return;
+    _active = false;
+    _callback();
+  }
 }

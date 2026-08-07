@@ -133,15 +133,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copySecretField => '复制秘密字段';
 
   @override
-  String sensitiveCopiedClearsIn(int seconds) {
-    return '敏感值已复制，将在 $seconds 秒后清除';
-  }
-
-  @override
-  String get clipboardCleared => '剪贴板已清除';
-
-  @override
-  String get clipboardChangedNewerKept => '剪贴板内容已变化，保留新内容';
+  String get sensitiveCopied => '敏感值已复制到剪贴板';
 
   @override
   String get generationMode => '模式';
