@@ -11,6 +11,7 @@ import 'package:project_sw/app/session_lifecycle_adapter.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
+import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
@@ -20,6 +21,7 @@ GoRouter buildAppRouter(
   SessionController sessionController, {
   SetupCubit? setupCubit,
   UnlockCubit? unlockCubit,
+  BiometricUnlockCubit? biometricUnlockCubit,
   VaultEntriesCubit? vaultEntriesCubit,
   WidgetBuilder? generatorPageBuilder,
   WidgetBuilder? settingsPageBuilder,
@@ -51,6 +53,7 @@ GoRouter buildAppRouter(
         builder: (BuildContext context, GoRouterState state) => UnlockPage(
           sessionController: sessionController,
           unlockCubit: unlockCubit,
+          biometricUnlockCubit: biometricUnlockCubit,
         ),
       ),
       ShellRoute(

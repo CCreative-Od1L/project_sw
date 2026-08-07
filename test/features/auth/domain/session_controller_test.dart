@@ -28,7 +28,7 @@ void main() {
       expect(controller.state, isA<LockedSession>());
       expect((controller.state as LockedSession).reason, LockReason.coldStart);
       expect(controller.routeState, SessionRouteState.unlock);
-      expect((controller.state as LockedSession).canUseBiometric, isFalse);
+      expect((controller.state as LockedSession).canUseBiometric, isTrue);
     });
 
     test('preserves authentication strength until the next lock', () {

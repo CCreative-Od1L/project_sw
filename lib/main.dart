@@ -6,6 +6,8 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
+import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
@@ -24,6 +26,10 @@ Future<void> main() async {
       authCubit: appServiceLocator<AuthCubit>(),
       setupCubit: appServiceLocator<SetupCubit>(),
       unlockCubit: appServiceLocator<UnlockCubit>(),
+      biometricUnlockCubit:
+          appServiceLocator.isRegistered<BiometricUnlockCubit>()
+          ? appServiceLocator<BiometricUnlockCubit>()
+          : null,
       vaultEntriesCubit: appServiceLocator<VaultEntriesCubit>(),
       sensitiveClipboardController:
           appServiceLocator<SensitiveClipboardController>(),
@@ -39,6 +45,10 @@ Future<void> main() async {
       settingsPageBuilder: (_) => SettingsPage(
         config: appServiceLocator<AppConfig>(),
         vaultRepository: appServiceLocator<VaultRepository>(),
+        biometricSettingsCubit:
+            appServiceLocator.isRegistered<BiometricSettingsCubit>()
+            ? appServiceLocator<BiometricSettingsCubit>()
+            : null,
       ),
     ),
   );

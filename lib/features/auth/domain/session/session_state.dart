@@ -90,7 +90,9 @@ final class LockedSession extends SessionState {
   final LockReason reason;
 
   /// Whether biometric unlock may be offered after this lock reason.
-  bool get canUseBiometric => reason == LockReason.backgroundOrTimeout;
+  bool get canUseBiometric =>
+      reason == LockReason.coldStart ||
+      reason == LockReason.backgroundOrTimeout;
 
   @override
   SessionRouteState get routeState => SessionRouteState.unlock;

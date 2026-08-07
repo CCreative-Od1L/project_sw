@@ -10,6 +10,8 @@ import 'package:project_sw/core/observability/logger.dart';
 import 'package:project_sw/core/observability/redaction_filter.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
@@ -17,6 +19,8 @@ import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
+import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
@@ -34,6 +38,7 @@ void registerAppDependencies(
   CryptoService? cryptoService,
   VaultPathResolver? vaultPathResolver,
   ClipboardPort? clipboardPort,
+  BiometricKeyStore? biometricKeyStore,
 }) {
   serviceLocator.registerSingleton<AppConfig>(config);
   serviceLocator.registerSingleton<RedactionFilter>(const RedactionFilter());
@@ -57,6 +62,9 @@ void registerAppDependencies(
   );
 
   if (cryptoService != null && vaultPathResolver != null) {
+    if (biometricKeyStore != null) {
+      serviceLocator.registerSingleton<BiometricKeyStore>(biometricKeyStore);
+    }
     serviceLocator.registerSingleton<CryptoService>(cryptoService);
     serviceLocator.registerSingleton<VaultFileEngine>(VaultFileEngine());
     serviceLocator.registerSingleton<EncryptedVaultRepository>(
@@ -64,6 +72,9 @@ void registerAppDependencies(
         crypto: serviceLocator<CryptoService>(),
         vaultFileEngine: serviceLocator<VaultFileEngine>(),
         vaultPathResolver: vaultPathResolver,
+        biometricKeyStore: serviceLocator.isRegistered<BiometricKeyStore>()
+            ? serviceLocator<BiometricKeyStore>()
+            : null,
       ),
     );
     serviceLocator.registerSingleton<VaultRepository>(
@@ -134,6 +145,24 @@ void registerAppDependencies(
         onUnlocked: serviceLocator<VaultEntriesCubit>().refresh,
       ),
     );
+    if (serviceLocator.isRegistered<BiometricKeyStore>()) {
+      serviceLocator.registerSingleton<BiometricUnlockCubit>(
+        BiometricUnlockCubit(
+          serviceLocator<EncryptedVaultRepository>(),
+          serviceLocator<BiometricKeyStore>(),
+          serviceLocator<SessionController>(),
+          onUnlocked: serviceLocator<VaultEntriesCubit>().refresh,
+        ),
+        dispose: (BiometricUnlockCubit cubit) => cubit.close(),
+      );
+      serviceLocator.registerSingleton<BiometricSettingsCubit>(
+        BiometricSettingsCubit(
+          serviceLocator<EncryptedVaultRepository>(),
+          serviceLocator<BiometricKeyStore>(),
+        ),
+        dispose: (BiometricSettingsCubit cubit) => cubit.close(),
+      );
+    }
   }
 }
 
@@ -148,5 +177,6 @@ Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
     config: AppConfig(vaultExistsAtLaunch: File(vaultPath).existsSync()),
     cryptoService: cryptoService,
     vaultPathResolver: () async => vaultPath,
+    biometricKeyStore: const MethodChannelBiometricKeyStore(),
   );
 }

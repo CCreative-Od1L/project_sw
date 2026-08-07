@@ -69,6 +69,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unlock => 'Unlock';
 
   @override
+  String get useBiometric => 'Unlock with biometrics';
+
+  @override
+  String get biometricCancelled => 'Biometric unlock was cancelled.';
+
+  @override
+  String get biometricInvalidated =>
+      'Biometric settings changed. Unlock with your master password to set it up again.';
+
+  @override
+  String get biometricUnavailable =>
+      'Biometric unlock is unavailable. Use your master password.';
+
+  @override
+  String get biometricUnlockFailed =>
+      'Biometric unlock could not be completed.';
+
+  @override
   String get vault => 'Vault';
 
   @override
@@ -212,7 +230,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMatchingEntries => 'No entries match your search.';
 
   @override
-  String get securitySettingsReadOnly => 'Security settings (read-only)';
+  String get securitySettingsReadOnly => 'Security settings';
 
   @override
   String get idleLockPolicy => 'Idle lock';
@@ -246,6 +264,39 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsNoCredentials =>
       'No credentials or vault plaintext are shown here.';
+
+  @override
+  String get biometricSettings => 'Biometric unlock';
+
+  @override
+  String get biometricSecurityBoundary =>
+      'Biometrics release a device-protected key for this vault. Your master password is never stored and remains the fallback.';
+
+  @override
+  String get biometricEnabled => 'Biometric unlock is enabled on this device.';
+
+  @override
+  String get biometricNotEnabled => 'Biometric unlock is not enabled.';
+
+  @override
+  String get enableBiometric => 'Enable biometric unlock';
+
+  @override
+  String get disableBiometric => 'Disable biometric unlock';
+
+  @override
+  String get resetBiometric => 'Reset biometric unlock';
+
+  @override
+  String get confirmEnableBiometric =>
+      'Enable biometric unlock on this device? You can still use your master password.';
+
+  @override
+  String get confirmDisableBiometric =>
+      'Disable biometric unlock? The master password will remain available.';
+
+  @override
+  String get biometricSetupFailed => 'Biometric settings could not be changed.';
 
   @override
   String get generatorComingSoon => 'Password generator is coming next.';

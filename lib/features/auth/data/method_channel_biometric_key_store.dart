@@ -22,6 +22,8 @@ final class MethodChannelBiometricKeyStore implements BiometricKeyStore {
           : BiometricAvailability.unavailable;
     } on PlatformException catch (error) {
       throw _normalizePlatformException(error);
+    } on MissingPluginException catch (error) {
+      throw BiometricUnavailableException(cause: error);
     }
   }
 
@@ -37,6 +39,8 @@ final class MethodChannelBiometricKeyStore implements BiometricKeyStore {
       await _channel.invokeMethod<void>('deleteKey');
     } on PlatformException catch (error) {
       throw _normalizePlatformException(error);
+    } on MissingPluginException catch (error) {
+      throw BiometricUnavailableException(cause: error);
     }
   }
 
@@ -49,6 +53,8 @@ final class MethodChannelBiometricKeyStore implements BiometricKeyStore {
       return Uint8List.fromList(key);
     } on PlatformException catch (error) {
       throw _normalizePlatformException(error);
+    } on MissingPluginException catch (error) {
+      throw BiometricUnavailableException(cause: error);
     }
   }
 

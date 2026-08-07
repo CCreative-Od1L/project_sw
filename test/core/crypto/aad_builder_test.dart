@@ -42,4 +42,21 @@ void main() {
 
     expect(first, isNot(equals(second)));
   });
+
+  test('biometric MVK wrapping AAD has a distinct purpose label', () {
+    final Uint8List biometric = AadBuilder.forWrapBiometricMvk(
+      magic: vaultMagic,
+      formatVersion: vaultFormatVersion,
+      aeadAlgorithmId: 1,
+    );
+    final Uint8List dek = AadBuilder.forWrapDek(
+      magic: vaultMagic,
+      formatVersion: vaultFormatVersion,
+      aeadAlgorithmId: 1,
+      entryId: Uint8List(16),
+    );
+
+    expect(biometric, isNot(equals(dek)));
+    expect(biometric, endsWith(<int>[0x62, 0x69, 0x6f, 0x2d, 0x6d, 0x76, 0x6b]));
+  });
 }
