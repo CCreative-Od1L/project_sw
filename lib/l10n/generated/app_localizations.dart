@@ -341,7 +341,7 @@ abstract class AppLocalizations {
   /// No description provided for @sensitiveCopied.
   ///
   /// In en, this message translates to:
-  /// **'Sensitive value copied to clipboard'**
+  /// **'Password copied to clipboard'**
   String get sensitiveCopied;
 
   /// No description provided for @generationMode.

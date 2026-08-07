@@ -133,7 +133,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copySecretField => '复制秘密字段';
 
   @override
-  String get sensitiveCopied => '敏感值已复制到剪贴板';
+  String get sensitiveCopied => '密码已复制到剪贴板';
 
   @override
   String get generationMode => '模式';

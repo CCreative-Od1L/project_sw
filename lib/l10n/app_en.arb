@@ -53,7 +53,7 @@
   "copySensitiveValue": "Copy sensitive value",
   "copyPassword": "Copy password",
   "copySecretField": "Copy secret field",
-  "sensitiveCopied": "Sensitive value copied to clipboard",
+  "sensitiveCopied": "Password copied to clipboard",
   "generationMode": "Mode",
   "randomMode": "Random",
   "pronounceableMode": "Pronounceable",
