@@ -35,7 +35,7 @@ void main() {
 
     expect(clipboard.value, 'widget-only-secret');
     expect(find.text('widget-only-secret'), findsNothing);
-    expect(find.text('Sensitive value copied to clipboard'), findsOneWidget);
+    expect(find.text('Password copied to clipboard'), findsOneWidget);
   });
 
   testWidgets(
@@ -69,7 +69,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Sensitive value copied to clipboard'), findsOneWidget);
+      expect(find.text('Password copied to clipboard'), findsOneWidget);
       expect(find.textContaining('clears in'), findsNothing);
 
       clock.advance(const Duration(seconds: 20));
@@ -79,7 +79,7 @@ void main() {
 
       expect(clipboard.value, isEmpty);
       expect(clipboard.clearCount, 1);
-      expect(find.text('Sensitive value copied to clipboard'), findsOneWidget);
+      expect(find.text('Password copied to clipboard'), findsOneWidget);
       expect(find.text('Clipboard cleared'), findsNothing);
     },
   );

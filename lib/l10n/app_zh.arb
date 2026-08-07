@@ -53,7 +53,7 @@
   "copySensitiveValue": "复制敏感值",
   "copyPassword": "复制密码",
   "copySecretField": "复制秘密字段",
-  "sensitiveCopied": "敏感值已复制到剪贴板",
+  "sensitiveCopied": "密码已复制到剪贴板",
   "generationMode": "模式",
   "randomMode": "随机",
   "pronounceableMode": "可发音",

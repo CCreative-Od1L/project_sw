@@ -135,7 +135,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copySecretField => 'Copy secret field';
 
   @override
-  String get sensitiveCopied => 'Sensitive value copied to clipboard';
+  String get sensitiveCopied => 'Password copied to clipboard';
 
   @override
   String get generationMode => 'Mode';
