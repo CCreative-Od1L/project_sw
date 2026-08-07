@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_feedback.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
+import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 
 /// Shared compact page layout for the route skeleton.
 final class SessionPageScaffold extends StatelessWidget {
