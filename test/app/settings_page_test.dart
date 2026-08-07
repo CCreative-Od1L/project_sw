@@ -33,7 +33,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Security settings (read-only)'), findsOneWidget);
+    expect(find.text('Security settings'), findsOneWidget);
     expect(
       find.text('Locks after 5 minutes without interaction.'),
       findsOneWidget,
@@ -81,9 +81,7 @@ void main() {
     );
 
     expect(
-      find.text(
-        '应用将尝试在 20 秒后清除复制的值；不保证 Android 各厂商及第三方输入法的剪贴板能够被正常清除。',
-      ),
+      find.text('应用将尝试在 20 秒后清除复制的值；不保证 Android 各厂商及第三方输入法的剪贴板能够被正常清除。'),
       findsOneWidget,
     );
   });

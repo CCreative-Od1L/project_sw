@@ -206,6 +206,36 @@ abstract class AppLocalizations {
   /// **'Unlock'**
   String get unlock;
 
+  /// No description provided for @useBiometric.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock with biometrics'**
+  String get useBiometric;
+
+  /// No description provided for @biometricCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric unlock was cancelled.'**
+  String get biometricCancelled;
+
+  /// No description provided for @biometricInvalidated.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric settings changed. Unlock with your master password to set it up again.'**
+  String get biometricInvalidated;
+
+  /// No description provided for @biometricUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric unlock is unavailable. Use your master password.'**
+  String get biometricUnavailable;
+
+  /// No description provided for @biometricUnlockFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric unlock could not be completed.'**
+  String get biometricUnlockFailed;
+
   /// No description provided for @vault.
   ///
   /// In en, this message translates to:
@@ -485,7 +515,7 @@ abstract class AppLocalizations {
   /// No description provided for @securitySettingsReadOnly.
   ///
   /// In en, this message translates to:
-  /// **'Security settings (read-only)'**
+  /// **'Security settings'**
   String get securitySettingsReadOnly;
 
   /// No description provided for @idleLockPolicy.
@@ -541,6 +571,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No credentials or vault plaintext are shown here.'**
   String get settingsNoCredentials;
+
+  /// No description provided for @biometricSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric unlock'**
+  String get biometricSettings;
+
+  /// No description provided for @biometricSecurityBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometrics release a device-protected key for this vault. Your master password is never stored and remains the fallback.'**
+  String get biometricSecurityBoundary;
+
+  /// No description provided for @biometricEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric unlock is enabled on this device.'**
+  String get biometricEnabled;
+
+  /// No description provided for @biometricNotEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric unlock is not enabled.'**
+  String get biometricNotEnabled;
+
+  /// No description provided for @enableBiometric.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable biometric unlock'**
+  String get enableBiometric;
+
+  /// No description provided for @disableBiometric.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable biometric unlock'**
+  String get disableBiometric;
+
+  /// No description provided for @resetBiometric.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset biometric unlock'**
+  String get resetBiometric;
+
+  /// No description provided for @confirmEnableBiometric.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable biometric unlock on this device? You can still use your master password.'**
+  String get confirmEnableBiometric;
+
+  /// No description provided for @confirmDisableBiometric.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable biometric unlock? The master password will remain available.'**
+  String get confirmDisableBiometric;
+
+  /// No description provided for @biometricSetupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric settings could not be changed.'**
+  String get biometricSetupFailed;
 
   /// No description provided for @generatorComingSoon.
   ///

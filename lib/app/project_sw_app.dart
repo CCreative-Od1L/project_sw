@@ -9,6 +9,7 @@ import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
@@ -24,6 +25,7 @@ final class ProjectSwApp extends StatefulWidget {
     required this.authCubit,
     this.setupCubit,
     this.unlockCubit,
+    this.biometricUnlockCubit,
     this.vaultEntriesCubit,
     this.sensitiveClipboardController,
     this.generatorPageBuilder,
@@ -43,6 +45,9 @@ final class ProjectSwApp extends StatefulWidget {
 
   /// The optional unlock form; omitted only by route-focused widget tests.
   final UnlockCubit? unlockCubit;
+
+  /// Optional biometric unlock action coordinator.
+  final BiometricUnlockCubit? biometricUnlockCubit;
 
   /// Optional unlocked-entry projection, omitted only by route skeleton tests.
   final VaultEntriesCubit? vaultEntriesCubit;
@@ -73,6 +78,7 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     widget.sessionController,
     setupCubit: widget.setupCubit,
     unlockCubit: widget.unlockCubit,
+    biometricUnlockCubit: widget.biometricUnlockCubit,
     vaultEntriesCubit: widget.vaultEntriesCubit,
     generatorPageBuilder: widget.generatorPageBuilder,
     settingsPageBuilder: widget.settingsPageBuilder,

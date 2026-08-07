@@ -8,7 +8,7 @@
 当前文档体系已经分别明确了多组规则:
 
 - [lock_and_recovery.md](../specs/lock_and_recovery.md) 定义了锁定、超时、恢复、擦除与 12 状态状态机
-- [biometric_auth.md](../specs/biometric_auth.md) 定义了生物解锁、冷启动强制主密码与高敏操作强制主密码
+- [biometric_auth.md](../specs/biometric_auth.md) 定义了生物解锁、冷启动生物便捷路径与高敏操作强制主密码
 - [ADR-0004](0004-routing-with-gorouter.md) 将状态机映射为 GoRouter redirect 路由守卫
 - [ADR-0007](0007-unlocked-residency-and-summary-detail-split.md) 要求锁定或切后台时清除摘要与详情明文
 - [ADR-0009](0009-error-model-and-result-boundary.md) 已明确 use case / presentation 的错误边界
@@ -330,7 +330,7 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
 ## 测试要求
 
 - 会话状态机测试:
-  - `cold_start` 锁定态不允许生物
+  - `cold_start` 锁定态允许已配置的生物并保留主密码回退
   - `background_or_timeout` 锁定态允许生物
   - `biometric_invalidated` 回退主密码路径
 - lifecycle / timer 测试:

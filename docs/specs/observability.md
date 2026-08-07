@@ -65,7 +65,7 @@ abstract class MetricsRecorder {
 | `unlock_succeeded` | 解锁成功 | `{method: "password"\|"biometric", durationMs}` |
 | `unlock_failed` | 解锁失败 | `{method, reason: "wrong_password"\|"biometric_failed"\|"decrypt_error"}` |
 | `lock_triggered` | 锁定触发 | `{reason: "timeout"\|"background"\|"manual"}` |
-| `master_password_required` | 强制主密码触发 | `{trigger: "cold_start"\|"high_sensitive"\|"biometric_invalid"}` |
+| `master_password_required` | 强制主密码触发 | `{trigger: "high_sensitive"\|"biometric_invalid"}` |
 | `biometric_setup` | 设置生物解锁 | — |
 | `biometric_unlock_succeeded` | 生物解锁成功 | `{durationMs}` |
 | `biometric_unlock_failed` | 生物解锁失败 | `{reason}` |

@@ -67,6 +67,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get unlock => '解锁';
 
   @override
+  String get useBiometric => '使用生物识别解锁';
+
+  @override
+  String get biometricCancelled => '已取消生物识别解锁。';
+
+  @override
+  String get biometricInvalidated => '生物识别设置已变化。请使用主密码解锁后重新设置。';
+
+  @override
+  String get biometricUnavailable => '当前无法使用生物识别，请使用主密码。';
+
+  @override
+  String get biometricUnlockFailed => '无法完成生物识别解锁。';
+
+  @override
   String get vault => '密码库';
 
   @override
@@ -209,7 +224,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noMatchingEntries => '没有匹配的条目。';
 
   @override
-  String get securitySettingsReadOnly => '安全设置（只读）';
+  String get securitySettingsReadOnly => '安全设置';
 
   @override
   String get idleLockPolicy => '空闲锁定';
@@ -241,6 +256,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsNoCredentials => '此处不显示凭据或密码库明文。';
+
+  @override
+  String get biometricSettings => '生物识别解锁';
+
+  @override
+  String get biometricSecurityBoundary =>
+      '生物识别只会释放受设备保护的密码库密钥。应用不会保存主密码，主密码始终可作为退路。';
+
+  @override
+  String get biometricEnabled => '此设备已启用生物识别解锁。';
+
+  @override
+  String get biometricNotEnabled => '尚未启用生物识别解锁。';
+
+  @override
+  String get enableBiometric => '启用生物识别解锁';
+
+  @override
+  String get disableBiometric => '停用生物识别解锁';
+
+  @override
+  String get resetBiometric => '重新设置生物识别解锁';
+
+  @override
+  String get confirmEnableBiometric => '要在此设备上启用生物识别解锁吗？你仍然可以使用主密码。';
+
+  @override
+  String get confirmDisableBiometric => '要停用生物识别解锁吗？主密码仍然可用。';
+
+  @override
+  String get biometricSetupFailed => '无法修改生物识别设置。';
 
   @override
   String get generatorComingSoon => '密码生成器将在下一批功能中加入。';

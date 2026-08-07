@@ -209,7 +209,7 @@ sequenceDiagram
     participant KC as Keychain/Keystore
     participant Mem as 内存(KEK/MVK/DEK/明文)
 
-    Note over User,Mem: ── 主密码路径 (§4, [specs/biometric_auth.md §2](./specs/biometric_auth.md)① 冷启动) ──
+    Note over User,Mem: ── 主密码路径 (§4, [specs/biometric_auth.md §2](./specs/biometric_auth.md)高敏操作/生物失效回退) ──
 
     User->>UI: 输入主密码
     UI->>Domain: UnlockVault(password)
@@ -287,7 +287,7 @@ sequenceDiagram
 | 密码库被篡改/损坏 | AEAD Poly1305 标签校验 + AAD 绑定(见 vault_format.md),失败即拒绝 |
 | 条目被换槽/换条/回放旧版本 | AAD 绑定使 tag 与 entry_id/版本/算法绑定,移植或回放至错误位置校验失败(见 vault_format.md) |
 | nonce 重用导致密文泄漏 | XChaCha20 24B 随机 nonce,碰撞概率可忽略;每次加密新生成 |
-| 设备丢失 + 生物被冒用 | 生物识别由 OS/硬件把关(见 biometric_auth.md);主密码路径独立且为冷启动/高敏强制项;用户可配置禁用生物 |
+| 设备丢失 + 生物被冒用 | 生物识别由 OS/硬件把关(见 biometric_auth.md);主密码路径独立且为高敏强制项与生物失效回退;用户可配置禁用生物 |
 | 运行时内存被恶意进程读取 | 及时清零、切后台锁定、摘要/详情分层、敏感数据短生命周期;root/越狱设备不保证 |
 | 日志/埋点泄漏明文 | 脱敏规范(见 data_hygiene.md),禁止记录敏感字段 |
 | 局域网迁移被窃听/中间人 | 二维码带外公钥传递 + 临时会话密钥端到端加密 + transcript MAC(见 lan_migration.md) |

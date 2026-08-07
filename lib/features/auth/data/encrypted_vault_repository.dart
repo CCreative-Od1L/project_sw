@@ -91,6 +91,7 @@ final class EncryptedVaultRepository
     Uint8List? wrappedMvk;
     AeadCiphertext? encrypted;
     VaultFileHeader? header;
+    VaultFileHeader? nextHeader;
     try {
       if (await store.availability != BiometricAvailability.available) {
         throw const BiometricUnavailableException();
@@ -110,10 +111,11 @@ final class EncryptedVaultRepository
       final String path = await vaultPathResolver();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
+      nextHeader = header.copyWithBiometric(wrappedMvk);
       vaultFileEngine.commitHeaderUpdate(
         path: path,
         opened: opened,
-        header: header.copyWithBiometric(wrappedMvk),
+        header: nextHeader,
       );
       _hasBiometricUnlock = true;
     } on BiometricKeyStoreException {
@@ -129,6 +131,9 @@ final class EncryptedVaultRepository
     } finally {
       if (header != null) {
         _clearHeaderKeyMaterial(header);
+      }
+      if (nextHeader != null) {
+        _clearHeaderKeyMaterial(nextHeader);
       }
       if (encrypted != null) {
         clearSensitiveBytes(encrypted.nonce);
@@ -153,6 +158,7 @@ final class EncryptedVaultRepository
     }
     final BiometricKeyStore store = _requireBiometricKeyStore();
     VaultFileHeader? header;
+    VaultFileHeader? nextHeader;
     try {
       final String path = await vaultPathResolver();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
@@ -162,10 +168,11 @@ final class EncryptedVaultRepository
         await store.deleteKey();
         return;
       }
+      nextHeader = header.copyWithBiometric(null);
       vaultFileEngine.commitHeaderUpdate(
         path: path,
         opened: opened,
-        header: header.copyWithBiometric(null),
+        header: nextHeader,
       );
       _hasBiometricUnlock = false;
       await store.deleteKey();
@@ -182,6 +189,9 @@ final class EncryptedVaultRepository
     } finally {
       if (header != null) {
         _clearHeaderKeyMaterial(header);
+      }
+      if (nextHeader != null) {
+        _clearHeaderKeyMaterial(nextHeader);
       }
     }
   }

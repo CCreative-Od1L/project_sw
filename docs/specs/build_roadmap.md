@@ -141,7 +141,7 @@
 
 ### 里程碑
 
-- **生物解锁**:`SecureStorageDataSource` 实现(Keychain/Keystore);K_bio 生成与门控;biometric_wrapped_mvk 存取;生物解锁/失效/重设全链;认证强度策略(冷启动强制主密码、高敏操作枚举、便捷档/强制档);高敏操作经会话真相源触发 step-up challenge 并将当前会话升级到 `master_password`;平台权限管理(`USE_BIOMETRIC`、`NSFaceIDUsageDescription`)
+- **生物解锁**:`SecureStorageDataSource` 实现(Keychain/Keystore);K_bio 生成与门控;biometric_wrapped_mvk 存取;生物解锁/失效/重设全链;认证强度策略(冷启动允许已配置生物并保留主密码回退、高敏操作枚举、便捷档/强制档);高敏操作经会话真相源触发 step-up challenge 并将当前会话升级到 `master_password`;平台权限管理(`USE_BIOMETRIC`、`NSFaceIDUsageDescription`)
 - **局域网迁移**:`features/migration` 全链——二维码配对、crypto_kx 握手、版本/算法匹配、逐条重包裹、seq 透传、entry_id 冲突覆盖、transcript MAC、目录双写原子提交;平台权限(`CAMERA`、`NSCameraUsageDescription`、`NSLocalNetworkUsageDescription`);迁移期间超时抑制
 - **忘码恢复与死锁擦除**:忘码恢复通道(改密码错 ≥3 次浮现、一周冷却、二次生物确认、salt 重生);死锁擦除(特定手势浮现、四重摩擦、延迟倒计时);擦除覆盖(库文件、.bak、journal、日志、Keychain/Keystore)
 - **完整状态机**:lock_and_recovery.md §5 的 12 状态全部实现,由 ADR-0010 所定义的全局会话真相源统一驱动,含 S5 生物失效、S6/S7 冷却期、S9/S10 迁移状态、S11 擦除
