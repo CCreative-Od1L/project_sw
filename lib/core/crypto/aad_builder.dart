@@ -19,6 +19,20 @@ abstract final class AadBuilder {
     return builder.toBytes();
   }
 
+  /// Binds the biometric-wrapped MVK to this vault format and purpose.
+  static Uint8List forWrapBiometricMvk({
+    required Uint8List magic,
+    required int formatVersion,
+    required int aeadAlgorithmId,
+  }) {
+    final BytesBuilder builder = BytesBuilder(copy: false)
+      ..add(magic)
+      ..add(_uint16(formatVersion))
+      ..addByte(aeadAlgorithmId)
+      ..add(<int>[0x62, 0x69, 0x6f, 0x2d, 0x6d, 0x76, 0x6b]);
+    return builder.toBytes();
+  }
+
   /// Binds an MVK-wrapped DEK to its stable EntryRecord identity.
   static Uint8List forWrapDek({
     required Uint8List magic,

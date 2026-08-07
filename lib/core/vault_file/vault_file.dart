@@ -31,6 +31,7 @@ final class VaultFileHeader {
     required this.kdfParameters,
     required Uint8List kdfSalt,
     required Uint8List wrappedMasterVaultKey,
+    Uint8List? biometricWrappedMasterVaultKey,
     required this.activeDirectoryOffset,
     required this.entryCount,
     required this.freeListHead,
@@ -39,11 +40,23 @@ final class VaultFileHeader {
     required this.journal,
     this.kdfAlgorithmId = 1,
     this.aeadAlgorithmId = 1,
-    this.flags = 0,
+    int flags = 0,
   }) : kdfSalt = Uint8List.fromList(kdfSalt),
-       wrappedMasterVaultKey = Uint8List.fromList(wrappedMasterVaultKey) {
+       wrappedMasterVaultKey = Uint8List.fromList(wrappedMasterVaultKey),
+       biometricWrappedMasterVaultKey = biometricWrappedMasterVaultKey == null
+           ? null
+           : Uint8List.fromList(biometricWrappedMasterVaultKey),
+       flags = biometricWrappedMasterVaultKey == null
+           ? flags & ~0x01
+           : flags | 0x01 {
     if (this.kdfSalt.length != 16 || this.wrappedMasterVaultKey.length != 72) {
       throw ArgumentError('Vault header key material has an invalid length.');
+    }
+    if (this.biometricWrappedMasterVaultKey != null &&
+        this.biometricWrappedMasterVaultKey!.length != 72) {
+      throw ArgumentError(
+        'Biometric vault key material has an invalid length.',
+      );
     }
   }
 
@@ -55,6 +68,9 @@ final class VaultFileHeader {
 
   /// The KEK-wrapped 256-bit Master Vault Key.
   final Uint8List wrappedMasterVaultKey;
+
+  /// The optional MVK envelope protected by the platform biometric key.
+  final Uint8List? biometricWrappedMasterVaultKey;
 
   /// Offset of the active Directory.
   final int activeDirectoryOffset;
@@ -94,6 +110,7 @@ final class VaultFileHeader {
     kdfParameters: kdfParameters,
     kdfSalt: kdfSalt,
     wrappedMasterVaultKey: wrappedMasterVaultKey,
+    biometricWrappedMasterVaultKey: biometricWrappedMasterVaultKey,
     activeDirectoryOffset: activeDirectoryOffset,
     entryCount: entryCount ?? this.entryCount,
     freeListHead: freeListHead ?? this.freeListHead,
@@ -104,6 +121,24 @@ final class VaultFileHeader {
     aeadAlgorithmId: aeadAlgorithmId,
     flags: flags,
   );
+
+  /// Returns a copy with the optional biometric MVK envelope replaced.
+  VaultFileHeader copyWithBiometric(Uint8List? wrappedMasterVaultKey) =>
+      VaultFileHeader(
+        kdfParameters: kdfParameters,
+        kdfSalt: kdfSalt,
+        wrappedMasterVaultKey: this.wrappedMasterVaultKey,
+        biometricWrappedMasterVaultKey: wrappedMasterVaultKey,
+        activeDirectoryOffset: activeDirectoryOffset,
+        entryCount: entryCount,
+        freeListHead: freeListHead,
+        sequenceCounter: sequenceCounter,
+        committedSequence: committedSequence,
+        journal: journal,
+        kdfAlgorithmId: kdfAlgorithmId,
+        aeadAlgorithmId: aeadAlgorithmId,
+        flags: flags,
+      );
 
   /// Compatibility helper used by initial-vault creation.
   VaultFileHeader copyWithCommit({
@@ -321,6 +356,26 @@ final class VaultFileEngine {
     } finally {
       file?.closeSync();
     }
+    vault.copySync('$path.bak');
+  }
+
+  /// Replaces only the fixed header while preserving the active data view.
+  ///
+  /// Header-only changes, such as enabling biometric access, do not consume a
+  /// vault sequence number because they do not change the directory or entry
+  /// blocks. The new header is flushed before the backup snapshot is replaced.
+  void commitHeaderUpdate({
+    required String path,
+    required OpenVaultFile opened,
+    required VaultFileHeader header,
+  }) {
+    if (!_sameHeaderDataState(opened.header, header)) {
+      throw ArgumentError(
+        'A header-only update cannot change the active vault data state.',
+      );
+    }
+    final File vault = File(path);
+    _overwriteRange(vault, 0, VaultFileCodec.encodeHeader(header));
     vault.copySync('$path.bak');
   }
 
@@ -706,6 +761,26 @@ final class VaultFileEngine {
       ..setUint32(8, capacity, Endian.big);
     return bytes;
   }
+
+  bool _sameHeaderDataState(VaultFileHeader first, VaultFileHeader second) {
+    return first.kdfAlgorithmId == second.kdfAlgorithmId &&
+        first.aeadAlgorithmId == second.aeadAlgorithmId &&
+        first.activeDirectoryOffset == second.activeDirectoryOffset &&
+        first.entryCount == second.entryCount &&
+        first.freeListHead == second.freeListHead &&
+        first.sequenceCounter == second.sequenceCounter &&
+        first.committedSequence == second.committedSequence &&
+        first.kdfParameters.memoryKiB == second.kdfParameters.memoryKiB &&
+        first.kdfParameters.iterations == second.kdfParameters.iterations &&
+        first.kdfParameters.parallelism == second.kdfParameters.parallelism &&
+        _sameBytes(first.kdfSalt, second.kdfSalt) &&
+        _sameBytes(first.wrappedMasterVaultKey, second.wrappedMasterVaultKey) &&
+        first.journal.operation == second.journal.operation &&
+        first.journal.sequence == second.journal.sequence &&
+        first.journal.directoryOffset == second.journal.directoryOffset &&
+        first.journal.directoryLength == second.journal.directoryLength &&
+        first.journal.freeListHead == second.journal.freeListHead;
+  }
 }
 
 /// Encodes and validates the first version of the binary file format.
@@ -719,6 +794,7 @@ abstract final class VaultFileCodec {
   static const int _saltOffset = 20;
   static const int _wrappedMvkOffset = 36;
   static const int _flagsOffset = 108;
+  static const int _biometricWrappedMvkOffset = 109;
   static const int _activeDirectoryOffset = 184;
   static const int _entryCountOffset = 192;
   static const int _freeListHeadOffset = 200;
@@ -767,6 +843,13 @@ abstract final class VaultFileCodec {
       _wrappedMvkOffset + 72,
       header.wrappedMasterVaultKey,
     );
+    if (header.biometricWrappedMasterVaultKey != null) {
+      bytes.setRange(
+        _biometricWrappedMvkOffset,
+        _biometricWrappedMvkOffset + 72,
+        header.biometricWrappedMasterVaultKey!,
+      );
+    }
     bytes.setRange(
       _journalOffset,
       _journalOffset + _journalLength,
@@ -790,6 +873,27 @@ abstract final class VaultFileCodec {
         'Vault algorithm or format version is invalid.',
       );
     }
+    final int flags = data.getUint8(_flagsOffset);
+    final bool hasBiometric = flags & 0x01 != 0;
+    final Uint8List? biometricWrappedMasterVaultKey = hasBiometric
+        ? Uint8List.fromList(
+            bytes.sublist(
+              _biometricWrappedMvkOffset,
+              _biometricWrappedMvkOffset + 72,
+            ),
+          )
+        : null;
+    if (!hasBiometric &&
+        bytes
+            .sublist(
+              _biometricWrappedMvkOffset,
+              _biometricWrappedMvkOffset + 72,
+            )
+            .any((int byte) => byte != 0)) {
+      throw const FormatException(
+        'Reserved biometric vault header bytes are not zero.',
+      );
+    }
     final VaultFileHeader header = VaultFileHeader(
       kdfParameters: VaultKdfParameters(
         memoryKiB: data.getUint32(_memoryOffset, Endian.big),
@@ -800,6 +904,7 @@ abstract final class VaultFileCodec {
       wrappedMasterVaultKey: Uint8List.fromList(
         bytes.sublist(_wrappedMvkOffset, _wrappedMvkOffset + 72),
       ),
+      biometricWrappedMasterVaultKey: biometricWrappedMasterVaultKey,
       activeDirectoryOffset: data.getUint64(_activeDirectoryOffset, Endian.big),
       entryCount: data.getUint64(_entryCountOffset, Endian.big),
       freeListHead: data.getUint64(_freeListHeadOffset, Endian.big),
@@ -810,7 +915,7 @@ abstract final class VaultFileCodec {
           bytes.sublist(_journalOffset, _journalOffset + _journalLength),
         ),
       ),
-      flags: data.getUint8(_flagsOffset),
+      flags: flags,
     );
     if (header.activeDirectoryOffset != vaultFileHeaderLength ||
         header.entryCount >
