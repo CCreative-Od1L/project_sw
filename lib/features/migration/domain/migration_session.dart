@@ -194,6 +194,33 @@ final class MigrationSession {
   /// Encrypts one message and advances the sending sequence only on success.
   MigrationSessionFrame seal(MigrationMessageType type, Uint8List plaintext) {
     _ensureUsable();
+    return _sealFrame(type, plaintext, includeInTranscript: true);
+  }
+
+  /// Encrypts the final transfer frame after MAC-ing all preceding frames.
+  ///
+  /// The final frame advances the transport sequence but is deliberately not
+  /// included in the transcript it carries. The receiver must use
+  /// [openTransferEnd] followed by [verifyTranscriptMac].
+  MigrationSessionFrame sealTransferEnd() {
+    _ensureUsable();
+    final Uint8List transcriptMac = _finalize(_txKey);
+    try {
+      return _sealFrame(
+        MigrationMessageType.transferEnd,
+        transcriptMac,
+        includeInTranscript: false,
+      );
+    } finally {
+      clearSensitiveBytes(transcriptMac);
+    }
+  }
+
+  MigrationSessionFrame _sealFrame(
+    MigrationMessageType type,
+    Uint8List plaintext, {
+    required bool includeInTranscript,
+  }) {
     final int sequence = _nextSendSequence;
     final Uint8List aad = MigrationSessionFrame.additionalData(type, sequence);
     AeadCiphertext? encrypted;
@@ -205,7 +232,9 @@ final class MigrationSession {
         nonce: encrypted.nonce,
         ciphertext: encrypted.ciphertext,
       );
-      _appendTranscript(frame);
+      if (includeInTranscript) {
+        _appendTranscript(frame);
+      }
       _nextSendSequence++;
       return frame;
     } finally {
@@ -220,6 +249,25 @@ final class MigrationSession {
   /// Decrypts one frame, rejecting replay, loss, reordering, or tampering.
   Uint8List open(MigrationSessionFrame frame) {
     _ensureUsable();
+    return _openFrame(frame, includeInTranscript: true);
+  }
+
+  /// Opens the final frame without adding it to the preceding transcript.
+  Uint8List openTransferEnd(MigrationSessionFrame frame) {
+    _ensureUsable();
+    if (frame.type != MigrationMessageType.transferEnd) {
+      throw const MigrationProtocolException(
+        MigrationErrorCode.invalidState,
+        'The migration frame is not a transfer end.',
+      );
+    }
+    return _openFrame(frame, includeInTranscript: false);
+  }
+
+  Uint8List _openFrame(
+    MigrationSessionFrame frame, {
+    required bool includeInTranscript,
+  }) {
     if (frame.sequence != _nextReceiveSequence) {
       throw const MigrationProtocolException(
         MigrationErrorCode.sequenceMismatch,
@@ -237,7 +285,9 @@ final class MigrationSession {
         frame.ciphertext,
         aad,
       );
-      _appendTranscript(frame);
+      if (includeInTranscript) {
+        _appendTranscript(frame);
+      }
       _nextReceiveSequence++;
       return plaintext;
     } on MigrationProtocolException {
