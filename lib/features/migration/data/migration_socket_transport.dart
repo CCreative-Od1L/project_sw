@@ -116,6 +116,41 @@ final class MigrationSocketTransport implements MigrationFrameTransport {
     _socket.destroy();
   }
 
+  /// Sends one temporary X25519 public key before session establishment.
+  Future<void> sendPublicKey(Uint8List publicKey) async {
+    _ensureOpen();
+    if (publicKey.length != 32) {
+      throw const MigrationTransportException(
+        'The migration public key has an invalid length.',
+      );
+    }
+    try {
+      _socket.add(publicKey);
+      await _socket.flush();
+    } on Object catch (error) {
+      throw MigrationTransportException(
+        'The migration public key could not be sent.',
+        cause: error,
+      );
+    }
+  }
+
+  /// Receives exactly one temporary X25519 public key.
+  Future<Uint8List> receivePublicKey() async {
+    _ensureOpen();
+    try {
+      return await _readExact(32).timeout(_timeout);
+    } on MigrationTransportException {
+      rethrow;
+    } on Object catch (error) {
+      _socket.destroy();
+      throw MigrationTransportException(
+        'The migration public key could not be received.',
+        cause: error,
+      );
+    }
+  }
+
   Future<MigrationSessionFrame> _receiveFrame() async {
     final Uint8List encodedLength = await _readExact(4);
     final int length = ByteData.sublistView(
@@ -192,6 +227,9 @@ final class MigrationSocketServer {
 
   /// The actual port, including when [bind] received zero.
   int get port => _server.port;
+
+  /// The local interface selected by the temporary listener.
+  InternetAddress get address => _server.address;
 
   /// Accepts one peer and returns a frame transport.
   Future<MigrationSocketTransport> accept() async {
