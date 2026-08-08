@@ -72,6 +72,12 @@ final class MigrationSessionFrame {
   /// Ciphertext with its authentication tag.
   final Uint8List ciphertext;
 
+  /// Clears the frame's nonce and ciphertext after transport use.
+  void dispose() {
+    clearSensitiveBytes(nonce);
+    clearSensitiveBytes(ciphertext);
+  }
+
   /// Encodes a frame with a length-delimited ciphertext body.
   Uint8List encode() {
     final ByteData sequenceData = ByteData(8)
