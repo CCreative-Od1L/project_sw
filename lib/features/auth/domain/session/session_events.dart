@@ -11,4 +11,7 @@ enum SessionEvent {
 
   /// The owned idle timer reached its deadline.
   idleTimeoutElapsed,
+
+  /// The operating system invalidated the enrolled biometric set.
+  biometricInvalidated,
 }

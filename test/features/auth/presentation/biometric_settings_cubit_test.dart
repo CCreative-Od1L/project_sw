@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 
 void main() {
@@ -47,12 +49,37 @@ void main() {
     await cubit.enable();
     expect(repository.enableCount, 0);
   });
+
+  test('locks the session when biometric enrollment is invalidated', () async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+    );
+    addTearDown(sessionController.dispose);
+    repository.enableFailure = const BiometricInvalidatedException();
+    final BiometricSettingsCubit invalidationCubit = BiometricSettingsCubit(
+      repository,
+      keyStore,
+      sessionController: sessionController,
+    );
+    addTearDown(invalidationCubit.close);
+
+    await invalidationCubit.load();
+    await invalidationCubit.enable();
+
+    expect(invalidationCubit.state, isA<BiometricSettingsInvalidated>());
+    expect(sessionController.state, isA<LockedSession>());
+    expect(
+      (sessionController.state as LockedSession).reason,
+      LockReason.biometricInvalidated,
+    );
+  });
 }
 
 final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   var configured = false;
   var enableCount = 0;
   var disableCount = 0;
+  Object? enableFailure;
 
   @override
   bool get hasBiometricUnlock => configured;
@@ -66,6 +93,8 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   @override
   Future<void> enableBiometricUnlock() async {
     enableCount++;
+    final Object? failure = enableFailure;
+    if (failure != null) throw failure;
     configured = true;
   }
 

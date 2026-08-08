@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 
 /// UI state for the optional biometric unlock action.
@@ -123,6 +124,7 @@ final class BiometricUnlockCubit extends Cubit<BiometricUnlockViewState> {
     } on BiometricCancelledException {
       emit(BiometricUnlockCancelled(isConfigured: _isConfigured));
     } on BiometricInvalidatedException {
+      _sessionController.handle(SessionEvent.biometricInvalidated);
       emit(BiometricUnlockInvalidated(isConfigured: _isConfigured));
     } on BiometricUnavailableException {
       _isAvailable = false;

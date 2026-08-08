@@ -101,6 +101,39 @@ void main() {
     expect(repository.activeKdfParameters, isNull);
   });
 
+  test(
+    'verifies a master password without clearing the unlocked session',
+    () async {
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: FakeCryptoService(),
+        vaultFileEngine: VaultFileEngine(),
+        vaultPathResolver: () async => '${temporaryDirectory.path}/step-up.psw',
+      );
+      const Argon2idParameters parameters = Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+        parallelism: 1,
+      );
+
+      await repository.createEmptyVault(
+        masterPassword: 'correct password',
+        kdfParameters: parameters,
+      );
+      await repository.unlockWithMasterPassword('correct password');
+
+      await repository.verifyMasterPassword('correct password');
+      expect(repository.hasUnlockedSession, isTrue);
+      expect(repository.activeKdfParameters, isNotNull);
+
+      await expectLater(
+        repository.verifyMasterPassword('wrong password'),
+        throwsA(isA<InvalidMasterPasswordException>()),
+      );
+      expect(repository.hasUnlockedSession, isTrue);
+      expect(repository.activeKdfParameters, isNotNull);
+    },
+  );
+
   test('normalizes a storage location failure as VaultIoException', () async {
     final File blocker = File('${temporaryDirectory.path}/blocker')
       ..createSync();

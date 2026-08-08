@@ -13,15 +13,18 @@ import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
+import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/domain/verify_master_password.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
+import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
 import 'package:project_sw/features/vault/domain/add_vault_entry.dart';
@@ -131,6 +134,31 @@ void registerAppDependencies(
     ),
     dispose: (SessionController controller) => controller.dispose(),
   );
+  if (serviceLocator.isRegistered<BiometricKeyStore>()) {
+    serviceLocator.registerSingleton<BiometricSettingsCubit>(
+      BiometricSettingsCubit(
+        serviceLocator<EncryptedVaultRepository>(),
+        serviceLocator<BiometricKeyStore>(),
+        sessionController: serviceLocator<SessionController>(),
+      ),
+      dispose: (BiometricSettingsCubit cubit) => cubit.close(),
+    );
+  }
+  if (serviceLocator.isRegistered<EncryptedVaultRepository>()) {
+    serviceLocator.registerSingleton<MasterPasswordVerifier>(
+      serviceLocator<EncryptedVaultRepository>(),
+    );
+    serviceLocator.registerSingleton<VerifyMasterPassword>(
+      VerifyMasterPassword(serviceLocator<MasterPasswordVerifier>()),
+    );
+    serviceLocator.registerSingleton<StepUpCubit>(
+      StepUpCubit(
+        serviceLocator<VerifyMasterPassword>(),
+        serviceLocator<SessionController>(),
+      ),
+      dispose: (StepUpCubit cubit) => cubit.close(),
+    );
+  }
   serviceLocator.registerFactory<AuthCubit>(
     () => AuthCubit(serviceLocator<SessionController>()),
   );
@@ -154,13 +182,6 @@ void registerAppDependencies(
           onUnlocked: serviceLocator<VaultEntriesCubit>().refresh,
         ),
         dispose: (BiometricUnlockCubit cubit) => cubit.close(),
-      );
-      serviceLocator.registerSingleton<BiometricSettingsCubit>(
-        BiometricSettingsCubit(
-          serviceLocator<EncryptedVaultRepository>(),
-          serviceLocator<BiometricKeyStore>(),
-        ),
-        dispose: (BiometricSettingsCubit cubit) => cubit.close(),
       );
     }
   }

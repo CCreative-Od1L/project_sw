@@ -9,6 +9,7 @@ import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
+import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
@@ -45,6 +46,7 @@ Future<void> main() async {
       settingsPageBuilder: (_) => SettingsPage(
         config: appServiceLocator<AppConfig>(),
         vaultRepository: appServiceLocator<VaultRepository>(),
+        stepUpCubit: appServiceLocator<StepUpCubit>(),
         biometricSettingsCubit:
             appServiceLocator.isRegistered<BiometricSettingsCubit>()
             ? appServiceLocator<BiometricSettingsCubit>()

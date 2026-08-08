@@ -65,6 +65,10 @@ void main() {
 
       expect(cubit.state, isA<BiometricUnlockInvalidated>());
       expect(sessionController.state, isA<LockedSession>());
+      expect(
+        (sessionController.state as LockedSession).reason,
+        LockReason.biometricInvalidated,
+      );
     },
   );
 

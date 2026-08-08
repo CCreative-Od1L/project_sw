@@ -6,11 +6,15 @@ import 'package:project_sw/app/pages/settings_page.dart';
 import 'package:project_sw/app/pages/unlock_page.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/domain/verify_master_password.dart';
+import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
+import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:project_sw/l10n/generated/app_localizations.dart';
 
 void main() {
@@ -72,6 +76,72 @@ void main() {
     expect(find.text('Enable biometric unlock'), findsOneWidget);
     expect(find.textContaining('device-protected key'), findsOneWidget);
   });
+
+  testWidgets('requires master-password step-up before changing biometrics', (
+    WidgetTester tester,
+  ) async {
+    final FakeBiometricVaultRepository repository =
+        FakeBiometricVaultRepository(configured: false);
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+      timerFactory: (Duration duration, void Function() callback) =>
+          FakeSessionTimer(),
+    );
+    final StepUpCubit stepUpCubit = StepUpCubit(
+      VerifyMasterPassword(FakeMasterPasswordVerifier()),
+      sessionController,
+    );
+    final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
+      repository,
+      FakeBiometricKeyStore(),
+    );
+    addTearDown(() {
+      settingsCubit.close();
+      stepUpCubit.close();
+      sessionController.dispose();
+    });
+
+    await tester.pumpWidget(
+      _localizedApp(
+        SettingsPage(
+          biometricSettingsCubit: settingsCubit,
+          stepUpCubit: stepUpCubit,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilledButton).first);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Enable biometric unlock').last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Master password required'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'wrong password');
+    await tester.tap(find.text('Verify master password'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('session was not changed'), findsOneWidget);
+    expect(repository.enableCount, 0);
+    expect(
+      sessionController.state,
+      const UnlockedSession(authStrength: AuthStrength.biometric),
+    );
+
+    await tester.enterText(find.byType(TextField), 'correct password');
+    await tester.tap(find.text('Verify master password'));
+    await tester.pumpAndSettle();
+
+    expect(repository.enableCount, 1);
+    expect(
+      sessionController.state,
+      const UnlockedSession(authStrength: AuthStrength.masterPassword),
+    );
+  });
 }
 
 final class FakeSessionTimer implements SessionTimer {
@@ -94,21 +164,38 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   FakeBiometricVaultRepository({this.configured = true});
 
   bool configured;
+  var enableCount = 0;
+  var disableCount = 0;
 
   @override
   bool get hasBiometricUnlock => configured;
 
   @override
-  Future<void> disableBiometricUnlock() async => configured = false;
+  Future<void> disableBiometricUnlock() async {
+    disableCount++;
+    configured = false;
+  }
 
   @override
-  Future<void> enableBiometricUnlock() async => configured = true;
+  Future<void> enableBiometricUnlock() async {
+    enableCount++;
+    configured = true;
+  }
 
   @override
   Future<bool> hasConfiguredBiometricUnlock() async => configured;
 
   @override
   Future<void> unlockWithBiometric() async {}
+}
+
+final class FakeMasterPasswordVerifier implements MasterPasswordVerifier {
+  @override
+  Future<void> verifyMasterPassword(String masterPassword) async {
+    if (masterPassword != 'correct password') {
+      throw const InvalidMasterPasswordException();
+    }
+  }
 }
 
 final class FakeBiometricKeyStore implements BiometricKeyStore {

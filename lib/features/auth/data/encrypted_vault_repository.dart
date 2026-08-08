@@ -7,6 +7,7 @@ import 'package:project_sw/core/crypto/crypto_service.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/data/vault_entry_json_codec.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -17,7 +18,10 @@ typedef VaultPathResolver = Future<String> Function();
 
 /// Coordinates KDF, MVK wrapping, and the empty-vault file commit.
 final class EncryptedVaultRepository
-    implements VaultRepository, BiometricVaultRepository {
+    implements
+        VaultRepository,
+        BiometricVaultRepository,
+        MasterPasswordVerifier {
   /// Creates a repository with a production or test [vaultPathResolver].
   EncryptedVaultRepository({
     required this.crypto,
@@ -445,7 +449,90 @@ final class EncryptedVaultRepository
       throw VaultIoException(cause: error);
     } on FormatException catch (error) {
       throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
     } finally {
+      if (ciphertext != null) {
+        clearSensitiveBytes(ciphertext);
+      }
+      if (nonce != null) {
+        clearSensitiveBytes(nonce);
+      }
+      if (aad != null) {
+        clearSensitiveBytes(aad);
+      }
+      if (kek != null) {
+        clearSensitiveBytes(kek);
+      }
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+    }
+  }
+
+  /// Verifies the master password while preserving the current unlocked data.
+  @override
+  Future<void> verifyMasterPassword(String masterPassword) async {
+    if (_masterVaultKey == null) {
+      throw const VaultLockedException();
+    }
+    Uint8List? kek;
+    Uint8List? aad;
+    Uint8List? nonce;
+    Uint8List? ciphertext;
+    Uint8List? verifiedMasterVaultKey;
+    VaultFileHeader? header;
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      kek = await crypto.deriveKek(
+        masterPassword,
+        header.kdfSalt,
+        memoryKiB: header.kdfParameters.memoryKiB,
+        iterations: header.kdfParameters.iterations,
+        parallelism: header.kdfParameters.parallelism,
+      );
+      final Uint8List kdfBytes = _encodeVaultKdfParameters(
+        header.kdfParameters,
+      );
+      try {
+        aad = AadBuilder.forWrapMvk(
+          magic: vaultMagic,
+          formatVersion: vaultFormatVersion,
+          kdfAlgorithmId: header.kdfAlgorithmId,
+          kdfParameters: kdfBytes,
+          kdfSalt: header.kdfSalt,
+        );
+      } finally {
+        clearSensitiveBytes(kdfBytes);
+      }
+      nonce = Uint8List.fromList(header.wrappedMasterVaultKey.sublist(0, 24));
+      ciphertext = Uint8List.fromList(header.wrappedMasterVaultKey.sublist(24));
+      try {
+        verifiedMasterVaultKey = crypto.decryptWithAead(
+          kek,
+          nonce,
+          ciphertext,
+          aad,
+        );
+      } on VaultException {
+        rethrow;
+      } on Object {
+        throw const InvalidMasterPasswordException();
+      }
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
+    } finally {
+      if (verifiedMasterVaultKey != null) {
+        clearSensitiveBytes(verifiedMasterVaultKey);
+      }
       if (ciphertext != null) {
         clearSensitiveBytes(ciphertext);
       }

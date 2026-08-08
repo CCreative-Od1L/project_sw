@@ -632,6 +632,48 @@ abstract class AppLocalizations {
   /// **'Biometric settings could not be changed.'**
   String get biometricSetupFailed;
 
+  /// No description provided for @biometricSettingsInvalidated.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric settings changed. Unlock with your master password before setting them up again.'**
+  String get biometricSettingsInvalidated;
+
+  /// No description provided for @stepUpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password required'**
+  String get stepUpTitle;
+
+  /// No description provided for @stepUpDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This security-sensitive action requires your master password. Biometric unlock alone is not enough.'**
+  String get stepUpDescription;
+
+  /// No description provided for @confirmMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify master password'**
+  String get confirmMasterPassword;
+
+  /// No description provided for @stepUpInvalidPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password is incorrect. The session was not changed.'**
+  String get stepUpInvalidPassword;
+
+  /// No description provided for @stepUpFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Master-password verification could not be completed.'**
+  String get stepUpFailed;
+
+  /// No description provided for @stepUpUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The vault is no longer unlocked. Unlock it again before continuing.'**
+  String get stepUpUnavailable;
+
   /// No description provided for @generatorComingSoon.
   ///
   /// In en, this message translates to:
