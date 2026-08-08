@@ -117,7 +117,92 @@ final class SodiumCryptoService implements CryptoService {
     }
   }
 
+  @override
+  EphemeralKeyPair generateEphemeralKeyPair() {
+    final KeyPair keyPair = _sodium.crypto.kx.keyPair();
+    try {
+      return EphemeralKeyPair(
+        publicKey: keyPair.publicKey,
+        secretKey: keyPair.secretKey.extractBytes(),
+      );
+    } finally {
+      keyPair.secretKey.dispose();
+    }
+  }
+
+  @override
+  DirectionalSessionKeys deriveClientSessionKeys({
+    required Uint8List clientPublicKey,
+    required Uint8List clientSecretKey,
+    required Uint8List serverPublicKey,
+  }) => _deriveSessionKeys(
+    clientPublicKey: clientPublicKey,
+    clientSecretKey: clientSecretKey,
+    serverPublicKey: serverPublicKey,
+    isClient: true,
+  );
+
+  @override
+  DirectionalSessionKeys deriveServerSessionKeys({
+    required Uint8List serverPublicKey,
+    required Uint8List serverSecretKey,
+    required Uint8List clientPublicKey,
+  }) => _deriveSessionKeys(
+    clientPublicKey: clientPublicKey,
+    clientSecretKey: serverSecretKey,
+    serverPublicKey: serverPublicKey,
+    isClient: false,
+  );
+
+  @override
+  Uint8List hash(Uint8List message) =>
+      _sodium.crypto.genericHash.call(message: message, outLen: 32);
+
+  @override
+  Uint8List mac(Uint8List key, Uint8List message) {
+    final SecureKey secureKey = SecureKey.fromList(_sodium, key);
+    try {
+      return _sodium.crypto.genericHash.call(
+        message: message,
+        outLen: 32,
+        key: secureKey,
+      );
+    } finally {
+      secureKey.dispose();
+    }
+  }
+
   Aead get _aead => _sodium.crypto.aeadXChaCha20Poly1305IETF;
+
+  DirectionalSessionKeys _deriveSessionKeys({
+    required Uint8List clientPublicKey,
+    required Uint8List clientSecretKey,
+    required Uint8List serverPublicKey,
+    required bool isClient,
+  }) {
+    final SecureKey secretKey = SecureKey.fromList(_sodium, clientSecretKey);
+    SessionKeys? sessionKeys;
+    try {
+      sessionKeys = isClient
+          ? _sodium.crypto.kx.clientSessionKeys(
+              clientPublicKey: clientPublicKey,
+              clientSecretKey: secretKey,
+              serverPublicKey: serverPublicKey,
+            )
+          : _sodium.crypto.kx.serverSessionKeys(
+              serverPublicKey: serverPublicKey,
+              serverSecretKey: secretKey,
+              clientPublicKey: clientPublicKey,
+            );
+      return DirectionalSessionKeys(
+        tx: sessionKeys.tx.extractBytes(),
+        rx: sessionKeys.rx.extractBytes(),
+      );
+    } finally {
+      sessionKeys?.dispose();
+      secretKey.dispose();
+    }
+  }
 }
 
 Future<Uint8List> _deriveKekInBackground(

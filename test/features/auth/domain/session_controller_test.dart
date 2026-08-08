@@ -158,6 +158,57 @@ void main() {
       expect(timers, isEmpty);
       expect(controller.hasActiveIdleTimer, isFalse);
     });
+
+    test('suppresses idle timeout while allowing background lock', () {
+      final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+      final SessionController controller = SessionController(
+        timerFactory: (Duration duration, void Function() callback) {
+          final FakeSessionTimer timer = FakeSessionTimer(callback);
+          timers.add(timer);
+          return timer;
+        },
+      );
+      addTearDown(controller.dispose);
+
+      controller.unlock(AuthStrength.masterPassword);
+      controller.beginIdleTimeoutSuppression(
+        LockSuppressionReason.migrationInProgress,
+      );
+      expect(controller.isIdleTimeoutSuppressed, isTrue);
+      expect(controller.hasActiveIdleTimer, isFalse);
+
+      controller.handle(SessionEvent.idleTimeoutElapsed);
+      expect(controller.state, isA<UnlockedSession>());
+      expect(controller.hasActiveIdleTimer, isTrue);
+
+      controller.handle(SessionEvent.appBackgrounded);
+      expect(controller.state, isA<LockedSession>());
+      expect(controller.isIdleTimeoutSuppressed, isFalse);
+    });
+
+    test('restarts a fresh idle window when suppression ends', () {
+      final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+      final SessionController controller = SessionController(
+        timerFactory: (Duration duration, void Function() callback) {
+          final FakeSessionTimer timer = FakeSessionTimer(callback);
+          timers.add(timer);
+          return timer;
+        },
+      );
+      addTearDown(controller.dispose);
+
+      controller.unlock(AuthStrength.masterPassword);
+      controller.beginIdleTimeoutSuppression(
+        LockSuppressionReason.migrationInProgress,
+      );
+      controller.endIdleTimeoutSuppression(
+        LockSuppressionReason.migrationInProgress,
+      );
+
+      expect(controller.isIdleTimeoutSuppressed, isFalse);
+      expect(controller.hasActiveIdleTimer, isTrue);
+      expect(timers, hasLength(2));
+    });
   });
 }
 

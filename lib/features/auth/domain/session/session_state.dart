@@ -46,6 +46,12 @@ enum LockReason {
   wipeStarted,
 }
 
+/// Operation that temporarily suppresses only the foreground idle timeout.
+enum LockSuppressionReason {
+  /// An unlocked receiver or sender is actively migrating vault data.
+  migrationInProgress,
+}
+
 /// Authentication strength held by an unlocked session.
 enum AuthStrength {
   /// No successful authentication is present.
