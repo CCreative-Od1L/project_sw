@@ -13,6 +13,10 @@ import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
+import 'package:project_sw/features/migration/data/migration_flow.dart';
+import 'package:project_sw/core/crypto/crypto_service.dart';
+import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/app/pages/migration_page.dart';
 import 'package:project_sw/app/pages/generator_page.dart';
 import 'package:project_sw/app/pages/settings_page.dart';
 
@@ -51,6 +55,14 @@ Future<void> main() async {
             appServiceLocator.isRegistered<BiometricSettingsCubit>()
             ? appServiceLocator<BiometricSettingsCubit>()
             : null,
+      ),
+      migrationPageBuilder: (_) => MigrationPage(
+        sessionController: appServiceLocator<SessionController>(),
+        flow: NetworkMigrationFlow(
+          crypto: appServiceLocator<CryptoService>(),
+          vault: appServiceLocator<EncryptedVaultRepository>(),
+          sessionController: appServiceLocator<SessionController>(),
+        ),
       ),
     ),
   );
