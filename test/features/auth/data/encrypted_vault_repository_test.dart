@@ -6,8 +6,9 @@ import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
-import 'package:project_sw/shared/errors/vault_exception.dart';
+import 'package:project_sw/features/migration/domain/migration_transfer.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
+import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:test/test.dart';
 
 import '../../../helpers/fake_crypto_service.dart';
@@ -314,6 +315,170 @@ void main() {
     expect(repository.entrySummaries.single.name, 'Reused');
   });
 
+  test('exports DEKs and raw ciphertext and re-wraps them on import', () async {
+    final String senderPath = '${temporaryDirectory.path}/sender.psw';
+    final String receiverPath = '${temporaryDirectory.path}/receiver.psw';
+    final EncryptedVaultRepository sender = _repository(
+      senderPath,
+      FakeCryptoService(),
+    );
+    final EncryptedVaultRepository receiver = _repository(
+      receiverPath,
+      FakeCryptoService(),
+    );
+    await sender.createEmptyVault(
+      masterPassword: 'sender password',
+      kdfParameters: _testKdfParameters,
+    );
+    await receiver.createEmptyVault(
+      masterPassword: 'receiver password',
+      kdfParameters: _testKdfParameters,
+    );
+    await sender.unlockWithMasterPassword('sender password');
+    await receiver.unlockWithMasterPassword('receiver password');
+    final EntrySummary source = await sender.addEntry(
+      const NewVaultEntry(name: 'Migrated', password: 'secret'),
+    );
+    final List<MigrationEntryPayload> payloads = await sender
+        .exportMigrationEntries();
+    final Uint8List sourceCiphertext = Uint8List.fromList(
+      payloads.single.entryCiphertext,
+    );
+    try {
+      await receiver.importMigrationEntries(payloads);
+      expect(receiver.entrySummaries.single.entryId, source.entryId);
+      final EntryDetail imported = await receiver.getEntryDetail(
+        source.entryId,
+      );
+      expect(imported.entry.password, 'secret');
+      final VaultEntryRecord importedRecord = VaultFileEngine()
+          .openVaultFile(receiverPath)
+          .directory
+          .records
+          .single;
+      expect(
+        VaultFileEngine()
+            .readEntryBlock(receiverPath, importedRecord)
+            .sublist(72),
+        sourceCiphertext,
+      );
+    } finally {
+      for (final MigrationEntryPayload payload in payloads) {
+        payload.dispose();
+      }
+      sourceCiphertext.fillRange(0, sourceCiphertext.length, 0);
+    }
+  });
+
+  test(
+    'uses whole-entry updated_at conflict resolution and stays atomic',
+    () async {
+      final String senderPath =
+          '${temporaryDirectory.path}/conflict-sender.psw';
+      final String receiverPath =
+          '${temporaryDirectory.path}/conflict-receiver.psw';
+      final EncryptedVaultRepository sender = _repository(
+        senderPath,
+        FakeCryptoService(),
+      );
+      final EncryptedVaultRepository receiver = _repository(
+        receiverPath,
+        FakeCryptoService(),
+      );
+      await sender.createEmptyVault(
+        masterPassword: 'sender password',
+        kdfParameters: _testKdfParameters,
+      );
+      await receiver.createEmptyVault(
+        masterPassword: 'receiver password',
+        kdfParameters: _testKdfParameters,
+      );
+      await sender.unlockWithMasterPassword('sender password');
+      await receiver.unlockWithMasterPassword('receiver password');
+      final EntrySummary source = await sender.addEntry(
+        const NewVaultEntry(name: 'Before', password: 'secret'),
+      );
+      final List<MigrationEntryPayload> first = await sender
+          .exportMigrationEntries();
+      await receiver.importMigrationEntries(first);
+      for (final MigrationEntryPayload payload in first) {
+        payload.dispose();
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      final EntryDetail sourceDetail = await sender.getEntryDetail(
+        source.entryId,
+      );
+      await sender.updateEntry(sourceDetail.entry.copyWith(name: 'After'));
+      final List<MigrationEntryPayload> newer = await sender
+          .exportMigrationEntries();
+      try {
+        await receiver.importMigrationEntries(newer);
+        expect(receiver.entrySummaries.single.name, 'After');
+        await receiver.importMigrationEntries(newer);
+        expect(receiver.entrySummaries.single.name, 'After');
+      } finally {
+        for (final MigrationEntryPayload payload in newer) {
+          payload.dispose();
+        }
+      }
+    },
+  );
+
+  test('rejects a bad payload before publishing a partial batch', () async {
+    final String senderPath = '${temporaryDirectory.path}/partial-sender.psw';
+    final String receiverPath =
+        '${temporaryDirectory.path}/partial-receiver.psw';
+    final EncryptedVaultRepository sender = _repository(
+      senderPath,
+      FakeCryptoService(),
+    );
+    final EncryptedVaultRepository receiver = _repository(
+      receiverPath,
+      FakeCryptoService(),
+    );
+    await sender.createEmptyVault(
+      masterPassword: 'sender password',
+      kdfParameters: _testKdfParameters,
+    );
+    await receiver.createEmptyVault(
+      masterPassword: 'receiver password',
+      kdfParameters: _testKdfParameters,
+    );
+    await sender.unlockWithMasterPassword('sender password');
+    await receiver.unlockWithMasterPassword('receiver password');
+    await sender.addEntry(const NewVaultEntry(name: 'First'));
+    await sender.addEntry(const NewVaultEntry(name: 'Second'));
+    final List<MigrationEntryPayload> sourcePayloads = await sender
+        .exportMigrationEntries();
+    final MigrationEntryPayload invalid = MigrationEntryPayload(
+      entryId: sourcePayloads.last.entryId,
+      sequence: sourcePayloads.last.sequence,
+      plaintextFormatId: sourcePayloads.last.plaintextFormatId,
+      entryCiphertext: sourcePayloads.last.entryCiphertext,
+      dek: Uint8List.fromList(sourcePayloads.last.dek)..[0] ^= 0xff,
+    );
+    try {
+      expect(
+        receiver.importMigrationEntries(<MigrationEntryPayload>[
+          sourcePayloads.first,
+          invalid,
+        ]),
+        throwsA(isA<VaultCorruptedException>()),
+      );
+      expect(receiver.entrySummaries, isEmpty);
+      expect(
+        VaultFileEngine().openVaultFile(receiverPath).directory.records,
+        isEmpty,
+      );
+    } finally {
+      invalid.dispose();
+      for (final MigrationEntryPayload payload in sourcePayloads) {
+        payload.dispose();
+      }
+    }
+  });
+
   test('rejects a detail whose authenticated entry block is damaged', () async {
     final String path = '${temporaryDirectory.path}/damaged-detail.psw';
     final EncryptedVaultRepository repository = EncryptedVaultRepository(
@@ -407,6 +572,18 @@ void main() {
     },
   );
 }
+
+const Argon2idParameters _testKdfParameters = Argon2idParameters(
+  memoryKiB: 64 * 1024,
+  iterations: 3,
+);
+
+EncryptedVaultRepository _repository(String path, FakeCryptoService crypto) =>
+    EncryptedVaultRepository(
+      crypto: crypto,
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
 
 bool _isCleared(List<int> bytes) => bytes.every((int byte) => byte == 0);
 

@@ -11,6 +11,7 @@ import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/data/vault_entry_json_codec.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
+import 'package:project_sw/features/migration/domain/migration_transfer.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
 
 /// Resolves the application-support location where the vault file is stored.
@@ -21,7 +22,8 @@ final class EncryptedVaultRepository
     implements
         VaultRepository,
         BiometricVaultRepository,
-        MasterPasswordVerifier {
+        MasterPasswordVerifier,
+        MigrationVaultPort {
   /// Creates a repository with a production or test [vaultPathResolver].
   EncryptedVaultRepository({
     required this.crypto,
@@ -377,6 +379,173 @@ final class EncryptedVaultRepository
       }
       if (salt != null) {
         clearSensitiveBytes(salt);
+      }
+    }
+  }
+
+  @override
+  Future<List<MigrationEntryPayload>> exportMigrationEntries() async {
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) {
+      throw const VaultLockedException();
+    }
+    final List<MigrationEntryPayload> exported = <MigrationEntryPayload>[];
+    VaultFileHeader? header;
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      for (final VaultEntryRecord record in opened.directory.records) {
+        exported.add(
+          _exportMigrationEntry(
+            path: path,
+            header: header,
+            record: record,
+            masterVaultKey: masterVaultKey,
+          ),
+        );
+      }
+      return List<MigrationEntryPayload>.unmodifiable(exported);
+    } on VaultException {
+      for (final MigrationEntryPayload payload in exported) {
+        payload.dispose();
+      }
+      rethrow;
+    } on FileSystemException catch (error) {
+      for (final MigrationEntryPayload payload in exported) {
+        payload.dispose();
+      }
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      for (final MigrationEntryPayload payload in exported) {
+        payload.dispose();
+      }
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      for (final MigrationEntryPayload payload in exported) {
+        payload.dispose();
+      }
+      throw VaultCorruptedException(cause: error);
+    } finally {
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+    }
+  }
+
+  @override
+  Future<void> importMigrationEntries(
+    List<MigrationEntryPayload> entries,
+  ) async {
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) {
+      throw const VaultLockedException();
+    }
+    if (entries.isEmpty) {
+      return;
+    }
+    VaultFileHeader? header;
+    final List<VaultMigrationEntry> buffered = <VaultMigrationEntry>[];
+    final List<EntrySummary> projected = <EntrySummary>[..._entrySummaries];
+    try {
+      final String path = await vaultPathResolver();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      for (final MigrationEntryPayload payload in entries) {
+        final VaultEntry incoming = _decryptMigrationEntry(
+          header: header,
+          payload: payload,
+        );
+        final int existingIndex = projected.indexWhere(
+          (EntrySummary summary) =>
+              _sameBytes(summary.entryId, incoming.entryId),
+        );
+        if (existingIndex >= 0 &&
+            !incoming.updatedAt.isAfter(projected[existingIndex].updatedAt)) {
+          continue;
+        }
+
+        Uint8List? wrapAad;
+        Uint8List? wrappedDek;
+        Uint8List? block;
+        AeadCiphertext? wrappedCiphertext;
+        try {
+          wrapAad = AadBuilder.forWrapDek(
+            magic: vaultMagic,
+            formatVersion: vaultFormatVersion,
+            aeadAlgorithmId: header.aeadAlgorithmId,
+            entryId: payload.entryId,
+          );
+          wrappedCiphertext = crypto.encryptWithAead(
+            masterVaultKey,
+            payload.dek,
+            wrapAad,
+          );
+          wrappedDek = _join(
+            wrappedCiphertext.nonce,
+            wrappedCiphertext.ciphertext,
+          );
+          block = _join(wrappedDek, payload.entryCiphertext);
+          final VaultMigrationEntry next = VaultMigrationEntry(
+            entryId: payload.entryId,
+            block: block,
+            plaintextFormatId: payload.plaintextFormatId,
+            sequence: payload.sequence,
+          );
+          final int bufferedIndex = buffered.indexWhere(
+            (VaultMigrationEntry current) =>
+                _sameBytes(current.entryId, payload.entryId),
+          );
+          if (bufferedIndex >= 0) {
+            buffered[bufferedIndex].dispose();
+            buffered[bufferedIndex] = next;
+          } else {
+            buffered.add(next);
+          }
+          final EntrySummary summary = incoming.toSummary();
+          if (existingIndex >= 0) {
+            projected[existingIndex] = summary;
+          } else {
+            projected.add(summary);
+          }
+        } finally {
+          if (block != null) {
+            clearSensitiveBytes(block);
+          }
+          if (wrappedDek != null) {
+            clearSensitiveBytes(wrappedDek);
+          }
+          if (wrapAad != null) {
+            clearSensitiveBytes(wrapAad);
+          }
+          if (wrappedCiphertext != null) {
+            clearSensitiveBytes(wrappedCiphertext.nonce);
+            clearSensitiveBytes(wrappedCiphertext.ciphertext);
+          }
+        }
+      }
+      if (buffered.isNotEmpty) {
+        vaultFileEngine.commitMigration(
+          path: path,
+          opened: opened,
+          entries: buffered,
+        );
+        _entrySummaries = List<EntrySummary>.unmodifiable(projected);
+      }
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } finally {
+      for (final VaultMigrationEntry entry in buffered) {
+        entry.dispose();
+      }
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
       }
     }
   }
@@ -853,6 +1022,111 @@ final class EncryptedVaultRepository
     }
     _entrySummaries = const <EntrySummary>[];
     _activeKdfParameters = null;
+  }
+
+  MigrationEntryPayload _exportMigrationEntry({
+    required String path,
+    required VaultFileHeader header,
+    required VaultEntryRecord record,
+    required Uint8List masterVaultKey,
+  }) {
+    Uint8List? block;
+    Uint8List? wrappedNonce;
+    Uint8List? wrappedCiphertext;
+    Uint8List? entryCiphertext;
+    Uint8List? dek;
+    Uint8List? wrapAad;
+    try {
+      block = vaultFileEngine.readEntryBlock(path, record);
+      if (block.length < 112) {
+        throw const FormatException('Entry Block has an invalid length.');
+      }
+      wrappedNonce = Uint8List.fromList(block.sublist(0, 24));
+      wrappedCiphertext = Uint8List.fromList(block.sublist(24, 72));
+      entryCiphertext = Uint8List.fromList(block.sublist(72));
+      wrapAad = AadBuilder.forWrapDek(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: header.aeadAlgorithmId,
+        entryId: record.entryId,
+      );
+      try {
+        dek = crypto.decryptWithAead(
+          masterVaultKey,
+          wrappedNonce,
+          wrappedCiphertext,
+          wrapAad,
+        );
+      } on Object catch (error) {
+        throw VaultCorruptedException(cause: error);
+      }
+      if (dek.length != 32) {
+        throw const FormatException('Entry DEK has an invalid length.');
+      }
+      return MigrationEntryPayload(
+        entryId: record.entryId,
+        sequence: record.sequence,
+        plaintextFormatId: record.plaintextFormatId,
+        entryCiphertext: entryCiphertext,
+        dek: dek,
+      );
+    } finally {
+      for (final Uint8List? bytes in <Uint8List?>[
+        block,
+        wrappedNonce,
+        wrappedCiphertext,
+        entryCiphertext,
+        dek,
+        wrapAad,
+      ]) {
+        if (bytes != null) {
+          clearSensitiveBytes(bytes);
+        }
+      }
+    }
+  }
+
+  VaultEntry _decryptMigrationEntry({
+    required VaultFileHeader header,
+    required MigrationEntryPayload payload,
+  }) {
+    Uint8List? nonce;
+    Uint8List? ciphertext;
+    Uint8List? plaintext;
+    Uint8List? entryAad;
+    try {
+      nonce = Uint8List.fromList(payload.entryCiphertext.sublist(0, 24));
+      ciphertext = Uint8List.fromList(payload.entryCiphertext.sublist(24));
+      entryAad = AadBuilder.forEncryptEntry(
+        magic: vaultMagic,
+        formatVersion: vaultFormatVersion,
+        aeadAlgorithmId: header.aeadAlgorithmId,
+        entryId: payload.entryId,
+        sequence: payload.sequence,
+      );
+      try {
+        plaintext = crypto.decryptWithAead(
+          payload.dek,
+          nonce,
+          ciphertext,
+          entryAad,
+        );
+      } on Object catch (error) {
+        throw VaultCorruptedException(cause: error);
+      }
+      return VaultEntryJsonCodec.decode(plaintext, entryId: payload.entryId);
+    } finally {
+      for (final Uint8List? bytes in <Uint8List?>[
+        nonce,
+        ciphertext,
+        plaintext,
+        entryAad,
+      ]) {
+        if (bytes != null) {
+          clearSensitiveBytes(bytes);
+        }
+      }
+    }
   }
 
   List<EntrySummary> _loadEntrySummaries({

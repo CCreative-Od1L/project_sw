@@ -718,6 +718,9 @@ final class VaultFileEngine {
     ];
     final List<VaultMigrationEntry> uniqueEntries = <VaultMigrationEntry>[];
     var nextBlockOffset = File(path).lengthSync();
+    if (nextBlockOffset < vaultEntryBlockRegionOffset) {
+      nextBlockOffset = vaultEntryBlockRegionOffset;
+    }
     for (final VaultMigrationEntry entry in entries) {
       if (uniqueEntries.any(
         (VaultMigrationEntry current) =>
