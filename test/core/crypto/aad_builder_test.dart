@@ -57,6 +57,9 @@ void main() {
     );
 
     expect(biometric, isNot(equals(dek)));
-    expect(biometric, endsWith(<int>[0x62, 0x69, 0x6f, 0x2d, 0x6d, 0x76, 0x6b]));
+    expect(
+      biometric.sublist(biometric.length - 7),
+      equals(<int>[0x62, 0x69, 0x6f, 0x2d, 0x6d, 0x76, 0x6b]),
+    );
   });
 }
