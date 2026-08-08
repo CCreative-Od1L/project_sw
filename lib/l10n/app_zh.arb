@@ -122,6 +122,13 @@
   "confirmEnableBiometric": "要在此设备上启用生物识别解锁吗？你仍然可以使用主密码。",
   "confirmDisableBiometric": "要停用生物识别解锁吗？主密码仍然可用。",
   "biometricSetupFailed": "无法修改生物识别设置。",
+  "biometricSettingsInvalidated": "生物识别设置已变化。请使用主密码解锁后再重新设置。",
+  "stepUpTitle": "需要主密码验证",
+  "stepUpDescription": "此安全敏感操作需要主密码验证；仅使用生物识别解锁不足以执行此操作。",
+  "confirmMasterPassword": "验证主密码",
+  "stepUpInvalidPassword": "主密码不正确，会话状态未改变。",
+  "stepUpFailed": "无法完成主密码验证。",
+  "stepUpUnavailable": "密码库已不再处于解锁状态，请重新解锁后继续。",
   "generatorComingSoon": "密码生成器将在下一批功能中加入。",
   "settingsComingSoon": "安全设置将在下一批功能中加入。"
 }

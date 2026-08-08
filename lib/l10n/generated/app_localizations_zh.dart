@@ -289,6 +289,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get biometricSetupFailed => '无法修改生物识别设置。';
 
   @override
+  String get biometricSettingsInvalidated => '生物识别设置已变化。请使用主密码解锁后再重新设置。';
+
+  @override
+  String get stepUpTitle => '需要主密码验证';
+
+  @override
+  String get stepUpDescription => '此安全敏感操作需要主密码验证；仅使用生物识别解锁不足以执行此操作。';
+
+  @override
+  String get confirmMasterPassword => '验证主密码';
+
+  @override
+  String get stepUpInvalidPassword => '主密码不正确，会话状态未改变。';
+
+  @override
+  String get stepUpFailed => '无法完成主密码验证。';
+
+  @override
+  String get stepUpUnavailable => '密码库已不再处于解锁状态，请重新解锁后继续。';
+
+  @override
   String get generatorComingSoon => '密码生成器将在下一批功能中加入。';
 
   @override

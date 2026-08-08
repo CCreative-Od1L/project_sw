@@ -51,6 +51,43 @@ void main() {
       expect(controller.routeState, SessionRouteState.unlock);
     });
 
+    test('upgrades a biometric session through a master-password step-up', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+        timerFactory: (Duration duration, void Function() callback) =>
+            FakeSessionTimer(callback),
+      );
+      addTearDown(controller.dispose);
+
+      expect(controller.requiresMasterPasswordStepUp, isTrue);
+
+      controller.completeMasterPasswordStepUp();
+
+      expect(
+        controller.state,
+        const UnlockedSession(authStrength: AuthStrength.masterPassword),
+      );
+      expect(controller.requiresMasterPasswordStepUp, isFalse);
+      expect(controller.hasActiveIdleTimer, isTrue);
+    });
+
+    test('records biometric invalidation even when already locked', () {
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      addTearDown(controller.dispose);
+
+      controller.handle(SessionEvent.biometricInvalidated);
+
+      expect(controller.state, isA<LockedSession>());
+      expect(
+        (controller.state as LockedSession).reason,
+        LockReason.biometricInvalidated,
+      );
+    });
+
     test('rejects an unlock without successful authentication', () {
       final SessionController controller = SessionController();
       addTearDown(controller.dispose);

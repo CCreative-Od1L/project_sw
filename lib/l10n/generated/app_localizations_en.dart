@@ -299,6 +299,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get biometricSetupFailed => 'Biometric settings could not be changed.';
 
   @override
+  String get biometricSettingsInvalidated =>
+      'Biometric settings changed. Unlock with your master password before setting them up again.';
+
+  @override
+  String get stepUpTitle => 'Master password required';
+
+  @override
+  String get stepUpDescription =>
+      'This security-sensitive action requires your master password. Biometric unlock alone is not enough.';
+
+  @override
+  String get confirmMasterPassword => 'Verify master password';
+
+  @override
+  String get stepUpInvalidPassword =>
+      'Master password is incorrect. The session was not changed.';
+
+  @override
+  String get stepUpFailed =>
+      'Master-password verification could not be completed.';
+
+  @override
+  String get stepUpUnavailable =>
+      'The vault is no longer unlocked. Unlock it again before continuing.';
+
+  @override
   String get generatorComingSoon => 'Password generator is coming next.';
 
   @override

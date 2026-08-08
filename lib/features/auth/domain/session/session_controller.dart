@@ -53,6 +53,13 @@ final class SessionController extends ChangeNotifier {
   /// Whether an unlocked session currently owns an idle timer.
   bool get hasActiveIdleTimer => _idleTimer?.isActive ?? false;
 
+  /// Whether the current unlocked session needs a master-password step-up.
+  bool get requiresMasterPasswordStepUp => switch (_state) {
+    UnlockedSession(:final AuthStrength authStrength) =>
+      authStrength != AuthStrength.masterPassword,
+    _ => false,
+  };
+
   /// Registers a page-local cleaner that must run before a lock transition.
   void registerSecretCleaner(SessionSecretCleaner cleaner) {
     if (!_secretCleaners.contains(cleaner)) {
@@ -88,6 +95,12 @@ final class SessionController extends ChangeNotifier {
   /// Locks the current vault session for [reason].
   void lock(LockReason reason) {
     if (_state is LockedSession) {
+      final LockedSession current = _state as LockedSession;
+      if (current.reason == reason) {
+        return;
+      }
+      _cancelIdleTimer();
+      _transition(LockedSession(reason: reason));
       return;
     }
     _cancelIdleTimer();
@@ -95,6 +108,23 @@ final class SessionController extends ChangeNotifier {
       cleaner.clearUnlockedSession();
     }
     _transition(LockedSession(reason: reason));
+  }
+
+  /// Upgrades an unlocked biometric session to master-password strength.
+  ///
+  /// The password verification itself belongs to the authentication use case;
+  /// this method only applies the already-verified state transition.
+  void completeMasterPasswordStepUp() {
+    final SessionState current = _state;
+    if (current is! UnlockedSession) {
+      throw StateError('A locked session cannot complete a step-up.');
+    }
+    if (current.authStrength == AuthStrength.masterPassword) {
+      return;
+    }
+    _transition(
+      const UnlockedSession(authStrength: AuthStrength.masterPassword),
+    );
   }
 
   /// Sends a domain event through the session state machine.
@@ -109,6 +139,8 @@ final class SessionController extends ChangeNotifier {
         _resetIdleTimer();
       case SessionEvent.idleTimeoutElapsed:
         lock(LockReason.backgroundOrTimeout);
+      case SessionEvent.biometricInvalidated:
+        lock(LockReason.biometricInvalidated);
     }
   }
 

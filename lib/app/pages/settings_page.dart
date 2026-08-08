@@ -6,6 +6,7 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
+import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 
 /// Security policy, active KDF metadata, and optional biometric settings.
 final class SettingsPage extends StatefulWidget {
@@ -15,6 +16,7 @@ final class SettingsPage extends StatefulWidget {
     this.config = const AppConfig(),
     this.vaultRepository,
     this.biometricSettingsCubit,
+    this.stepUpCubit,
   });
 
   /// Fixed process policy used by the session and clipboard services.
@@ -25,6 +27,9 @@ final class SettingsPage extends StatefulWidget {
 
   /// Optional coordinator for the biometric settings card.
   final BiometricSettingsCubit? biometricSettingsCubit;
+
+  /// Optional high-sensitivity master-password challenge coordinator.
+  final StepUpCubit? stepUpCubit;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -44,6 +49,7 @@ final class _SettingsPageState extends State<SettingsPage> {
       return _SettingsContent(
         config: widget.config,
         vaultRepository: widget.vaultRepository,
+        stepUpCubit: widget.stepUpCubit,
       );
     }
     return BlocProvider<BiometricSettingsCubit>.value(
@@ -55,6 +61,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             vaultRepository: widget.vaultRepository,
             biometricSettingsCubit: cubit,
             biometricState: state,
+            stepUpCubit: widget.stepUpCubit,
           );
         },
       ),
@@ -68,12 +75,14 @@ final class _SettingsContent extends StatelessWidget {
     required this.vaultRepository,
     this.biometricSettingsCubit,
     this.biometricState,
+    this.stepUpCubit,
   });
 
   final AppConfig config;
   final VaultRepository? vaultRepository;
   final BiometricSettingsCubit? biometricSettingsCubit;
   final BiometricSettingsViewState? biometricState;
+  final StepUpCubit? stepUpCubit;
 
   Future<void> _confirmAndRun(
     BuildContext context, {
@@ -105,11 +114,28 @@ final class _SettingsContent extends StatelessWidget {
       ),
     );
     if (confirmed != true || biometricSettingsCubit == null) return;
+    if (!context.mounted) return;
+    if (!await _authorizeMasterPassword(context)) return;
     if (enable) {
       await biometricSettingsCubit!.enable();
     } else {
       await biometricSettingsCubit!.disable();
     }
+  }
+
+  Future<bool> _authorizeMasterPassword(BuildContext context) async {
+    final StepUpCubit? cubit = stepUpCubit;
+    if (cubit == null || !cubit.requiresMasterPassword) {
+      return true;
+    }
+    final bool? verified = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => BlocProvider<StepUpCubit>.value(
+        value: cubit,
+        child: _StepUpDialog(stepUpCubit: cubit),
+      ),
+    );
+    return verified == true;
   }
 
   @override
@@ -194,18 +220,22 @@ final class _BiometricSettingsCard extends StatelessWidget {
             ? context.l10n.biometricEnabled
             : context.l10n.biometricNotEnabled,
       BiometricSettingsFault() => context.l10n.biometricSetupFailed,
+      BiometricSettingsInvalidated() =>
+        context.l10n.biometricSettingsInvalidated,
       _ => null,
     };
     final bool available = switch (state) {
       BiometricSettingsReady(:final bool isAvailable) => isAvailable,
       BiometricSettingsWorking(:final bool isAvailable) => isAvailable,
       BiometricSettingsFault(:final bool isAvailable) => isAvailable,
+      BiometricSettingsInvalidated(:final bool isAvailable) => isAvailable,
       _ => false,
     };
     final bool configured = switch (state) {
       BiometricSettingsReady(:final bool isConfigured) => isConfigured,
       BiometricSettingsWorking(:final bool isConfigured) => isConfigured,
       BiometricSettingsFault(:final bool isConfigured) => isConfigured,
+      BiometricSettingsInvalidated(:final bool isConfigured) => isConfigured,
       _ => false,
     };
     final bool working = state is BiometricSettingsWorking;
@@ -242,7 +272,9 @@ final class _BiometricSettingsCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(context.l10n.biometricUnavailable),
             ],
-            if (available && !working) ...<Widget>[
+            if (available &&
+                !working &&
+                state is! BiometricSettingsInvalidated) ...<Widget>[
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -267,6 +299,94 @@ final class _BiometricSettingsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+final class _StepUpDialog extends StatefulWidget {
+  const _StepUpDialog({required this.stepUpCubit});
+
+  final StepUpCubit stepUpCubit;
+
+  @override
+  State<_StepUpDialog> createState() => _StepUpDialogState();
+}
+
+final class _StepUpDialogState extends State<_StepUpDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller
+      ..clear()
+      ..dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    final bool verified = await widget.stepUpCubit.verify(_controller.text);
+    if (verified && mounted) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<StepUpCubit, StepUpViewState>(
+      builder: (BuildContext context, StepUpViewState state) {
+        final bool verifying = state is StepUpVerifying;
+        final String? error = switch (state) {
+          StepUpInvalidPassword() => context.l10n.stepUpInvalidPassword,
+          StepUpFault() => context.l10n.stepUpFailed,
+          StepUpUnavailable() => context.l10n.stepUpUnavailable,
+          _ => null,
+        };
+        return AlertDialog(
+          title: Text(context.l10n.stepUpTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(context.l10n.stepUpDescription),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                autofocus: true,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                enabled: !verifying,
+                decoration: InputDecoration(
+                  labelText: context.l10n.masterPassword,
+                ),
+                onSubmitted: verifying ? null : (_) => _verify(),
+              ),
+              if (error != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: verifying ? null : () => Navigator.of(context).pop(),
+              child: Text(context.l10n.close),
+            ),
+            FilledButton(
+              onPressed: verifying ? null : _verify,
+              child: verifying
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.l10n.confirmMasterPassword),
+            ),
+          ],
+        );
+      },
     );
   }
 }

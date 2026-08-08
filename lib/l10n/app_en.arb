@@ -122,6 +122,13 @@
   "confirmEnableBiometric": "Enable biometric unlock on this device? You can still use your master password.",
   "confirmDisableBiometric": "Disable biometric unlock? The master password will remain available.",
   "biometricSetupFailed": "Biometric settings could not be changed.",
+  "biometricSettingsInvalidated": "Biometric settings changed. Unlock with your master password before setting them up again.",
+  "stepUpTitle": "Master password required",
+  "stepUpDescription": "This security-sensitive action requires your master password. Biometric unlock alone is not enough.",
+  "confirmMasterPassword": "Verify master password",
+  "stepUpInvalidPassword": "Master password is incorrect. The session was not changed.",
+  "stepUpFailed": "Master-password verification could not be completed.",
+  "stepUpUnavailable": "The vault is no longer unlocked. Unlock it again before continuing.",
   "generatorComingSoon": "Password generator is coming next.",
   "settingsComingSoon": "Security settings are coming next."
 }

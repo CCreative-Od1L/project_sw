@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 
 /// UI state for enabling, disabling, and replacing biometric access.
 sealed class BiometricSettingsViewState {
@@ -59,14 +61,33 @@ final class BiometricSettingsFault extends BiometricSettingsViewState {
   final bool isAvailable;
 }
 
+/// The enrolled biometric set changed while changing biometric settings.
+final class BiometricSettingsInvalidated extends BiometricSettingsViewState {
+  /// Creates the invalidated state.
+  const BiometricSettingsInvalidated({
+    required this.isConfigured,
+    required this.isAvailable,
+  });
+
+  /// The last known configuration flag.
+  final bool isConfigured;
+
+  /// The last known platform capability.
+  final bool isAvailable;
+}
+
 /// Coordinates biometric setting changes behind a small presentation seam.
 final class BiometricSettingsCubit extends Cubit<BiometricSettingsViewState> {
   /// Creates the settings coordinator.
-  BiometricSettingsCubit(this._repository, this._keyStore)
-    : super(const BiometricSettingsLoading());
+  BiometricSettingsCubit(
+    this._repository,
+    this._keyStore, {
+    this._sessionController,
+  }) : super(const BiometricSettingsLoading());
 
   final BiometricVaultRepository _repository;
   final BiometricKeyStore _keyStore;
+  final SessionController? _sessionController;
   var _isConfigured = false;
   var _isAvailable = false;
 
@@ -108,6 +129,14 @@ final class BiometricSettingsCubit extends Cubit<BiometricSettingsViewState> {
           isAvailable: _isAvailable,
         ),
       );
+    } on BiometricInvalidatedException {
+      _sessionController?.handle(SessionEvent.biometricInvalidated);
+      emit(
+        BiometricSettingsInvalidated(
+          isConfigured: _isConfigured,
+          isAvailable: _isAvailable,
+        ),
+      );
     } on Object {
       emit(
         BiometricSettingsFault(
@@ -132,6 +161,14 @@ final class BiometricSettingsCubit extends Cubit<BiometricSettingsViewState> {
       _isConfigured = false;
       emit(
         BiometricSettingsReady(
+          isConfigured: _isConfigured,
+          isAvailable: _isAvailable,
+        ),
+      );
+    } on BiometricInvalidatedException {
+      _sessionController?.handle(SessionEvent.biometricInvalidated);
+      emit(
+        BiometricSettingsInvalidated(
           isConfigured: _isConfigured,
           isAvailable: _isAvailable,
         ),
