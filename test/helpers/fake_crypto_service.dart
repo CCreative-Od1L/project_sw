@@ -91,7 +91,10 @@ final class FakeCryptoService implements CryptoService {
     for (var index = 0; index < plaintext.length; index++) {
       ciphertext[index] = plaintext[index] ^ key[index % key.length];
     }
-    final int tag = _authenticationTag(key);
+    final int tag = _authenticationTag(
+      key,
+      ciphertext.sublist(0, plaintext.length),
+    );
     ciphertext.fillRange(plaintext.length, ciphertext.length, tag);
     return AeadCiphertext(nonce: nonce, ciphertext: ciphertext);
   }
@@ -103,7 +106,14 @@ final class FakeCryptoService implements CryptoService {
     Uint8List ciphertext,
     Uint8List additionalData,
   ) {
-    final int expectedTag = _authenticationTag(key);
+    if (ciphertext.length < 16) {
+      throw StateError('authentication failed');
+    }
+    final Uint8List encryptedBody = ciphertext.sublist(
+      0,
+      ciphertext.length - 16,
+    );
+    final int expectedTag = _authenticationTag(key, encryptedBody);
     if (ciphertext
         .sublist(ciphertext.length - 16)
         .any((int byte) => byte != expectedTag)) {
@@ -117,6 +127,60 @@ final class FakeCryptoService implements CryptoService {
     return plaintext;
   }
 
-  int _authenticationTag(Uint8List key) =>
-      key.fold<int>(0, (int sum, int byte) => sum + byte) & 0xff;
+  @override
+  EphemeralKeyPair generateEphemeralKeyPair() {
+    final int value = _counter++;
+    return EphemeralKeyPair(
+      publicKey: Uint8List.fromList(List<int>.filled(32, value)),
+      secretKey: Uint8List.fromList(List<int>.filled(32, value ^ 0x5a)),
+    );
+  }
+
+  @override
+  DirectionalSessionKeys deriveClientSessionKeys({
+    required Uint8List clientPublicKey,
+    required Uint8List clientSecretKey,
+    required Uint8List serverPublicKey,
+  }) => DirectionalSessionKeys(
+    tx: _sessionKey(clientPublicKey, serverPublicKey, 1),
+    rx: _sessionKey(clientPublicKey, serverPublicKey, 2),
+  );
+
+  @override
+  DirectionalSessionKeys deriveServerSessionKeys({
+    required Uint8List serverPublicKey,
+    required Uint8List serverSecretKey,
+    required Uint8List clientPublicKey,
+  }) => DirectionalSessionKeys(
+    tx: _sessionKey(clientPublicKey, serverPublicKey, 2),
+    rx: _sessionKey(clientPublicKey, serverPublicKey, 1),
+  );
+
+  @override
+  Uint8List hash(Uint8List message) => _digest(message);
+
+  @override
+  Uint8List mac(Uint8List key, Uint8List message) =>
+      _digest(Uint8List.fromList(<int>[...key, ...message]));
+
+  int _authenticationTag(Uint8List key, Uint8List ciphertext) => <int>[
+    ...key,
+    ...ciphertext,
+  ].fold<int>(0, (int sum, int byte) => (sum + byte) & 0xff);
+
+  Uint8List _sessionKey(Uint8List client, Uint8List server, int direction) =>
+      _digest(Uint8List.fromList(<int>[...client, ...server, direction]));
+
+  Uint8List _digest(Uint8List message) {
+    var accumulator = 0x811c9dc5;
+    for (final int byte in message) {
+      accumulator = ((accumulator ^ byte) * 0x01000193) & 0xffffffff;
+    }
+    return Uint8List.fromList(
+      List<int>.generate(
+        32,
+        (int index) => (accumulator >> ((index % 4) * 8)) & 0xff,
+      ),
+    );
+  }
 }

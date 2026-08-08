@@ -58,4 +58,40 @@ void main() {
       }
     },
   );
+
+  test('derives matching directional crypto_kx session keys', () async {
+    final SodiumCryptoService crypto = await SodiumCryptoService.initialize();
+    final EphemeralKeyPair clientIdentity = crypto.generateEphemeralKeyPair();
+    final EphemeralKeyPair serverIdentity = crypto.generateEphemeralKeyPair();
+    final Uint8List clientPublicKey = Uint8List.fromList(
+      clientIdentity.publicKey,
+    );
+    final Uint8List serverPublicKey = Uint8List.fromList(
+      serverIdentity.publicKey,
+    );
+    DirectionalSessionKeys? clientKeys;
+    DirectionalSessionKeys? serverKeys;
+    try {
+      clientKeys = crypto.deriveClientSessionKeys(
+        clientPublicKey: clientPublicKey,
+        clientSecretKey: clientIdentity.secretKey,
+        serverPublicKey: serverPublicKey,
+      );
+      serverKeys = crypto.deriveServerSessionKeys(
+        serverPublicKey: serverIdentity.publicKey,
+        serverSecretKey: serverIdentity.secretKey,
+        clientPublicKey: clientPublicKey,
+      );
+
+      expect(clientKeys.tx, serverKeys.rx);
+      expect(clientKeys.rx, serverKeys.tx);
+    } finally {
+      clientIdentity.dispose();
+      serverIdentity.dispose();
+      clearSensitiveBytes(clientPublicKey);
+      clearSensitiveBytes(serverPublicKey);
+      clientKeys?.dispose();
+      serverKeys?.dispose();
+    }
+  });
 }

@@ -28,6 +28,7 @@ final class SessionController extends ChangeNotifier {
   final List<SessionSecretCleaner> _secretCleaners;
   SessionState _state;
   SessionTimer? _idleTimer;
+  LockSuppressionReason? _lockSuppressionReason;
 
   /// Collaborator that clears sensitive unlocked state before routing to lock.
   final SessionSecretCleaner? secretCleaner;
@@ -52,6 +53,9 @@ final class SessionController extends ChangeNotifier {
 
   /// Whether an unlocked session currently owns an idle timer.
   bool get hasActiveIdleTimer => _idleTimer?.isActive ?? false;
+
+  /// Whether the foreground idle timeout is temporarily suppressed.
+  bool get isIdleTimeoutSuppressed => _lockSuppressionReason != null;
 
   /// Whether the current unlocked session needs a master-password step-up.
   bool get requiresMasterPasswordStepUp => switch (_state) {
@@ -88,12 +92,35 @@ final class SessionController extends ChangeNotifier {
       );
     }
     _cancelIdleTimer();
+    _lockSuppressionReason = null;
     _transition(UnlockedSession(authStrength: authStrength));
+    _startIdleTimer();
+  }
+
+  /// Temporarily suppresses the idle timeout for an in-progress operation.
+  void beginIdleTimeoutSuppression(LockSuppressionReason reason) {
+    if (_state is! UnlockedSession) {
+      throw StateError('Only an unlocked session can suppress idle timeout.');
+    }
+    if (_lockSuppressionReason != null && _lockSuppressionReason != reason) {
+      throw StateError('Another lock suppression is already active.');
+    }
+    _lockSuppressionReason = reason;
+    _cancelIdleTimer();
+  }
+
+  /// Ends an idle-timeout suppression and starts a fresh inactivity window.
+  void endIdleTimeoutSuppression(LockSuppressionReason reason) {
+    if (_lockSuppressionReason != reason) {
+      return;
+    }
+    _lockSuppressionReason = null;
     _startIdleTimer();
   }
 
   /// Locks the current vault session for [reason].
   void lock(LockReason reason) {
+    _lockSuppressionReason = null;
     if (_state is LockedSession) {
       final LockedSession current = _state as LockedSession;
       if (current.reason == reason) {
@@ -138,6 +165,10 @@ final class SessionController extends ChangeNotifier {
       case SessionEvent.userInteractionObserved:
         _resetIdleTimer();
       case SessionEvent.idleTimeoutElapsed:
+        if (_lockSuppressionReason != null) {
+          _startIdleTimer();
+          return;
+        }
         lock(LockReason.backgroundOrTimeout);
       case SessionEvent.biometricInvalidated:
         lock(LockReason.biometricInvalidated);
