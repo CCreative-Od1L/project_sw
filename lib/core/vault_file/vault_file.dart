@@ -274,6 +274,49 @@ final class VaultEntryRecord {
   final int sequence;
 }
 
+/// An already-encrypted entry block buffered for an atomic migration commit.
+final class VaultMigrationEntry {
+  /// Creates a copied opaque block without exposing plaintext to storage.
+  VaultMigrationEntry({
+    required Uint8List entryId,
+    required Uint8List block,
+    required this.plaintextFormatId,
+    required this.sequence,
+    this.flags = 0,
+  }) : entryId = Uint8List.fromList(entryId),
+       block = Uint8List.fromList(block) {
+    if (this.entryId.length != 16 ||
+        this.block.length < 72 ||
+        plaintextFormatId != 1 ||
+        sequence < 0 ||
+        flags < 0 ||
+        flags > 255) {
+      throw ArgumentError('Vault migration entry is invalid.');
+    }
+  }
+
+  /// Stable entry identity.
+  final Uint8List entryId;
+
+  /// New receiver-owned Entry Block containing wrapped DEK and raw ciphertext.
+  final Uint8List block;
+
+  /// Inner serialization selector.
+  final int plaintextFormatId;
+
+  /// Original entry revision sequence preserved for ciphertext AAD.
+  final int sequence;
+
+  /// Reserved per-entry flags.
+  final int flags;
+
+  /// Clears copied entry material after the atomic commit finishes.
+  void dispose() {
+    _clearSensitiveBytes(entryId);
+    _clearSensitiveBytes(block);
+  }
+}
+
 /// The active Directory and only its non-sensitive records.
 final class VaultDirectory {
   /// Creates a decoded Directory.
@@ -322,13 +365,35 @@ enum VaultFileCommitStage {
 /// A test-only hook that can simulate a crash immediately after [stage].
 typedef VaultFileFaultInjector = void Function(VaultFileCommitStage stage);
 
+/// Durable boundaries used to prove migration COW behavior in tests.
+enum VaultMigrationCommitStage {
+  /// The migration journal intent was written to the temporary file.
+  afterJournal,
+
+  /// All buffered entry blocks were written to the temporary file.
+  afterEntryBlocks,
+
+  /// The replacement Directory was written to the temporary file.
+  afterDirectory,
+
+  /// The committed header was written before the final file swap.
+  afterCommittedHeader,
+}
+
+/// Test-only hook for simulating a failure before migration file replacement.
+typedef VaultMigrationFaultInjector =
+    void Function(VaultMigrationCommitStage stage);
+
 /// A synchronous single-file storage engine for headers, records, and blocks.
 final class VaultFileEngine {
   /// Creates the engine with an optional fault injector for recovery tests.
-  VaultFileEngine({this.faultInjector});
+  VaultFileEngine({this.faultInjector, this.migrationFaultInjector});
 
   /// Test-only hook invoked after each durable transaction boundary.
   final VaultFileFaultInjector? faultInjector;
+
+  /// Test-only hook for failures while building a migration copy.
+  final VaultMigrationFaultInjector? migrationFaultInjector;
 
   /// Creates an empty vault using journal → directory → committed-seq ordering.
   void createEmptyVault(String path, VaultFileHeader header) {
@@ -633,6 +698,143 @@ final class VaultFileEngine {
     );
     faultInjector?.call(VaultFileCommitStage.afterCommittedSequence);
     vault.copySync('$path.bak');
+  }
+
+  /// Atomically publishes all buffered migration entries as one Directory.
+  ///
+  /// The current vault remains untouched while a complete copy is built. The
+  /// final same-directory rename is the only operation that changes the
+  /// active file, so a failed transfer cannot expose a partial Directory.
+  void commitMigration({
+    required String path,
+    required OpenVaultFile opened,
+    required List<VaultMigrationEntry> entries,
+  }) {
+    if (entries.isEmpty) {
+      return;
+    }
+    final List<VaultEntryRecord> nextRecords = <VaultEntryRecord>[
+      ...opened.directory.records,
+    ];
+    final List<VaultMigrationEntry> uniqueEntries = <VaultMigrationEntry>[];
+    var nextBlockOffset = File(path).lengthSync();
+    for (final VaultMigrationEntry entry in entries) {
+      if (uniqueEntries.any(
+        (VaultMigrationEntry current) =>
+            _sameBytes(current.entryId, entry.entryId),
+      )) {
+        throw ArgumentError('Migration entry identities must be unique.');
+      }
+      uniqueEntries.add(entry);
+      final VaultEntryRecord nextRecord = VaultEntryRecord(
+        entryId: entry.entryId,
+        blockOffset: nextBlockOffset,
+        blockLength: entry.block.length,
+        blockCapacity: entry.block.length,
+        plaintextFormatId: entry.plaintextFormatId,
+        sequence: entry.sequence,
+        flags: entry.flags,
+      );
+      final int existing = nextRecords.indexWhere(
+        (VaultEntryRecord current) =>
+            _sameBytes(current.entryId, entry.entryId),
+      );
+      if (existing >= 0) {
+        nextRecords[existing] = nextRecord;
+      } else {
+        nextRecords.add(nextRecord);
+      }
+      nextBlockOffset += entry.block.length;
+    }
+    final VaultDirectory nextDirectory = VaultDirectory(
+      sequence: opened.header.sequenceCounter,
+      records: nextRecords,
+    );
+    final Uint8List encodedDirectory = VaultFileCodec.encodeDirectory(
+      nextDirectory,
+    );
+    if (encodedDirectory.length >
+        vaultEntryBlockRegionOffset - vaultFileHeaderLength) {
+      _clearSensitiveBytes(encodedDirectory);
+      throw const FormatException('Vault Directory capacity is exhausted.');
+    }
+
+    final int commitSequence = opened.header.sequenceCounter;
+    final VaultJournal journal = VaultJournal(
+      operation: VaultJournalOperation.entryUpsert,
+      sequence: commitSequence,
+      directoryOffset: opened.header.activeDirectoryOffset,
+      directoryLength: encodedDirectory.length,
+      freeListHead: opened.header.freeListHead,
+    );
+    final VaultFileHeader pending = opened.header.copyWith(journal: journal);
+    final VaultFileHeader committed = pending.copyWith(
+      entryCount: nextDirectory.records.length,
+      committedSequence: commitSequence,
+      sequenceCounter: commitSequence + 1,
+      freeListHead: opened.header.freeListHead,
+    );
+    final String temporaryPath = '$path.migration.tmp';
+    final File temporary = File(temporaryPath);
+    RandomAccessFile? file;
+    try {
+      if (temporary.existsSync()) {
+        temporary.deleteSync();
+      }
+      File(path).copySync(temporaryPath);
+      file = temporary.openSync(mode: FileMode.append);
+
+      final Uint8List pendingBytes = VaultFileCodec.encodeHeader(pending);
+      try {
+        file.setPositionSync(0);
+        file.writeFromSync(pendingBytes);
+        file.flushSync();
+      } finally {
+        _clearSensitiveBytes(pendingBytes);
+      }
+      migrationFaultInjector?.call(VaultMigrationCommitStage.afterJournal);
+
+      for (var index = 0; index < uniqueEntries.length; index++) {
+        file.setPositionSync(
+          nextRecords
+              .firstWhere(
+                (VaultEntryRecord record) =>
+                    _sameBytes(record.entryId, uniqueEntries[index].entryId),
+              )
+              .blockOffset,
+        );
+        file.writeFromSync(uniqueEntries[index].block);
+      }
+      file.flushSync();
+      migrationFaultInjector?.call(VaultMigrationCommitStage.afterEntryBlocks);
+
+      file.setPositionSync(opened.header.activeDirectoryOffset);
+      file.writeFromSync(encodedDirectory);
+      file.flushSync();
+      migrationFaultInjector?.call(VaultMigrationCommitStage.afterDirectory);
+
+      final Uint8List committedBytes = VaultFileCodec.encodeHeader(committed);
+      try {
+        file.setPositionSync(0);
+        file.writeFromSync(committedBytes);
+        file.flushSync();
+      } finally {
+        _clearSensitiveBytes(committedBytes);
+      }
+      migrationFaultInjector?.call(
+        VaultMigrationCommitStage.afterCommittedHeader,
+      );
+      file.closeSync();
+      file = null;
+      temporary.renameSync(path);
+      File(path).copySync('$path.bak');
+    } finally {
+      file?.closeSync();
+      if (temporary.existsSync()) {
+        temporary.deleteSync();
+      }
+      _clearSensitiveBytes(encodedDirectory);
+    }
   }
 
   OpenVaultFile _openVaultFile(String path) {
@@ -1083,4 +1285,8 @@ bool _sameBytes(Uint8List first, Uint8List second) {
     }
   }
   return true;
+}
+
+void _clearSensitiveBytes(Uint8List bytes) {
+  bytes.fillRange(0, bytes.length, 0);
 }

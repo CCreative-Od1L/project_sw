@@ -261,6 +261,112 @@ void main() {
     expect(recovered.header.committedSequence, 2);
     expect(recovered.directory.records, hasLength(1));
   });
+
+  test('publishes a buffered migration as one atomic Directory', () {
+    final String path = '${temporaryDirectory.path}/migration.psw';
+    final VaultFileEngine engine = VaultFileEngine()
+      ..createEmptyVault(path, _header());
+    final OpenVaultFile initial = engine.openVaultFile(path);
+    final VaultEntryRecord original = VaultEntryRecord(
+      entryId: Uint8List.fromList(List<int>.filled(16, 1)),
+      blockOffset: engine.allocateEntryBlockOffset(initial.directory),
+      blockLength: 112,
+      blockCapacity: 112,
+      plaintextFormatId: 1,
+      sequence: initial.header.sequenceCounter,
+    );
+    engine.commitEntryBlock(
+      path: path,
+      opened: initial,
+      record: original,
+      block: Uint8List.fromList(List<int>.filled(112, 3)),
+    );
+    final OpenVaultFile opened = engine.openVaultFile(path);
+    final VaultMigrationEntry imported = VaultMigrationEntry(
+      entryId: Uint8List.fromList(List<int>.filled(16, 2)),
+      block: Uint8List.fromList(List<int>.filled(128, 4)),
+      plaintextFormatId: 1,
+      sequence: 42,
+    );
+
+    engine.commitMigration(
+      path: path,
+      opened: opened,
+      entries: <VaultMigrationEntry>[imported],
+    );
+    imported.dispose();
+
+    final OpenVaultFile committed = engine.openVaultFile(path);
+    expect(committed.directory.records, hasLength(2));
+    final VaultEntryRecord importedRecord = committed.directory.records.last;
+    expect(importedRecord.sequence, 42);
+    expect(
+      engine.readEntryBlock(path, importedRecord),
+      orderedEquals(List<int>.filled(128, 4)),
+    );
+    expect(committed.header.committedSequence, opened.header.sequenceCounter);
+  });
+
+  for (final VaultMigrationCommitStage stage
+      in VaultMigrationCommitStage.values) {
+    test('keeps the active vault unchanged on migration ${stage.name}', () {
+      final String path =
+          '${temporaryDirectory.path}/migration-${stage.name}.psw';
+      final VaultFileEngine setup = VaultFileEngine()
+        ..createEmptyVault(path, _header());
+      final OpenVaultFile initial = setup.openVaultFile(path);
+      final VaultEntryRecord original = VaultEntryRecord(
+        entryId: Uint8List.fromList(List<int>.filled(16, 5)),
+        blockOffset: setup.allocateEntryBlockOffset(initial.directory),
+        blockLength: 112,
+        blockCapacity: 112,
+        plaintextFormatId: 1,
+        sequence: initial.header.sequenceCounter,
+      );
+      setup.commitEntryBlock(
+        path: path,
+        opened: initial,
+        record: original,
+        block: Uint8List.fromList(List<int>.filled(112, 6)),
+      );
+      final OpenVaultFile opened = setup.openVaultFile(path);
+      final VaultMigrationEntry imported = VaultMigrationEntry(
+        entryId: Uint8List.fromList(List<int>.filled(16, 7)),
+        block: Uint8List.fromList(List<int>.filled(112, 8)),
+        plaintextFormatId: 1,
+        sequence: 99,
+      );
+      final VaultFileEngine interrupted = VaultFileEngine(
+        migrationFaultInjector: (VaultMigrationCommitStage current) {
+          if (current == stage) {
+            throw StateError('simulated migration interruption');
+          }
+        },
+      );
+
+      expect(
+        () => interrupted.commitMigration(
+          path: path,
+          opened: opened,
+          entries: <VaultMigrationEntry>[imported],
+        ),
+        throwsStateError,
+      );
+      imported.dispose();
+
+      final OpenVaultFile recovered = setup.openVaultFile(path);
+      expect(recovered.directory.records, hasLength(1));
+      expect(
+        recovered.header.committedSequence,
+        opened.header.committedSequence,
+      );
+      expect(File('$path.migration.tmp').existsSync(), isFalse);
+      expect(
+        setup.readEntryBlock(path, recovered.directory.records.single),
+        orderedEquals(List<int>.filled(112, 6)),
+      );
+    });
+  }
 }
 
 VaultFileHeader _header() => VaultFileHeader(
