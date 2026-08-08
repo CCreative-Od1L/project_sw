@@ -128,4 +128,18 @@ void main() {
     );
     clearSensitiveBytes(transcriptMac);
   });
+
+  test('protects the final transfer frame without self-including its MAC', () {
+    final MigrationSessionFrame entry = sender.seal(
+      MigrationMessageType.entry,
+      Uint8List.fromList(<int>[4]),
+    );
+    receiver.open(entry);
+
+    final MigrationSessionFrame transferEnd = sender.sealTransferEnd();
+    final Uint8List transcriptMac = receiver.openTransferEnd(transferEnd);
+    expect(transcriptMac, hasLength(32));
+    receiver.verifyTranscriptMac(transcriptMac);
+    clearSensitiveBytes(transcriptMac);
+  });
 }
