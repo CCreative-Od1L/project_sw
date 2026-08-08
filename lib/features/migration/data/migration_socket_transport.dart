@@ -19,8 +19,20 @@ final class MigrationTransportException implements Exception {
   String toString() => 'MigrationTransportException: $message';
 }
 
+/// Minimal frame transport consumed by the migration coordinator.
+abstract interface class MigrationFrameTransport {
+  /// Sends one complete authenticated frame.
+  Future<void> send(MigrationSessionFrame frame);
+
+  /// Receives one complete authenticated frame.
+  Future<MigrationSessionFrame> receive();
+
+  /// Closes the transport.
+  Future<void> close();
+}
+
 /// Length-prefixed TCP transport for authenticated migration frames.
-final class MigrationSocketTransport {
+final class MigrationSocketTransport implements MigrationFrameTransport {
   MigrationSocketTransport._(this._socket, this._timeout)
     : _chunks = StreamIterator<Uint8List>(_socket);
 
@@ -52,6 +64,7 @@ final class MigrationSocketTransport {
   }
 
   /// Sends one complete length-prefixed frame.
+  @override
   Future<void> send(MigrationSessionFrame frame) async {
     _ensureOpen();
     final Uint8List encoded = frame.encode();
@@ -76,6 +89,7 @@ final class MigrationSocketTransport {
   }
 
   /// Receives and decodes exactly one complete frame.
+  @override
   Future<MigrationSessionFrame> receive() async {
     _ensureOpen();
     try {
@@ -92,6 +106,7 @@ final class MigrationSocketTransport {
   }
 
   /// Closes the socket and releases the stream iterator.
+  @override
   Future<void> close() async {
     if (_closed) {
       return;
