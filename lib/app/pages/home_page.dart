@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
@@ -13,6 +14,7 @@ import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
 import 'package:project_sw/features/generator/domain/password_generator.dart';
 import 'package:project_sw/app/pages/generator_page.dart';
+import 'package:project_sw/app/route_paths.dart';
 import 'package:project_sw/features/search/domain/search_entries.dart';
 
 /// Unlocked home route with the EntrySummary list and add-entry form.
@@ -130,6 +132,13 @@ final class _HomeContentState extends State<_HomeContent>
     final VaultEntriesCubit? cubit = widget.vaultEntriesCubit;
     return SessionPageScaffold(
       title: context.l10n.vault,
+      actions: <Widget>[
+        IconButton(
+          onPressed: () => context.push(migrationRoutePath),
+          icon: const Icon(Icons.compare_arrows_outlined),
+          tooltip: context.l10n.migrateVault,
+        ),
+      ],
       child: ListView(
         children: <Widget>[
           Text(

@@ -30,6 +30,7 @@ final class ProjectSwApp extends StatefulWidget {
     this.sensitiveClipboardController,
     this.generatorPageBuilder,
     this.settingsPageBuilder,
+    this.migrationPageBuilder,
     this.generatePassword,
     this.passwordRandomSource,
   });
@@ -61,6 +62,9 @@ final class ProjectSwApp extends StatefulWidget {
   /// Optional injected settings route used by the settings feature slice.
   final WidgetBuilder? settingsPageBuilder;
 
+  /// Optional injected unlocked migration route.
+  final WidgetBuilder? migrationPageBuilder;
+
   /// Generator use case injected at the application composition root.
   final GeneratePassword? generatePassword;
 
@@ -82,6 +86,7 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     vaultEntriesCubit: widget.vaultEntriesCubit,
     generatorPageBuilder: widget.generatorPageBuilder,
     settingsPageBuilder: widget.settingsPageBuilder,
+    migrationPageBuilder: widget.migrationPageBuilder,
     generatePassword: widget.generatePassword,
     passwordRandomSource: widget.passwordRandomSource,
   );

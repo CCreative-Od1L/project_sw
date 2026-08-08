@@ -30,6 +30,8 @@
 	<string>Use Face ID to unlock your password vault.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Use the local network to migrate your password vault between your devices.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Project SW uses the camera to scan a migration pairing QR code.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
