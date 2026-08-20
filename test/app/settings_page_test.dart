@@ -5,7 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/app/pages/settings_page.dart';
 import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
+import 'package:project_sw/features/auth/domain/change_master_password.dart';
+import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
+import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/l10n/generated/app_localizations.dart';
 
@@ -85,6 +91,82 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('changes the master password from one security dialog', (
+    WidgetTester tester,
+  ) async {
+    final _SettingsPasswordChangeRepository changeRepository =
+        _SettingsPasswordChangeRepository();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+      timerFactory: (Duration _, void Function() _) => _SettingsSessionTimer(),
+    );
+    final MasterPasswordChangeCubit changeCubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(changeRepository),
+      sessionController,
+    );
+    addTearDown(changeCubit.close);
+    addTearDown(sessionController.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SettingsPage(masterPasswordChangeCubit: changeCubit),
+      ),
+    );
+
+    final Finder changeButton = find.text('Change master password');
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(changeButton);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('current-master-password')),
+      'current password',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('new-master-password')),
+      'new password',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('confirm-new-master-password')),
+      'new password',
+    );
+    await tester.tap(find.text('Change password'));
+    await tester.pumpAndSettle();
+
+    expect(changeRepository.calls, <(String, String)>[
+      ('current password', 'new password'),
+    ]);
+    expect(find.text('Master password changed'), findsOneWidget);
+    expect(
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.masterPassword,
+    );
+  });
+}
+
+final class _SettingsPasswordChangeRepository
+    implements MasterPasswordChangeRepository {
+  final List<(String, String)> calls = <(String, String)>[];
+
+  @override
+  Future<void> changeMasterPassword({
+    required String currentMasterPassword,
+    required String newMasterPassword,
+  }) async {
+    calls.add((currentMasterPassword, newMasterPassword));
+  }
+}
+
+final class _SettingsSessionTimer implements SessionTimer {
+  var _active = true;
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  void cancel() => _active = false;
 }
 
 final class SettingsVaultRepository implements VaultRepository {
