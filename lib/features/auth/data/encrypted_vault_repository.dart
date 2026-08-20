@@ -9,6 +9,7 @@ import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.da
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/data/vault_entry_json_codec.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -25,6 +26,7 @@ final class EncryptedVaultRepository
         BiometricVaultRepository,
         MasterPasswordVerifier,
         MasterPasswordChangeRepository,
+        MasterPasswordRecoveryRepository,
         MigrationVaultPort {
   /// Creates a repository with a production or test [vaultPathResolver].
   EncryptedVaultRepository({
@@ -644,7 +646,8 @@ final class EncryptedVaultRepository
   /// Verifies the master password while preserving the current unlocked data.
   @override
   Future<void> verifyMasterPassword(String masterPassword) async {
-    if (_masterVaultKey == null) {
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) {
       throw const VaultLockedException();
     }
     Uint8List? kek;
@@ -692,6 +695,9 @@ final class EncryptedVaultRepository
       } on Object {
         throw const InvalidMasterPasswordException();
       }
+      if (!_sameBytes(verifiedMasterVaultKey, masterVaultKey)) {
+        throw const VaultCorruptedException();
+      }
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -728,15 +734,19 @@ final class EncryptedVaultRepository
     required String currentMasterPassword,
     required String newMasterPassword,
   }) async {
+    await verifyMasterPassword(currentMasterPassword);
+    await recoverMasterPassword(newMasterPassword: newMasterPassword);
+  }
+
+  /// Re-wraps the unlocked MVK after the domain recovery gates have passed.
+  @override
+  Future<void> recoverMasterPassword({
+    required String newMasterPassword,
+  }) async {
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
     }
-    Uint8List? currentKek;
-    Uint8List? currentAad;
-    Uint8List? currentNonce;
-    Uint8List? currentCiphertext;
-    Uint8List? verifiedMasterVaultKey;
     Uint8List? newSalt;
     Uint8List? newKek;
     Uint8List? newAad;
@@ -748,49 +758,6 @@ final class EncryptedVaultRepository
       final String path = await vaultPathResolver();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
-      currentKek = await crypto.deriveKek(
-        currentMasterPassword,
-        header.kdfSalt,
-        memoryKiB: header.kdfParameters.memoryKiB,
-        iterations: header.kdfParameters.iterations,
-        parallelism: header.kdfParameters.parallelism,
-      );
-      final Uint8List currentKdfBytes = _encodeVaultKdfParameters(
-        header.kdfParameters,
-      );
-      try {
-        currentAad = AadBuilder.forWrapMvk(
-          magic: vaultMagic,
-          formatVersion: vaultFormatVersion,
-          kdfAlgorithmId: header.kdfAlgorithmId,
-          kdfParameters: currentKdfBytes,
-          kdfSalt: header.kdfSalt,
-        );
-      } finally {
-        clearSensitiveBytes(currentKdfBytes);
-      }
-      currentNonce = Uint8List.fromList(
-        header.wrappedMasterVaultKey.sublist(0, 24),
-      );
-      currentCiphertext = Uint8List.fromList(
-        header.wrappedMasterVaultKey.sublist(24),
-      );
-      try {
-        verifiedMasterVaultKey = crypto.decryptWithAead(
-          currentKek,
-          currentNonce,
-          currentCiphertext,
-          currentAad,
-        );
-      } on VaultException {
-        rethrow;
-      } on Object {
-        throw const InvalidMasterPasswordException();
-      }
-      if (!_sameBytes(verifiedMasterVaultKey, masterVaultKey)) {
-        throw const VaultCorruptedException();
-      }
-
       newSalt = crypto.randomBytes(16);
       if (newSalt.length != 16) {
         throw const CryptoInitializationException();
@@ -851,11 +818,6 @@ final class EncryptedVaultRepository
         newAad,
         newKek,
         newSalt,
-        verifiedMasterVaultKey,
-        currentCiphertext,
-        currentNonce,
-        currentAad,
-        currentKek,
       ]) {
         if (bytes != null) {
           clearSensitiveBytes(bytes);
