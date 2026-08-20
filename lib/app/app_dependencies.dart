@@ -12,6 +12,7 @@ import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/data/biometric_recovery_confirmer.dart';
 import 'package:project_sw/features/auth/data/file_master_password_recovery_store.dart';
+import 'package:project_sw/features/auth/data/file_vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
@@ -28,7 +29,9 @@ import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.d
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/domain/verify_master_password.dart';
+import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
@@ -51,6 +54,7 @@ void registerAppDependencies(
   CryptoService? cryptoService,
   VaultPathResolver? vaultPathResolver,
   RecoveryStatePathResolver? recoveryStatePathResolver,
+  VaultWipeTargetPathsResolver? vaultWipeTargetPathsResolver,
   ClipboardPort? clipboardPort,
   BiometricKeyStore? biometricKeyStore,
 }) {
@@ -157,6 +161,36 @@ void registerAppDependencies(
   }
   if (serviceLocator.isRegistered<EncryptedVaultRepository>()) {
     if (serviceLocator.isRegistered<BiometricKeyStore>() &&
+        vaultPathResolver != null &&
+        recoveryStatePathResolver != null) {
+      final VaultWipeTargetPathsResolver wipeTargets =
+          vaultWipeTargetPathsResolver ??
+          () async {
+            final String vaultPath = await vaultPathResolver();
+            final String recoveryPath = await recoveryStatePathResolver();
+            return <String>[
+              vaultPath,
+              '$vaultPath.bak',
+              '$vaultPath.tmp',
+              '$vaultPath.migration.tmp',
+              recoveryPath,
+              '$recoveryPath.tmp',
+            ];
+          };
+      serviceLocator.registerSingleton<VaultWipeRepository>(
+        FileVaultWipeRepository(
+          biometricKeyStore: serviceLocator<BiometricKeyStore>(),
+          targetPathsResolver: wipeTargets,
+        ),
+      );
+      serviceLocator.registerSingleton<WipeVault>(
+        WipeVault(
+          serviceLocator<VaultWipeRepository>(),
+          serviceLocator<SessionController>(),
+        ),
+      );
+    }
+    if (serviceLocator.isRegistered<BiometricKeyStore>() &&
         recoveryStatePathResolver != null) {
       serviceLocator.registerSingleton<MasterPasswordRecoveryStore>(
         FileMasterPasswordRecoveryStore(
@@ -252,6 +286,8 @@ void registerAppDependencies(
 /// Initializes native crypto and the application-support vault location.
 Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
   final Directory appSupportDirectory = await getApplicationSupportDirectory();
+  final Directory appDocumentsDirectory =
+      await getApplicationDocumentsDirectory();
   final String vaultPath =
       '${appSupportDirectory.path}${Platform.pathSeparator}vault.psw';
   final String recoveryStatePath =
@@ -264,6 +300,15 @@ Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
     cryptoService: cryptoService,
     vaultPathResolver: () async => vaultPath,
     recoveryStatePathResolver: () async => recoveryStatePath,
+    vaultWipeTargetPathsResolver: () async => <String>[
+      vaultPath,
+      '$vaultPath.bak',
+      '$vaultPath.tmp',
+      '$vaultPath.migration.tmp',
+      recoveryStatePath,
+      '$recoveryStatePath.tmp',
+      '${appDocumentsDirectory.path}${Platform.pathSeparator}logs',
+    ],
     biometricKeyStore: const MethodChannelBiometricKeyStore(),
   );
 }

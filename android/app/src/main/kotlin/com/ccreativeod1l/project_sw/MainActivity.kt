@@ -125,11 +125,25 @@ class MainActivity : FlutterFragmentActivity() {
     private fun deleteKey(result: MethodChannel.Result) {
         try {
             deleteKeystoreKey()
-            getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+            val preferences = getSharedPreferences(
+                PREFERENCES_NAME,
+                Context.MODE_PRIVATE,
+            )
+            val removed = preferences
                 .edit()
                 .remove(ENVELOPE_KEY)
                 .commit()
-            result.success(null)
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
+                load(null)
+            }
+            if (removed &&
+                !preferences.contains(ENVELOPE_KEY) &&
+                !keyStore.containsAlias(KEY_ALIAS)
+            ) {
+                result.success(null)
+            } else {
+                result.error(ERROR_AUTHENTICATION, null, null)
+            }
         } catch (error: Exception) {
             result.error(ERROR_AUTHENTICATION, null, null)
         }

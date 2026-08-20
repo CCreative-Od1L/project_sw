@@ -108,7 +108,9 @@ import UIKit
 
   private func deleteKey(result: @escaping FlutterResult) {
     let status = deleteKeychainItem()
-    if status == errSecSuccess || status == errSecItemNotFound {
+    let verification = keychainItemStatus()
+    let deletionSucceeded = status == errSecSuccess || status == errSecItemNotFound
+    if deletionSucceeded && verification == errSecItemNotFound {
       result(nil)
     } else {
       result(flutterError("authentication_failed"))
@@ -123,6 +125,16 @@ import UIKit
       kSecAttrAccount: keychainAccount,
     ]
     return SecItemDelete(query as CFDictionary)
+  }
+
+  private func keychainItemStatus() -> OSStatus {
+    let query: [CFString: Any] = [
+      kSecClass: kSecClassGenericPassword,
+      kSecAttrService: keychainService,
+      kSecAttrAccount: keychainAccount,
+      kSecMatchLimit: kSecMatchLimitOne,
+    ]
+    return SecItemCopyMatching(query as CFDictionary, nil)
   }
 
   private func isBiometricAvailable() -> Bool {

@@ -14,6 +14,8 @@ import 'package:project_sw/features/auth/domain/recovery/master_password_recover
 import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
+import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
+import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 
@@ -93,6 +95,8 @@ void main() {
       serviceLocator<MasterPasswordChangeCubit>(),
       isA<MasterPasswordChangeCubit>(),
     );
+    expect(serviceLocator<VaultWipeRepository>(), isA<VaultWipeRepository>());
+    expect(serviceLocator<WipeVault>(), isA<WipeVault>());
   });
 }
 

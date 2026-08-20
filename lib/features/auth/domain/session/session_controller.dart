@@ -137,6 +137,22 @@ final class SessionController extends ChangeNotifier {
     _transition(LockedSession(reason: reason));
   }
 
+  /// Clears unlocked state and blocks every route while a wipe is in progress.
+  void beginWipe() {
+    lock(LockReason.wipeStarted);
+  }
+
+  /// Publishes first-run setup only after durable wipe verification succeeds.
+  void completeWipe() {
+    final SessionState current = _state;
+    if (current is! LockedSession || current.reason != LockReason.wipeStarted) {
+      throw StateError('Only an active wipe can publish first-run setup.');
+    }
+    _cancelIdleTimer();
+    _lockSuppressionReason = null;
+    _transition(const VaultNotCreatedSession());
+  }
+
   /// Upgrades an unlocked biometric session to master-password strength.
   ///
   /// The password verification itself belongs to the authentication use case;
