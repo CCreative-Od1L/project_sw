@@ -10,12 +10,19 @@ import 'package:project_sw/core/observability/logger.dart';
 import 'package:project_sw/core/observability/redaction_filter.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/features/auth/data/biometric_recovery_confirmer.dart';
+import 'package:project_sw/features/auth/data/file_master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
+import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
+import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
@@ -43,6 +50,7 @@ void registerAppDependencies(
   AppConfig config = const AppConfig(),
   CryptoService? cryptoService,
   VaultPathResolver? vaultPathResolver,
+  RecoveryStatePathResolver? recoveryStatePathResolver,
   ClipboardPort? clipboardPort,
   BiometricKeyStore? biometricKeyStore,
 }) {
@@ -148,6 +156,32 @@ void registerAppDependencies(
     );
   }
   if (serviceLocator.isRegistered<EncryptedVaultRepository>()) {
+    if (serviceLocator.isRegistered<BiometricKeyStore>() &&
+        recoveryStatePathResolver != null) {
+      serviceLocator.registerSingleton<MasterPasswordRecoveryStore>(
+        FileMasterPasswordRecoveryStore(
+          pathResolver: recoveryStatePathResolver,
+        ),
+      );
+      serviceLocator.registerSingleton<MasterPasswordRecoveryGate>(
+        MasterPasswordRecoveryGate(
+          serviceLocator<MasterPasswordRecoveryStore>(),
+        ),
+      );
+      serviceLocator.registerSingleton<BiometricRecoveryConfirmer>(
+        BiometricKeyStoreRecoveryConfirmer(serviceLocator<BiometricKeyStore>()),
+      );
+      serviceLocator.registerSingleton<MasterPasswordRecoveryRepository>(
+        serviceLocator<EncryptedVaultRepository>(),
+      );
+      serviceLocator.registerSingleton<RecoverMasterPassword>(
+        RecoverMasterPassword(
+          gate: serviceLocator<MasterPasswordRecoveryGate>(),
+          biometricConfirmer: serviceLocator<BiometricRecoveryConfirmer>(),
+          repository: serviceLocator<MasterPasswordRecoveryRepository>(),
+        ),
+      );
+    }
     serviceLocator.registerSingleton<MasterPasswordChangeRepository>(
       serviceLocator<EncryptedVaultRepository>(),
     );
@@ -158,6 +192,18 @@ void registerAppDependencies(
       MasterPasswordChangeCubit(
         serviceLocator<ChangeMasterPassword>(),
         serviceLocator<SessionController>(),
+        recoveryGate: serviceLocator.isRegistered<MasterPasswordRecoveryGate>()
+            ? serviceLocator<MasterPasswordRecoveryGate>()
+            : null,
+        hasConfiguredBiometricRecovery:
+            serviceLocator.isRegistered<RecoverMasterPassword>()
+            ? serviceLocator<EncryptedVaultRepository>()
+                  .hasConfiguredBiometricUnlock
+            : null,
+        recoverMasterPassword:
+            serviceLocator.isRegistered<RecoverMasterPassword>()
+            ? serviceLocator<RecoverMasterPassword>()
+            : null,
       ),
       dispose: (MasterPasswordChangeCubit cubit) => cubit.close(),
     );
@@ -208,12 +254,16 @@ Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
   final Directory appSupportDirectory = await getApplicationSupportDirectory();
   final String vaultPath =
       '${appSupportDirectory.path}${Platform.pathSeparator}vault.psw';
+  final String recoveryStatePath =
+      '${appSupportDirectory.path}${Platform.pathSeparator}'
+      'master_password_recovery.json';
   final CryptoService cryptoService = await SodiumCryptoService.initialize();
   registerAppDependencies(
     serviceLocator,
     config: AppConfig(vaultExistsAtLaunch: File(vaultPath).existsSync()),
     cryptoService: cryptoService,
     vaultPathResolver: () async => vaultPath,
+    recoveryStatePathResolver: () async => recoveryStatePath,
     biometricKeyStore: const MethodChannelBiometricKeyStore(),
   );
 }
