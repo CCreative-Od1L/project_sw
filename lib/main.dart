@@ -8,6 +8,7 @@ import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
@@ -47,6 +48,8 @@ Future<void> main() async {
         config: appServiceLocator<AppConfig>(),
         vaultRepository: appServiceLocator<VaultRepository>(),
         stepUpCubit: appServiceLocator<StepUpCubit>(),
+        masterPasswordChangeCubit:
+            appServiceLocator<MasterPasswordChangeCubit>(),
         biometricSettingsCubit:
             appServiceLocator.isRegistered<BiometricSettingsCubit>()
             ? appServiceLocator<BiometricSettingsCubit>()

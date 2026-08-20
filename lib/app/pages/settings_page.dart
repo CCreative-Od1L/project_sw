@@ -6,6 +6,7 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 
 /// Security policy, active KDF metadata, and optional biometric settings.
@@ -17,6 +18,7 @@ final class SettingsPage extends StatefulWidget {
     this.vaultRepository,
     this.biometricSettingsCubit,
     this.stepUpCubit,
+    this.masterPasswordChangeCubit,
   });
 
   /// Fixed process policy used by the session and clipboard services.
@@ -30,6 +32,9 @@ final class SettingsPage extends StatefulWidget {
 
   /// Optional high-sensitivity master-password challenge coordinator.
   final StepUpCubit? stepUpCubit;
+
+  /// Optional coordinator for the master-password change dialog.
+  final MasterPasswordChangeCubit? masterPasswordChangeCubit;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -50,6 +55,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         config: widget.config,
         vaultRepository: widget.vaultRepository,
         stepUpCubit: widget.stepUpCubit,
+        masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
       );
     }
     return BlocProvider<BiometricSettingsCubit>.value(
@@ -62,6 +68,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             biometricSettingsCubit: cubit,
             biometricState: state,
             stepUpCubit: widget.stepUpCubit,
+            masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
           );
         },
       ),
@@ -76,6 +83,7 @@ final class _SettingsContent extends StatelessWidget {
     this.biometricSettingsCubit,
     this.biometricState,
     this.stepUpCubit,
+    this.masterPasswordChangeCubit,
   });
 
   final AppConfig config;
@@ -83,6 +91,22 @@ final class _SettingsContent extends StatelessWidget {
   final BiometricSettingsCubit? biometricSettingsCubit;
   final BiometricSettingsViewState? biometricState;
   final StepUpCubit? stepUpCubit;
+  final MasterPasswordChangeCubit? masterPasswordChangeCubit;
+
+  Future<void> _showMasterPasswordChange(BuildContext context) async {
+    final MasterPasswordChangeCubit? cubit = masterPasswordChangeCubit;
+    if (cubit == null) return;
+    cubit.reset();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) =>
+          BlocProvider<MasterPasswordChangeCubit>.value(
+            value: cubit,
+            child: const _MasterPasswordChangeDialog(),
+          ),
+    );
+  }
 
   Future<void> _confirmAndRun(
     BuildContext context, {
@@ -184,6 +208,39 @@ final class _SettingsContent extends StatelessWidget {
               ),
             ),
           ),
+          if (masterPasswordChangeCubit != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        const Icon(Icons.password_outlined),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            context.l10n.masterPasswordSettings,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(context.l10n.masterPasswordChangeDescription),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton.tonal(
+                        onPressed: () => _showMasterPasswordChange(context),
+                        child: Text(context.l10n.changeMasterPassword),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (biometricSettingsCubit != null && biometricState != null)
             _BiometricSettingsCard(
               state: biometricState!,
@@ -299,6 +356,145 @@ final class _BiometricSettingsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+final class _MasterPasswordChangeDialog extends StatefulWidget {
+  const _MasterPasswordChangeDialog();
+
+  @override
+  State<_MasterPasswordChangeDialog> createState() =>
+      _MasterPasswordChangeDialogState();
+}
+
+final class _MasterPasswordChangeDialogState
+    extends State<_MasterPasswordChangeDialog> {
+  final TextEditingController _currentController = TextEditingController();
+  final TextEditingController _newController = TextEditingController();
+  final TextEditingController _confirmationController = TextEditingController();
+
+  @override
+  void dispose() {
+    _currentController
+      ..clear()
+      ..dispose();
+    _newController
+      ..clear()
+      ..dispose();
+    _confirmationController
+      ..clear()
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<
+      MasterPasswordChangeCubit,
+      MasterPasswordChangeViewState
+    >(
+      listener: (BuildContext context, MasterPasswordChangeViewState state) {
+        if (state is MasterPasswordChangeCompleted) {
+          final ScaffoldMessengerState messenger = ScaffoldMessenger.of(
+            context,
+          );
+          Navigator.of(context).pop();
+          messenger.showSnackBar(
+            SnackBar(content: Text(context.l10n.masterPasswordChanged)),
+          );
+        }
+      },
+      builder: (BuildContext context, MasterPasswordChangeViewState state) {
+        final bool working = state is MasterPasswordChangeWorking;
+        final String? errorText = switch (state) {
+          MasterPasswordChangeInvalidCurrent() =>
+            context.l10n.currentMasterPasswordInvalid,
+          MasterPasswordChangeInvalidNew() =>
+            context.l10n.newMasterPasswordRequired,
+          MasterPasswordChangeConfirmationMismatch() =>
+            context.l10n.newMasterPasswordsDoNotMatch,
+          MasterPasswordChangeFault() =>
+            context.l10n.masterPasswordChangeFailed,
+          _ => null,
+        };
+        return AlertDialog(
+          title: Text(context.l10n.changeMasterPasswordTitle),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(context.l10n.masterPasswordChangeWarning),
+                const SizedBox(height: 16),
+                TextField(
+                  key: const ValueKey<String>('current-master-password'),
+                  controller: _currentController,
+                  autofocus: true,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  enabled: !working,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.currentMasterPassword,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const ValueKey<String>('new-master-password'),
+                  controller: _newController,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  enabled: !working,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.newMasterPassword,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const ValueKey<String>('confirm-new-master-password'),
+                  controller: _confirmationController,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  enabled: !working,
+                  onSubmitted: working ? null : (_) => _submit(context),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.confirmNewMasterPassword,
+                    errorText: errorText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: working ? null : () => Navigator.of(context).pop(),
+              child: Text(context.l10n.close),
+            ),
+            FilledButton(
+              onPressed: working ? null : () => _submit(context),
+              child: working
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.l10n.changePassword),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _submit(BuildContext context) {
+    context.read<MasterPasswordChangeCubit>().submit(
+      currentMasterPassword: _currentController.text,
+      newMasterPassword: _newController.text,
+      confirmation: _confirmationController.text,
     );
   }
 }

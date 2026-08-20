@@ -12,7 +12,9 @@ import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
+import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
@@ -23,6 +25,7 @@ import 'package:project_sw/features/auth/domain/verify_master_password.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
@@ -145,6 +148,19 @@ void registerAppDependencies(
     );
   }
   if (serviceLocator.isRegistered<EncryptedVaultRepository>()) {
+    serviceLocator.registerSingleton<MasterPasswordChangeRepository>(
+      serviceLocator<EncryptedVaultRepository>(),
+    );
+    serviceLocator.registerSingleton<ChangeMasterPassword>(
+      ChangeMasterPassword(serviceLocator<MasterPasswordChangeRepository>()),
+    );
+    serviceLocator.registerSingleton<MasterPasswordChangeCubit>(
+      MasterPasswordChangeCubit(
+        serviceLocator<ChangeMasterPassword>(),
+        serviceLocator<SessionController>(),
+      ),
+      dispose: (MasterPasswordChangeCubit cubit) => cubit.close(),
+    );
     serviceLocator.registerSingleton<MasterPasswordVerifier>(
       serviceLocator<EncryptedVaultRepository>(),
     );

@@ -572,6 +572,90 @@ abstract class AppLocalizations {
   /// **'No credentials or vault plaintext are shown here.'**
   String get settingsNoCredentials;
 
+  /// No description provided for @masterPasswordSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password'**
+  String get masterPasswordSettings;
+
+  /// No description provided for @masterPasswordChangeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing it creates a fresh salt and re-wraps the vault key without re-encrypting your entries.'**
+  String get masterPasswordChangeDescription;
+
+  /// No description provided for @changeMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change master password'**
+  String get changeMasterPassword;
+
+  /// No description provided for @changeMasterPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change master password'**
+  String get changeMasterPasswordTitle;
+
+  /// No description provided for @masterPasswordChangeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This security-sensitive action verifies your current master password. Keep the new password safe; it cannot be recovered without a valid biometric recovery path.'**
+  String get masterPasswordChangeWarning;
+
+  /// No description provided for @currentMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Current master password'**
+  String get currentMasterPassword;
+
+  /// No description provided for @newMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'New master password'**
+  String get newMasterPassword;
+
+  /// No description provided for @confirmNewMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm new master password'**
+  String get confirmNewMasterPassword;
+
+  /// No description provided for @changePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change password'**
+  String get changePassword;
+
+  /// No description provided for @masterPasswordChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password changed'**
+  String get masterPasswordChanged;
+
+  /// No description provided for @currentMasterPasswordInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Current master password is incorrect.'**
+  String get currentMasterPasswordInvalid;
+
+  /// No description provided for @newMasterPasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a new master password.'**
+  String get newMasterPasswordRequired;
+
+  /// No description provided for @newMasterPasswordsDoNotMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The new master passwords do not match.'**
+  String get newMasterPasswordsDoNotMatch;
+
+  /// No description provided for @masterPasswordChangeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The master password could not be changed.'**
+  String get masterPasswordChangeFailed;
+
   /// No description provided for @biometricSettings.
   ///
   /// In en, this message translates to:
