@@ -6,7 +6,9 @@ import 'package:project_sw/app/pages/settings_page.dart';
 import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
+import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
@@ -15,7 +17,11 @@ import 'package:project_sw/features/auth/domain/recovery/recover_master_password
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
+import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/domain/verify_master_password.dart';
+import 'package:project_sw/features/auth/domain/wipe_vault.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/l10n/generated/app_localizations.dart';
@@ -243,6 +249,61 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('rejects normal deletion before a current password verifies', (
+    WidgetTester tester,
+  ) async {
+    final _SettingsWipeRepository repository = _SettingsWipeRepository();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      timerFactory: (Duration _, void Function() _) => _SettingsSessionTimer(),
+    );
+    final AuthenticatedWipeCubit wipeCubit = AuthenticatedWipeCubit(
+      AuthenticatedWipeVault(
+        VerifyMasterPassword(
+          _SettingsWipeVerifier(error: const InvalidMasterPasswordException()),
+        ),
+        WipeVault(repository, sessionController),
+      ),
+    );
+    addTearDown(wipeCubit.close);
+    addTearDown(sessionController.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SettingsPage(authenticatedWipeCubit: wipeCubit),
+      ),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Permanently delete vault'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Enter the current master password'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('authenticated-wipe-password')),
+      'wrong password',
+    );
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Permanently delete vault').last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'The current master password is incorrect. Nothing was deleted.',
+      ),
+      findsOneWidget,
+    );
+    expect(repository.calls, 0);
+    expect(sessionController.state, isA<UnlockedSession>());
+  });
 }
 
 final class _SettingsPasswordChangeRepository
@@ -296,6 +357,25 @@ final class _SettingsRecoveryRepository
   }) async {
     passwords.add(newMasterPassword);
   }
+}
+
+final class _SettingsWipeVerifier implements MasterPasswordVerifier {
+  _SettingsWipeVerifier({this.error});
+
+  final Object? error;
+
+  @override
+  Future<void> verifyMasterPassword(String masterPassword) async {
+    final Object? failure = error;
+    if (failure != null) throw failure;
+  }
+}
+
+final class _SettingsWipeRepository implements VaultWipeRepository {
+  var calls = 0;
+
+  @override
+  Future<void> wipeVault() async => calls++;
 }
 
 final class _SettingsSessionTimer implements SessionTimer {

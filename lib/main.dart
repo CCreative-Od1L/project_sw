@@ -6,6 +6,7 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
@@ -54,6 +55,10 @@ Future<void> main() async {
         stepUpCubit: appServiceLocator<StepUpCubit>(),
         masterPasswordChangeCubit:
             appServiceLocator<MasterPasswordChangeCubit>(),
+        authenticatedWipeCubit:
+            appServiceLocator.isRegistered<AuthenticatedWipeCubit>()
+            ? appServiceLocator<AuthenticatedWipeCubit>()
+            : null,
         biometricSettingsCubit:
             appServiceLocator.isRegistered<BiometricSettingsCubit>()
             ? appServiceLocator<BiometricSettingsCubit>()

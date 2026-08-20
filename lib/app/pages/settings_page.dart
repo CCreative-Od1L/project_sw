@@ -7,6 +7,7 @@ import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/master_password_strength.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 
@@ -20,6 +21,7 @@ final class SettingsPage extends StatefulWidget {
     this.biometricSettingsCubit,
     this.stepUpCubit,
     this.masterPasswordChangeCubit,
+    this.authenticatedWipeCubit,
   });
 
   /// Fixed process policy used by the session and clipboard services.
@@ -36,6 +38,9 @@ final class SettingsPage extends StatefulWidget {
 
   /// Optional coordinator for the master-password change dialog.
   final MasterPasswordChangeCubit? masterPasswordChangeCubit;
+
+  /// Optional coordinator for current-password-authenticated vault deletion.
+  final AuthenticatedWipeCubit? authenticatedWipeCubit;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -57,6 +62,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         vaultRepository: widget.vaultRepository,
         stepUpCubit: widget.stepUpCubit,
         masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
+        authenticatedWipeCubit: widget.authenticatedWipeCubit,
       );
     }
     return BlocProvider<BiometricSettingsCubit>.value(
@@ -70,6 +76,7 @@ final class _SettingsPageState extends State<SettingsPage> {
             biometricState: state,
             stepUpCubit: widget.stepUpCubit,
             masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
+            authenticatedWipeCubit: widget.authenticatedWipeCubit,
           );
         },
       ),
@@ -85,6 +92,7 @@ final class _SettingsContent extends StatelessWidget {
     this.biometricState,
     this.stepUpCubit,
     this.masterPasswordChangeCubit,
+    this.authenticatedWipeCubit,
   });
 
   final AppConfig config;
@@ -93,6 +101,7 @@ final class _SettingsContent extends StatelessWidget {
   final BiometricSettingsViewState? biometricState;
   final StepUpCubit? stepUpCubit;
   final MasterPasswordChangeCubit? masterPasswordChangeCubit;
+  final AuthenticatedWipeCubit? authenticatedWipeCubit;
 
   Future<void> _showMasterPasswordChange(BuildContext context) async {
     final MasterPasswordChangeCubit? cubit = masterPasswordChangeCubit;
@@ -106,6 +115,21 @@ final class _SettingsContent extends StatelessWidget {
           BlocProvider<MasterPasswordChangeCubit>.value(
             value: cubit,
             child: const _MasterPasswordChangeDialog(),
+          ),
+    );
+  }
+
+  Future<void> _showAuthenticatedWipe(BuildContext context) async {
+    final AuthenticatedWipeCubit? cubit = authenticatedWipeCubit;
+    if (cubit == null) return;
+    cubit.reset();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) =>
+          BlocProvider<AuthenticatedWipeCubit>.value(
+            value: cubit,
+            child: const _AuthenticatedWipeDialog(),
           ),
     );
   }
@@ -248,6 +272,59 @@ final class _SettingsContent extends StatelessWidget {
               state: biometricState!,
               onEnable: () => _confirmAndRun(context, enable: true),
               onDisable: () => _confirmAndRun(context, enable: false),
+            ),
+          if (authenticatedWipeCubit != null)
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.delete_forever_outlined,
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            context.l10n.deleteVaultSettings,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      context.l10n.deleteVaultDescription,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton(
+                        onPressed: () => _showAuthenticatedWipe(context),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onError,
+                        ),
+                        child: Text(context.l10n.deleteVaultAction),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           const SizedBox(height: 8),
           Text(
@@ -643,6 +720,111 @@ final class _MasterPasswordChangeDialogState
     MasterPasswordStrength.strong => context.l10n.strengthStrong,
     MasterPasswordStrength.veryStrong => context.l10n.strengthVeryStrong,
   };
+}
+
+final class _AuthenticatedWipeDialog extends StatefulWidget {
+  const _AuthenticatedWipeDialog();
+
+  @override
+  State<_AuthenticatedWipeDialog> createState() =>
+      _AuthenticatedWipeDialogState();
+}
+
+final class _AuthenticatedWipeDialogState
+    extends State<_AuthenticatedWipeDialog> {
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _passwordController
+      ..clear()
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<AuthenticatedWipeCubit, AuthenticatedWipeViewState>(
+      listener: (BuildContext context, AuthenticatedWipeViewState state) {
+        if (state is AuthenticatedWipeCompleted) {
+          final ScaffoldMessengerState messenger = ScaffoldMessenger.of(
+            context,
+          );
+          Navigator.of(context).pop();
+          messenger.showSnackBar(
+            SnackBar(content: Text(context.l10n.vaultDeleted)),
+          );
+        }
+      },
+      builder: (BuildContext context, AuthenticatedWipeViewState state) {
+        final bool working = state is AuthenticatedWipeWorking;
+        final String? errorText = switch (state) {
+          AuthenticatedWipeInvalidPassword() =>
+            context.l10n.deleteVaultInvalidPassword,
+          AuthenticatedWipeFault() => context.l10n.deleteVaultFailed,
+          _ => null,
+        };
+        return AlertDialog(
+          icon: Icon(
+            Icons.delete_forever_outlined,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: Text(context.l10n.deleteVaultSettings),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                context.l10n.deleteVaultWarning,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                key: const ValueKey<String>('authenticated-wipe-password'),
+                controller: _passwordController,
+                autofocus: true,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                enabled: !working,
+                onSubmitted: working ? null : (_) => _submit(context),
+                decoration: InputDecoration(
+                  labelText: context.l10n.currentMasterPassword,
+                  errorText: errorText,
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: working ? null : () => Navigator.of(context).pop(),
+              child: Text(context.l10n.close),
+            ),
+            FilledButton(
+              onPressed: working ? null : () => _submit(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              child: working
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.l10n.deleteVaultAction),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _submit(BuildContext context) {
+    context.read<AuthenticatedWipeCubit>().submit(_passwordController.text);
+  }
 }
 
 final class _StepUpDialog extends StatefulWidget {

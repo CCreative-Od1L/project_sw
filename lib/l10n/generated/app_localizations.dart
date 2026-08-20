@@ -788,6 +788,48 @@ abstract class AppLocalizations {
   /// **'Deletion did not complete. Setup remains blocked; review the warning and retry.'**
   String get deadlockWipeFailed;
 
+  /// No description provided for @deleteVaultSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete vault'**
+  String get deleteVaultSettings;
+
+  /// No description provided for @deleteVaultDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete this vault, its backups, recovery state, local logs, and biometric key.'**
+  String get deleteVaultDescription;
+
+  /// No description provided for @deleteVaultWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes every password and cannot be undone. Enter the current master password to continue.'**
+  String get deleteVaultWarning;
+
+  /// No description provided for @deleteVaultAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete vault'**
+  String get deleteVaultAction;
+
+  /// No description provided for @deleteVaultInvalidPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'The current master password is incorrect. Nothing was deleted.'**
+  String get deleteVaultInvalidPassword;
+
+  /// No description provided for @deleteVaultFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion did not complete. Setup remains blocked until every target can be removed.'**
+  String get deleteVaultFailed;
+
+  /// No description provided for @vaultDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault permanently deleted'**
+  String get vaultDeleted;
+
   /// No description provided for @biometricSettings.
   ///
   /// In en, this message translates to:

@@ -14,6 +14,7 @@ import 'package:project_sw/features/auth/data/biometric_recovery_confirmer.dart'
 import 'package:project_sw/features/auth/data/file_master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/data/file_vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
@@ -33,6 +34,7 @@ import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/domain/verify_master_password.dart';
 import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
@@ -252,6 +254,18 @@ void registerAppDependencies(
     serviceLocator.registerSingleton<VerifyMasterPassword>(
       VerifyMasterPassword(serviceLocator<MasterPasswordVerifier>()),
     );
+    if (serviceLocator.isRegistered<WipeVault>()) {
+      serviceLocator.registerSingleton<AuthenticatedWipeVault>(
+        AuthenticatedWipeVault(
+          serviceLocator<VerifyMasterPassword>(),
+          serviceLocator<WipeVault>(),
+        ),
+      );
+      serviceLocator.registerSingleton<AuthenticatedWipeCubit>(
+        AuthenticatedWipeCubit(serviceLocator<AuthenticatedWipeVault>()),
+        dispose: (AuthenticatedWipeCubit cubit) => cubit.close(),
+      );
+    }
     serviceLocator.registerSingleton<StepUpCubit>(
       StepUpCubit(
         serviceLocator<VerifyMasterPassword>(),

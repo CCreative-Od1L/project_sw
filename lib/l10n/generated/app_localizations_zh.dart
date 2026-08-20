@@ -372,6 +372,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deadlockWipeFailed => '删除未完成。新建密码库仍被阻止；请检查警告后重试。';
 
   @override
+  String get deleteVaultSettings => '删除密码库';
+
+  @override
+  String get deleteVaultDescription => '永久删除此密码库、备份、恢复状态、本地日志和生物识别密钥。';
+
+  @override
+  String get deleteVaultWarning => '此操作将永久删除所有密码，且无法撤销。请输入当前主密码以继续。';
+
+  @override
+  String get deleteVaultAction => '永久删除密码库';
+
+  @override
+  String get deleteVaultInvalidPassword => '当前主密码不正确，未删除任何数据。';
+
+  @override
+  String get deleteVaultFailed => '删除未完成。在所有目标均可清除前，新建密码库仍被阻止。';
+
+  @override
+  String get vaultDeleted => '密码库已永久删除';
+
+  @override
   String get biometricSettings => '生物识别解锁';
 
   @override

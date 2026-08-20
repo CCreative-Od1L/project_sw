@@ -6,6 +6,7 @@ import 'package:project_sw/app/app_dependencies.dart';
 import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/observability/logger.dart';
 import 'package:project_sw/core/observability/redaction_filter.dart';
+import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
@@ -17,6 +18,7 @@ import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 
@@ -99,6 +101,14 @@ void main() {
     expect(serviceLocator<VaultWipeRepository>(), isA<VaultWipeRepository>());
     expect(serviceLocator<WipeVault>(), isA<WipeVault>());
     expect(serviceLocator<DeadlockWipeCubit>(), isA<DeadlockWipeCubit>());
+    expect(
+      serviceLocator<AuthenticatedWipeVault>(),
+      isA<AuthenticatedWipeVault>(),
+    );
+    expect(
+      serviceLocator<AuthenticatedWipeCubit>(),
+      isA<AuthenticatedWipeCubit>(),
+    );
   });
 }
 

@@ -393,6 +393,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'Deletion did not complete. Setup remains blocked; review the warning and retry.';
 
   @override
+  String get deleteVaultSettings => 'Delete vault';
+
+  @override
+  String get deleteVaultDescription =>
+      'Permanently delete this vault, its backups, recovery state, local logs, and biometric key.';
+
+  @override
+  String get deleteVaultWarning =>
+      'This permanently deletes every password and cannot be undone. Enter the current master password to continue.';
+
+  @override
+  String get deleteVaultAction => 'Permanently delete vault';
+
+  @override
+  String get deleteVaultInvalidPassword =>
+      'The current master password is incorrect. Nothing was deleted.';
+
+  @override
+  String get deleteVaultFailed =>
+      'Deletion did not complete. Setup remains blocked until every target can be removed.';
+
+  @override
+  String get vaultDeleted => 'Vault permanently deleted';
+
+  @override
   String get biometricSettings => 'Biometric unlock';
 
   @override
