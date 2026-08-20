@@ -20,7 +20,7 @@
 | **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 集成测试 | 阻止 PR 合并(分支保护要求状态检查通过) |
 | **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug 产物并上传 artifact;签名 release 产物由 `release.yml` 负责 | 不阻断主干,但 artifact 缺失可被发版流程检出 |
 | **`release.yml`(发版)** | `push` tag `v*.*.*` | 构建各平台 release 分发包、签名、创建 GitHub Release | 发版失败,不打 tag 不发版 |
-| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查(`fvm dart pub outdated`)、安全审计、SDK 上限漂移检测 | 仅报告,开 issue 跟踪 |
+| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查、pub 安全公告解析、锁定 SDK 工具链记录 | 生成报告 artifact,由 Dependabot PR 跟踪可用更新 |
 
 > 触发器与 [GIT_WORKFLOW.md §1.1/§4.2](../GIT_WORKFLOW.md) 对齐:PR 必过 `ci.yml`,tag 触发 `release.yml`。
 
@@ -250,7 +250,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
 2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
 3. **首次发版前**:落 `release.yml` + `scripts/build_android.sh` / `scripts/build_ios.sh` + 签名 secret 配置;跑通一次 tag → Release。
-4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)。
+4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)与 Dependabot 周期更新(已完成)。
 
 ## 13. 待决(实现期)
 
