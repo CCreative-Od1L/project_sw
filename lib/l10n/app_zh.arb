@@ -126,6 +126,23 @@
   "newMasterPasswordRequired": "请输入新主密码。",
   "newMasterPasswordsDoNotMatch": "两次输入的新主密码不一致。",
   "masterPasswordChangeFailed": "无法修改主密码。",
+  "recoverWithBiometrics": "使用生物识别恢复",
+  "recoverMasterPasswordTitle": "恢复主密码",
+  "masterPasswordRecoveryWarning": "任何通过此次生物识别验证的人都可以通过设置新主密码接管密码库。请仅在可信设备上继续。",
+  "recoverPassword": "恢复密码",
+  "masterPasswordRecovered": "主密码已恢复",
+  "syncRecoveryBackup": "请在冷备设备上同步更新新的主密码。",
+  "masterPasswordStrengthLabel": "密码强度：{strength}",
+  "@masterPasswordStrengthLabel": {
+    "placeholders": {
+      "strength": {"type": "String"}
+    }
+  },
+  "newMasterPasswordTooWeak": "请选择强度更高的主密码。",
+  "masterPasswordRecoveryUnavailable": "密码恢复目前不可用。",
+  "masterPasswordRecoveryCancelled": "已取消生物识别确认。",
+  "masterPasswordRecoveryBiometricUnavailable": "生物识别确认不可用，密码库未被修改。",
+  "masterPasswordRecoveryFailed": "无法恢复主密码。",
   "biometricSettings": "生物识别解锁",
   "biometricSecurityBoundary": "生物识别只会释放受设备保护的密码库密钥。应用不会保存主密码，主密码始终可作为退路。",
   "biometricEnabled": "此设备已启用生物识别解锁。",

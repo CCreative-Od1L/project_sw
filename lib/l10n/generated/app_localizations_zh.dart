@@ -301,6 +301,45 @@ class AppLocalizationsZh extends AppLocalizations {
   String get masterPasswordChangeFailed => '无法修改主密码。';
 
   @override
+  String get recoverWithBiometrics => '使用生物识别恢复';
+
+  @override
+  String get recoverMasterPasswordTitle => '恢复主密码';
+
+  @override
+  String get masterPasswordRecoveryWarning =>
+      '任何通过此次生物识别验证的人都可以通过设置新主密码接管密码库。请仅在可信设备上继续。';
+
+  @override
+  String get recoverPassword => '恢复密码';
+
+  @override
+  String get masterPasswordRecovered => '主密码已恢复';
+
+  @override
+  String get syncRecoveryBackup => '请在冷备设备上同步更新新的主密码。';
+
+  @override
+  String masterPasswordStrengthLabel(String strength) {
+    return '密码强度：$strength';
+  }
+
+  @override
+  String get newMasterPasswordTooWeak => '请选择强度更高的主密码。';
+
+  @override
+  String get masterPasswordRecoveryUnavailable => '密码恢复目前不可用。';
+
+  @override
+  String get masterPasswordRecoveryCancelled => '已取消生物识别确认。';
+
+  @override
+  String get masterPasswordRecoveryBiometricUnavailable => '生物识别确认不可用，密码库未被修改。';
+
+  @override
+  String get masterPasswordRecoveryFailed => '无法恢复主密码。';
+
+  @override
   String get biometricSettings => '生物识别解锁';
 
   @override

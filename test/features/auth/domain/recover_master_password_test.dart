@@ -68,6 +68,39 @@ void main() {
     expect(store.cooldownUntil, isNull);
   });
 
+  test('rejects a weak replacement before biometric confirmation', () async {
+    final _RecoveryStore store = _RecoveryStore();
+    final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await gate.recordChangePasswordFailure(biometricConfigured: true);
+    }
+    final _RecoveryConfirmer confirmer = _RecoveryConfirmer();
+    final _RecoveryRepository repository = _RecoveryRepository();
+    final RecoverMasterPassword recoverMasterPassword = RecoverMasterPassword(
+      gate: gate,
+      biometricConfirmer: confirmer,
+      repository: repository,
+    );
+
+    final Result<RecoveredMasterPassword, RecoverMasterPasswordFailure> result =
+        await recoverMasterPassword(newMasterPassword: 'short');
+
+    expect(
+      result,
+      isA<Failure<RecoveredMasterPassword, RecoverMasterPasswordFailure>>()
+          .having(
+            (
+              Failure<RecoveredMasterPassword, RecoverMasterPasswordFailure>
+              failure,
+            ) => failure.failure,
+            'failure',
+            RecoverMasterPasswordFailure.weakNewMasterPassword,
+          ),
+    );
+    expect(confirmer.confirmations, 0);
+    expect(repository.passwords, isEmpty);
+  });
+
   test('maps biometric cancellation without reserving cooldown', () async {
     final _RecoveryStore store = _RecoveryStore();
     final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);

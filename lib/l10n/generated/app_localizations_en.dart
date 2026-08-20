@@ -313,6 +313,50 @@ class AppLocalizationsEn extends AppLocalizations {
       'The master password could not be changed.';
 
   @override
+  String get recoverWithBiometrics => 'Recover with biometrics';
+
+  @override
+  String get recoverMasterPasswordTitle => 'Recover master password';
+
+  @override
+  String get masterPasswordRecoveryWarning =>
+      'Anyone who passes this biometric check can take over the vault by setting a new master password. Continue only on a trusted device.';
+
+  @override
+  String get recoverPassword => 'Recover password';
+
+  @override
+  String get masterPasswordRecovered => 'Master password recovered';
+
+  @override
+  String get syncRecoveryBackup =>
+      'Update any backup device with the new master password.';
+
+  @override
+  String masterPasswordStrengthLabel(String strength) {
+    return 'Password strength: $strength';
+  }
+
+  @override
+  String get newMasterPasswordTooWeak => 'Choose a stronger master password.';
+
+  @override
+  String get masterPasswordRecoveryUnavailable =>
+      'Password recovery is no longer available.';
+
+  @override
+  String get masterPasswordRecoveryCancelled =>
+      'Biometric confirmation was cancelled.';
+
+  @override
+  String get masterPasswordRecoveryBiometricUnavailable =>
+      'Biometric confirmation is unavailable. Your vault was not changed.';
+
+  @override
+  String get masterPasswordRecoveryFailed =>
+      'The master password could not be recovered.';
+
+  @override
   String get biometricSettings => 'Biometric unlock';
 
   @override
