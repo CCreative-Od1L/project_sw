@@ -264,17 +264,20 @@ final class _SettingsPasswordChangeRepository
 }
 
 final class _SettingsRecoveryStore implements MasterPasswordRecoveryStore {
-  DateTime? cooldownUntil;
+  MasterPasswordRecoveryMetadata metadata =
+      const MasterPasswordRecoveryMetadata();
 
   @override
-  Future<void> clearCooldown() async => cooldownUntil = null;
+  Future<void> clear() async {
+    metadata = const MasterPasswordRecoveryMetadata();
+  }
 
   @override
-  Future<DateTime?> readCooldownUntil() async => cooldownUntil;
+  Future<MasterPasswordRecoveryMetadata> read() async => metadata;
 
   @override
-  Future<void> writeCooldownUntil(DateTime value) async {
-    cooldownUntil = value;
+  Future<void> write(MasterPasswordRecoveryMetadata value) async {
+    metadata = value;
   }
 }
 
