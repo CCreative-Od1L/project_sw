@@ -1,4 +1,5 @@
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/master_password_strength.dart';
 import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
@@ -8,6 +9,9 @@ import 'package:project_sw/shared/result.dart';
 enum RecoverMasterPasswordFailure {
   /// The replacement password is empty.
   invalidNewMasterPassword,
+
+  /// The replacement remains in the documented weak strength band.
+  weakNewMasterPassword,
 
   /// Failure threshold, biometric configuration, or cooldown blocks recovery.
   recoveryUnavailable,
@@ -32,6 +36,7 @@ final class RecoverMasterPassword {
     required this.gate,
     required this.biometricConfirmer,
     required this.repository,
+    this.strengthEvaluator = const MasterPasswordStrengthEvaluator(),
   });
 
   /// Recovery eligibility and persistent cooldown policy.
@@ -43,6 +48,9 @@ final class RecoverMasterPassword {
   /// Atomic no-old-password MVK re-wrap.
   final MasterPasswordRecoveryRepository repository;
 
+  /// Chosen-password strength policy shared with recovery UI feedback.
+  final MasterPasswordStrengthEvaluator strengthEvaluator;
+
   /// Confirms recovery eligibility, biometrics, re-wrap, and cooldown.
   Future<Result<RecoveredMasterPassword, RecoverMasterPasswordFailure>> call({
     required String newMasterPassword,
@@ -52,6 +60,13 @@ final class RecoverMasterPassword {
         RecoveredMasterPassword,
         RecoverMasterPasswordFailure
       >(RecoverMasterPasswordFailure.invalidNewMasterPassword);
+    }
+    if (strengthEvaluator.evaluate(newMasterPassword).strength ==
+        MasterPasswordStrength.weak) {
+      return const Failure<
+        RecoveredMasterPassword,
+        RecoverMasterPasswordFailure
+      >(RecoverMasterPasswordFailure.weakNewMasterPassword);
     }
     final MasterPasswordRecoveryState state = await gate.currentState(
       biometricConfigured: true,

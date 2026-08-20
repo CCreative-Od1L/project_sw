@@ -4,6 +4,7 @@ import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
+import 'package:project_sw/features/auth/domain/master_password_strength.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
@@ -373,6 +374,10 @@ final class _MasterPasswordChangeDialogState
   final TextEditingController _currentController = TextEditingController();
   final TextEditingController _newController = TextEditingController();
   final TextEditingController _confirmationController = TextEditingController();
+  final MasterPasswordStrengthEvaluator _strengthEvaluator =
+      const MasterPasswordStrengthEvaluator();
+  var _recoveryMode = false;
+  MasterPasswordStrengthAssessment? _strengthAssessment;
 
   @override
   void dispose() {
@@ -395,18 +400,32 @@ final class _MasterPasswordChangeDialogState
       MasterPasswordChangeViewState
     >(
       listener: (BuildContext context, MasterPasswordChangeViewState state) {
-        if (state is MasterPasswordChangeCompleted) {
+        if (state is MasterPasswordChangeCompleted ||
+            state is MasterPasswordRecoveryCompleted) {
           final ScaffoldMessengerState messenger = ScaffoldMessenger.of(
             context,
           );
           Navigator.of(context).pop();
           messenger.showSnackBar(
-            SnackBar(content: Text(context.l10n.masterPasswordChanged)),
+            SnackBar(
+              content: state is MasterPasswordRecoveryCompleted
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(context.l10n.masterPasswordRecovered),
+                        Text(context.l10n.syncRecoveryBackup),
+                      ],
+                    )
+                  : Text(context.l10n.masterPasswordChanged),
+            ),
           );
         }
       },
       builder: (BuildContext context, MasterPasswordChangeViewState state) {
-        final bool working = state is MasterPasswordChangeWorking;
+        final bool working =
+            state is MasterPasswordChangeWorking ||
+            state is MasterPasswordRecoveryWorking;
         final String? errorText = switch (state) {
           MasterPasswordChangeInvalidCurrent() =>
             context.l10n.currentMasterPasswordInvalid,
@@ -416,43 +435,119 @@ final class _MasterPasswordChangeDialogState
             context.l10n.newMasterPasswordsDoNotMatch,
           MasterPasswordChangeFault() =>
             context.l10n.masterPasswordChangeFailed,
+          MasterPasswordRecoveryInvalidNew() =>
+            context.l10n.newMasterPasswordRequired,
+          MasterPasswordRecoveryWeakNew() =>
+            context.l10n.newMasterPasswordTooWeak,
+          MasterPasswordRecoveryConfirmationMismatch() =>
+            context.l10n.newMasterPasswordsDoNotMatch,
+          MasterPasswordRecoveryUnavailable() =>
+            context.l10n.masterPasswordRecoveryUnavailable,
+          MasterPasswordRecoveryBiometricCancelled() =>
+            context.l10n.masterPasswordRecoveryCancelled,
+          MasterPasswordRecoveryBiometricUnavailable() =>
+            context.l10n.masterPasswordRecoveryBiometricUnavailable,
+          MasterPasswordRecoveryFault() =>
+            context.l10n.masterPasswordRecoveryFailed,
           _ => null,
         };
+        final bool recoveryAvailable = switch (state) {
+          MasterPasswordChangeInvalidCurrent(:final bool recoveryAvailable) =>
+            recoveryAvailable,
+          _ => false,
+        };
         return AlertDialog(
-          title: Text(context.l10n.changeMasterPasswordTitle),
+          title: Text(
+            _recoveryMode
+                ? context.l10n.recoverMasterPasswordTitle
+                : context.l10n.changeMasterPasswordTitle,
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(context.l10n.masterPasswordChangeWarning),
+                if (_recoveryMode)
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              context.l10n.masterPasswordRecoveryWarning,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Text(context.l10n.masterPasswordChangeWarning),
                 const SizedBox(height: 16),
-                TextField(
-                  key: const ValueKey<String>('current-master-password'),
-                  controller: _currentController,
-                  autofocus: true,
-                  obscureText: true,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  enabled: !working,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: context.l10n.currentMasterPassword,
+                if (!_recoveryMode) ...<Widget>[
+                  TextField(
+                    key: const ValueKey<String>('current-master-password'),
+                    controller: _currentController,
+                    autofocus: true,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    enabled: !working,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.currentMasterPassword,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                ],
                 TextField(
                   key: const ValueKey<String>('new-master-password'),
                   controller: _newController,
+                  autofocus: _recoveryMode,
                   obscureText: true,
                   autocorrect: false,
                   enableSuggestions: false,
                   enabled: !working,
                   textInputAction: TextInputAction.next,
+                  onChanged: _recoveryMode
+                      ? (String value) {
+                          setState(() {
+                            _strengthAssessment = _strengthEvaluator.evaluate(
+                              value,
+                            );
+                          });
+                        }
+                      : null,
                   decoration: InputDecoration(
                     labelText: context.l10n.newMasterPassword,
                   ),
                 ),
+                if (_recoveryMode && _strengthAssessment != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(
+                    context.l10n.masterPasswordStrengthLabel(
+                      _strengthLabel(context, _strengthAssessment!.strength),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   key: const ValueKey<String>('confirm-new-master-password'),
@@ -461,12 +556,27 @@ final class _MasterPasswordChangeDialogState
                   autocorrect: false,
                   enableSuggestions: false,
                   enabled: !working,
-                  onSubmitted: working ? null : (_) => _submit(context),
+                  onSubmitted: working
+                      ? null
+                      : (_) => _recoveryMode
+                            ? _recover(context)
+                            : _submit(context),
                   decoration: InputDecoration(
                     labelText: context.l10n.confirmNewMasterPassword,
                     errorText: errorText,
                   ),
                 ),
+                if (!_recoveryMode && recoveryAvailable) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: working ? null : _enterRecoveryMode,
+                      icon: const Icon(Icons.fingerprint),
+                      label: Text(context.l10n.recoverWithBiometrics),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -476,13 +586,19 @@ final class _MasterPasswordChangeDialogState
               child: Text(context.l10n.close),
             ),
             FilledButton(
-              onPressed: working ? null : () => _submit(context),
+              onPressed: working
+                  ? null
+                  : () => _recoveryMode ? _recover(context) : _submit(context),
               child: working
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(context.l10n.changePassword),
+                  : Text(
+                      _recoveryMode
+                          ? context.l10n.recoverPassword
+                          : context.l10n.changePassword,
+                    ),
             ),
           ],
         );
@@ -497,6 +613,33 @@ final class _MasterPasswordChangeDialogState
       confirmation: _confirmationController.text,
     );
   }
+
+  void _enterRecoveryMode() {
+    _currentController.clear();
+    _newController.clear();
+    _confirmationController.clear();
+    setState(() {
+      _recoveryMode = true;
+      _strengthAssessment = null;
+    });
+  }
+
+  void _recover(BuildContext context) {
+    context.read<MasterPasswordChangeCubit>().recover(
+      newMasterPassword: _newController.text,
+      confirmation: _confirmationController.text,
+    );
+  }
+
+  String _strengthLabel(
+    BuildContext context,
+    MasterPasswordStrength strength,
+  ) => switch (strength) {
+    MasterPasswordStrength.weak => context.l10n.strengthWeak,
+    MasterPasswordStrength.medium => context.l10n.strengthMedium,
+    MasterPasswordStrength.strong => context.l10n.strengthStrong,
+    MasterPasswordStrength.veryStrong => context.l10n.strengthVeryStrong,
+  };
 }
 
 final class _StepUpDialog extends StatefulWidget {

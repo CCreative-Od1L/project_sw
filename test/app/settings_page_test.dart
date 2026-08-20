@@ -7,6 +7,11 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
+import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
@@ -14,6 +19,7 @@ import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
 import 'package:project_sw/l10n/generated/app_localizations.dart';
+import 'package:project_sw/shared/errors/vault_exception.dart';
 
 void main() {
   testWidgets('settings displays read-only policy and active KDF metadata', (
@@ -144,10 +150,106 @@ void main() {
       AuthStrength.masterPassword,
     );
   });
+
+  testWidgets('reveals biometric recovery with a takeover warning', (
+    WidgetTester tester,
+  ) async {
+    final _SettingsRecoveryStore store = _SettingsRecoveryStore();
+    final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);
+    final _SettingsRecoveryRepository recoveryRepository =
+        _SettingsRecoveryRepository();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+      timerFactory: (Duration _, void Function() _) => _SettingsSessionTimer(),
+    );
+    final MasterPasswordChangeCubit changeCubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(
+        _SettingsPasswordChangeRepository(
+          error: const InvalidMasterPasswordException(),
+        ),
+      ),
+      sessionController,
+      recoveryGate: gate,
+      hasConfiguredBiometricRecovery: () async => true,
+      recoverMasterPassword: RecoverMasterPassword(
+        gate: gate,
+        biometricConfirmer: _SettingsRecoveryConfirmer(),
+        repository: recoveryRepository,
+      ),
+    );
+    addTearDown(changeCubit.close);
+    addTearDown(sessionController.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SettingsPage(masterPasswordChangeCubit: changeCubit),
+      ),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change master password'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('current-master-password')),
+      'wrong password',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('new-master-password')),
+      'new password',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('confirm-new-master-password')),
+      'new password',
+    );
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await tester.tap(find.text('Change password'));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('Recover with biometrics'), findsOneWidget);
+    await tester.tap(find.text('Recover with biometrics'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Anyone who passes this biometric check can take over the vault by '
+        'setting a new master password. Continue only on a trusted device.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('current-master-password')),
+      findsNothing,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('new-master-password')),
+      'recovered password',
+    );
+    await tester.pump();
+    expect(find.text('Password strength: Strong'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('confirm-new-master-password')),
+      'recovered password',
+    );
+    await tester.tap(find.text('Recover password'));
+    await tester.pumpAndSettle();
+
+    expect(recoveryRepository.passwords, <String>['recovered password']);
+    expect(find.text('Master password recovered'), findsOneWidget);
+    expect(
+      find.text('Update any backup device with the new master password.'),
+      findsOneWidget,
+    );
+  });
 }
 
 final class _SettingsPasswordChangeRepository
     implements MasterPasswordChangeRepository {
+  _SettingsPasswordChangeRepository({this.error});
+
+  final Object? error;
   final List<(String, String)> calls = <(String, String)>[];
 
   @override
@@ -156,6 +258,40 @@ final class _SettingsPasswordChangeRepository
     required String newMasterPassword,
   }) async {
     calls.add((currentMasterPassword, newMasterPassword));
+    final Object? failure = error;
+    if (failure != null) throw failure;
+  }
+}
+
+final class _SettingsRecoveryStore implements MasterPasswordRecoveryStore {
+  DateTime? cooldownUntil;
+
+  @override
+  Future<void> clearCooldown() async => cooldownUntil = null;
+
+  @override
+  Future<DateTime?> readCooldownUntil() async => cooldownUntil;
+
+  @override
+  Future<void> writeCooldownUntil(DateTime value) async {
+    cooldownUntil = value;
+  }
+}
+
+final class _SettingsRecoveryConfirmer implements BiometricRecoveryConfirmer {
+  @override
+  Future<void> confirm() async {}
+}
+
+final class _SettingsRecoveryRepository
+    implements MasterPasswordRecoveryRepository {
+  final List<String> passwords = <String>[];
+
+  @override
+  Future<void> recoverMasterPassword({
+    required String newMasterPassword,
+  }) async {
+    passwords.add(newMasterPassword);
   }
 }
 

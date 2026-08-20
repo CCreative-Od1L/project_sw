@@ -656,6 +656,78 @@ abstract class AppLocalizations {
   /// **'The master password could not be changed.'**
   String get masterPasswordChangeFailed;
 
+  /// No description provided for @recoverWithBiometrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover with biometrics'**
+  String get recoverWithBiometrics;
+
+  /// No description provided for @recoverMasterPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover master password'**
+  String get recoverMasterPasswordTitle;
+
+  /// No description provided for @masterPasswordRecoveryWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone who passes this biometric check can take over the vault by setting a new master password. Continue only on a trusted device.'**
+  String get masterPasswordRecoveryWarning;
+
+  /// No description provided for @recoverPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover password'**
+  String get recoverPassword;
+
+  /// No description provided for @masterPasswordRecovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password recovered'**
+  String get masterPasswordRecovered;
+
+  /// No description provided for @syncRecoveryBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Update any backup device with the new master password.'**
+  String get syncRecoveryBackup;
+
+  /// No description provided for @masterPasswordStrengthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password strength: {strength}'**
+  String masterPasswordStrengthLabel(String strength);
+
+  /// No description provided for @newMasterPasswordTooWeak.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a stronger master password.'**
+  String get newMasterPasswordTooWeak;
+
+  /// No description provided for @masterPasswordRecoveryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Password recovery is no longer available.'**
+  String get masterPasswordRecoveryUnavailable;
+
+  /// No description provided for @masterPasswordRecoveryCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric confirmation was cancelled.'**
+  String get masterPasswordRecoveryCancelled;
+
+  /// No description provided for @masterPasswordRecoveryBiometricUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric confirmation is unavailable. Your vault was not changed.'**
+  String get masterPasswordRecoveryBiometricUnavailable;
+
+  /// No description provided for @masterPasswordRecoveryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The master password could not be recovered.'**
+  String get masterPasswordRecoveryFailed;
+
   /// No description provided for @biometricSettings.
   ///
   /// In en, this message translates to:

@@ -50,6 +50,9 @@ enum LockReason {
 enum LockSuppressionReason {
   /// An unlocked receiver or sender is actively migrating vault data.
   migrationInProgress,
+
+  /// A biometric-assisted master-password recovery is in progress.
+  passwordRecoveryInProgress,
 }
 
 /// Authentication strength held by an unlocked session.

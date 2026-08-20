@@ -126,6 +126,23 @@
   "newMasterPasswordRequired": "Enter a new master password.",
   "newMasterPasswordsDoNotMatch": "The new master passwords do not match.",
   "masterPasswordChangeFailed": "The master password could not be changed.",
+  "recoverWithBiometrics": "Recover with biometrics",
+  "recoverMasterPasswordTitle": "Recover master password",
+  "masterPasswordRecoveryWarning": "Anyone who passes this biometric check can take over the vault by setting a new master password. Continue only on a trusted device.",
+  "recoverPassword": "Recover password",
+  "masterPasswordRecovered": "Master password recovered",
+  "syncRecoveryBackup": "Update any backup device with the new master password.",
+  "masterPasswordStrengthLabel": "Password strength: {strength}",
+  "@masterPasswordStrengthLabel": {
+    "placeholders": {
+      "strength": {"type": "String"}
+    }
+  },
+  "newMasterPasswordTooWeak": "Choose a stronger master password.",
+  "masterPasswordRecoveryUnavailable": "Password recovery is no longer available.",
+  "masterPasswordRecoveryCancelled": "Biometric confirmation was cancelled.",
+  "masterPasswordRecoveryBiometricUnavailable": "Biometric confirmation is unavailable. Your vault was not changed.",
+  "masterPasswordRecoveryFailed": "The master password could not be recovered.",
   "biometricSettings": "Biometric unlock",
   "biometricSecurityBoundary": "Biometrics release a device-protected key for this vault. Your master password is never stored and remains the fallback.",
   "biometricEnabled": "Biometric unlock is enabled on this device.",
