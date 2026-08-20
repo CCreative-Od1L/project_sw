@@ -140,6 +140,26 @@ final class VaultFileHeader {
         flags: flags,
       );
 
+  /// Returns a copy with fresh KDF salt and KEK-wrapped MVK material.
+  VaultFileHeader copyWithMasterPassword({
+    required Uint8List kdfSalt,
+    required Uint8List wrappedMasterVaultKey,
+  }) => VaultFileHeader(
+    kdfParameters: kdfParameters,
+    kdfSalt: kdfSalt,
+    wrappedMasterVaultKey: wrappedMasterVaultKey,
+    biometricWrappedMasterVaultKey: biometricWrappedMasterVaultKey,
+    activeDirectoryOffset: activeDirectoryOffset,
+    entryCount: entryCount,
+    freeListHead: freeListHead,
+    sequenceCounter: sequenceCounter,
+    committedSequence: committedSequence,
+    journal: journal,
+    kdfAlgorithmId: kdfAlgorithmId,
+    aeadAlgorithmId: aeadAlgorithmId,
+    flags: flags,
+  );
+
   /// Compatibility helper used by initial-vault creation.
   VaultFileHeader copyWithCommit({
     required int committedSequence,
@@ -426,9 +446,10 @@ final class VaultFileEngine {
 
   /// Replaces only the fixed header while preserving the active data view.
   ///
-  /// Header-only changes, such as enabling biometric access, do not consume a
-  /// vault sequence number because they do not change the directory or entry
-  /// blocks. The new header is flushed before the backup snapshot is replaced.
+  /// Header-only key-envelope changes, such as enabling biometric access or
+  /// changing the master password, do not consume a vault sequence number
+  /// because they do not change the Directory or Entry Blocks. The new header
+  /// is flushed before the backup snapshot is replaced.
   void commitHeaderUpdate({
     required String path,
     required OpenVaultFile opened,
@@ -978,8 +999,6 @@ final class VaultFileEngine {
         first.kdfParameters.memoryKiB == second.kdfParameters.memoryKiB &&
         first.kdfParameters.iterations == second.kdfParameters.iterations &&
         first.kdfParameters.parallelism == second.kdfParameters.parallelism &&
-        _sameBytes(first.kdfSalt, second.kdfSalt) &&
-        _sameBytes(first.wrappedMasterVaultKey, second.wrappedMasterVaultKey) &&
         first.journal.operation == second.journal.operation &&
         first.journal.sequence == second.journal.sequence &&
         first.journal.directoryOffset == second.journal.directoryOffset &&
