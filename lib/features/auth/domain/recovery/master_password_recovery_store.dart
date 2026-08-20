@@ -1,16 +1,34 @@
-/// Persists the non-secret cooldown deadline for master-password recovery.
-abstract interface class MasterPasswordRecoveryStore {
-  /// Returns the persisted UTC cooldown deadline, or null when absent.
-  Future<DateTime?> readCooldownUntil();
+/// Non-secret deadlines that govern master-password recovery visibility.
+final class MasterPasswordRecoveryMetadata {
+  /// Creates recovery metadata; every deadline must be interpreted as UTC.
+  const MasterPasswordRecoveryMetadata({
+    this.cooldownUntil,
+    this.availableUntil,
+  });
 
-  /// Persists the UTC [value] after a successful recovery.
-  Future<void> writeCooldownUntil(DateTime value);
+  /// UTC deadline for the one-week post-recovery cooldown.
+  final DateTime? cooldownUntil;
 
-  /// Removes an expired or wiped cooldown record.
-  Future<void> clearCooldown();
+  /// UTC deadline for resuming a recovery entry that already became visible.
+  final DateTime? availableUntil;
+
+  /// Whether no recovery deadline needs persistence.
+  bool get isEmpty => cooldownUntil == null && availableUntil == null;
 }
 
-/// Normalized failure while reading or writing recovery cooldown metadata.
+/// Atomically persists non-secret master-password recovery deadlines.
+abstract interface class MasterPasswordRecoveryStore {
+  /// Returns persisted metadata, or an empty value when the file is absent.
+  Future<MasterPasswordRecoveryMetadata> read();
+
+  /// Atomically replaces all persisted deadlines with [metadata].
+  Future<void> write(MasterPasswordRecoveryMetadata metadata);
+
+  /// Removes all recovery metadata, including temporary replacement files.
+  Future<void> clear();
+}
+
+/// Normalized failure while reading or writing recovery metadata.
 final class MasterPasswordRecoveryStoreException implements Exception {
   /// Creates a safe store failure without exposing filesystem paths.
   const MasterPasswordRecoveryStoreException({this.cause});

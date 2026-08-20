@@ -18,7 +18,10 @@ sealed class MasterPasswordChangeViewState {
 /// The form is ready for input.
 final class MasterPasswordChangeReady extends MasterPasswordChangeViewState {
   /// Creates the ready state.
-  const MasterPasswordChangeReady();
+  const MasterPasswordChangeReady({this.recoveryAvailable = false});
+
+  /// Whether a previously revealed recovery flow may be resumed.
+  final bool recoveryAvailable;
 }
 
 /// Password verification and atomic re-wrap are running.
@@ -157,10 +160,19 @@ final class MasterPasswordChangeCubit
   final RecoverMasterPassword? _recoverMasterPassword;
 
   /// Restores a completed or failed form to its initial state.
-  void reset() {
-    if (state is! MasterPasswordChangeWorking &&
-        state is! MasterPasswordRecoveryWorking) {
-      emit(const MasterPasswordChangeReady());
+  Future<void> reset() async {
+    if (state is MasterPasswordChangeWorking ||
+        state is MasterPasswordRecoveryWorking) {
+      return;
+    }
+    try {
+      emit(
+        MasterPasswordChangeReady(
+          recoveryAvailable: await _currentRecoveryAvailability(),
+        ),
+      );
+    } on Object {
+      emit(const MasterPasswordChangeFault());
     }
   }
 
@@ -195,7 +207,7 @@ final class MasterPasswordChangeCubit
           if (_sessionController.requiresMasterPasswordStepUp) {
             _sessionController.completeMasterPasswordStepUp();
           }
-          _recoveryGate?.recordChangePasswordSuccess();
+          await _recoveryGate?.recordChangePasswordSuccess();
           emit(const MasterPasswordChangeCompleted());
         case Failure<ChangedMasterPassword, ChangeMasterPasswordFailure>(
           :final ChangeMasterPasswordFailure failure,
@@ -287,6 +299,18 @@ final class MasterPasswordChangeCubit
     final bool biometricConfigured = await hasConfigured();
     final MasterPasswordRecoveryState recoveryState = await recoveryGate
         .recordChangePasswordFailure(biometricConfigured: biometricConfigured);
+    return recoveryState is MasterPasswordRecoveryAvailable;
+  }
+
+  Future<bool> _currentRecoveryAvailability() async {
+    final MasterPasswordRecoveryGate? recoveryGate = _recoveryGate;
+    final HasConfiguredBiometricRecovery? hasConfigured =
+        _hasConfiguredBiometricRecovery;
+    if (recoveryGate == null || hasConfigured == null) {
+      return false;
+    }
+    final MasterPasswordRecoveryState recoveryState = await recoveryGate
+        .currentState(biometricConfigured: await hasConfigured());
     return recoveryState is MasterPasswordRecoveryAvailable;
   }
 }
