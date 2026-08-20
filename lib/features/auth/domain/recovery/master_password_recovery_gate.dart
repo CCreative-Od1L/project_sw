@@ -88,8 +88,21 @@ final class MasterPasswordRecoveryGate {
 
   /// Starts a fresh cooldown after a successful biometric recovery.
   Future<void> recordRecoverySuccess() async {
+    await reserveRecoveryCooldown();
+    completeRecovery();
+  }
+
+  /// Persists cooldown before the Vault mutation so failures remain fail-safe.
+  Future<void> reserveRecoveryCooldown() async {
     final DateTime deadline = _clock().toUtc().add(cooldown);
     await _store.writeCooldownUntil(deadline);
+  }
+
+  /// Removes a reservation when the Vault mutation did not complete.
+  Future<void> cancelRecoveryCooldown() => _store.clearCooldown();
+
+  /// Resets the in-memory trigger only after recovery commits successfully.
+  void completeRecovery() {
     _consecutiveChangePasswordFailures = 0;
   }
 }

@@ -249,6 +249,65 @@ void main() {
     },
   );
 
+  test(
+    'recovers by wrapping the unlocked MVK without the old password',
+    () async {
+      final VaultFileEngine engine = VaultFileEngine();
+      final String path = '${temporaryDirectory.path}/recovery-rewrap.psw';
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: FakeCryptoService(),
+        vaultFileEngine: engine,
+        vaultPathResolver: () async => path,
+      );
+      await repository.createEmptyVault(
+        masterPassword: 'current password',
+        kdfParameters: const Argon2idParameters(
+          memoryKiB: 64 * 1024,
+          iterations: 3,
+        ),
+      );
+      await repository.unlockWithMasterPassword('current password');
+      final EntrySummary summary = await repository.addEntry(
+        const NewVaultEntry(
+          name: 'Recovered entry',
+          password: 'unchanged entry secret',
+        ),
+      );
+      final OpenVaultFile before = engine.openVaultFile(path);
+      final Uint8List biometricEnvelope = Uint8List.fromList(
+        List<int>.filled(72, 0x3c),
+      );
+      engine.commitHeaderUpdate(
+        path: path,
+        opened: before,
+        header: before.header.copyWithBiometric(biometricEnvelope),
+      );
+      final Uint8List beforeBytes = File(path).readAsBytesSync();
+
+      await repository.recoverMasterPassword(newMasterPassword: 'new password');
+
+      final OpenVaultFile recovered = engine.openVaultFile(path);
+      final Uint8List afterBytes = File(path).readAsBytesSync();
+      expect(
+        recovered.header.biometricWrappedMasterVaultKey,
+        orderedEquals(biometricEnvelope),
+      );
+      expect(
+        afterBytes.sublist(vaultFileHeaderLength),
+        orderedEquals(beforeBytes.sublist(vaultFileHeaderLength)),
+      );
+      await expectLater(
+        repository.unlockWithMasterPassword('current password'),
+        throwsA(isA<InvalidMasterPasswordException>()),
+      );
+      await repository.unlockWithMasterPassword('new password');
+      expect(
+        (await repository.getEntryDetail(summary.entryId)).entry.password,
+        'unchanged entry secret',
+      );
+    },
+  );
+
   test('normalizes a storage location failure as VaultIoException', () async {
     final File blocker = File('${temporaryDirectory.path}/blocker')
       ..createSync();
