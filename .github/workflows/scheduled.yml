@@ -1,0 +1,75 @@
+name: Scheduled maintenance
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  pull_request:
+    paths:
+      - .github/dependabot.yml
+      - .github/workflows/scheduled.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-maintenance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-audit:
+    name: Dependency and toolchain audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up pinned Flutter SDK
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+          pub-cache: true
+
+      - name: Resolve lockfile and surface security advisories
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter pub get --enforce-lockfile 2>&1 | tee dependency-resolution.txt
+
+      - name: Record dependency drift
+        shell: bash
+        run: |
+          set -o pipefail
+          dart pub outdated --transitive 2>&1 | tee dependency-outdated.txt
+          dart pub outdated --json > dependency-outdated.json
+
+      - name: Record pinned toolchain
+        run: flutter doctor -v > flutter-doctor.txt
+
+      - name: Publish audit summary
+        shell: bash
+        run: |
+          {
+            echo '## Weekly dependency audit'
+            echo
+            echo 'The full dependency, advisory, and toolchain reports are attached as an artifact.'
+            echo
+            echo '```text'
+            sed -n '1,80p' dependency-outdated.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit reports
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-audit-${{ github.sha }}
+          path: |
+            dependency-resolution.txt
+            dependency-outdated.json
+            dependency-outdated.txt
+            flutter-doctor.txt
+          if-no-files-found: error
+          retention-days: 30
