@@ -2,7 +2,8 @@
 
 > 概述见 [DEVELOPMENT.md §8](../DEVELOPMENT.md);触发点与分支保护见 [GIT_WORKFLOW.md](../GIT_WORKFLOW.md)。
 > 本规格为 CI/CD 的**设计依据**。PR/主干质量门禁已开始落地到
-> `.github/workflows/ci.yml`;构建、发布与定期维护工作流继续按 §12 分批实现。
+> `.github/workflows/ci.yml`;移动端集成测试由 `integration.yml` 的 Android
+> 模拟器承载。构建与定期维护工作流也已落地,签名发布继续按 §12 分批实现。
 
 ## 1. 目标与定位
 
@@ -45,7 +46,7 @@
 4. **`fvm dart format --set-exit-if-changed .`**(格式化把关)
 5. **`fvm dart analyze`**(静态分析,严格档 [DEVELOPMENT.md §4](../DEVELOPMENT.md))
 6. **`fvm flutter test`**(单元 + widget)
-7. **`fvm flutter test integration_test/`**(集成测试)
+7. **`fvm flutter test integration_test/`**(由独立 Android 模拟器 job 执行)
 
 > 顺序与 [GIT_WORKFLOW.md §3.3](../GIT_WORKFLOW.md) 提交前本地检查一致。CI
 > 直接调用由 `.fvmrc` 锁定并安装的 SDK;本地仍通过 FVM 调用同一版本。
