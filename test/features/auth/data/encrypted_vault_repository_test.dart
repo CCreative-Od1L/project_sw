@@ -135,6 +135,120 @@ void main() {
     },
   );
 
+  test(
+    'changes only the master-password envelope and keeps vault data readable',
+    () async {
+      final FakeCryptoService crypto = FakeCryptoService();
+      final VaultFileEngine engine = VaultFileEngine();
+      final String path = '${temporaryDirectory.path}/change-password.psw';
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: crypto,
+        vaultFileEngine: engine,
+        vaultPathResolver: () async => path,
+      );
+      const Argon2idParameters parameters = Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+        parallelism: 1,
+      );
+      await repository.createEmptyVault(
+        masterPassword: 'current password',
+        kdfParameters: parameters,
+      );
+      await repository.unlockWithMasterPassword('current password');
+      final EntrySummary summary = await repository.addEntry(
+        const NewVaultEntry(
+          name: 'Envelope test',
+          password: 'entry ciphertext must not change',
+        ),
+      );
+      final OpenVaultFile beforeBiometric = engine.openVaultFile(path);
+      final Uint8List biometricEnvelope = Uint8List.fromList(
+        List<int>.filled(72, 0x5a),
+      );
+      engine.commitHeaderUpdate(
+        path: path,
+        opened: beforeBiometric,
+        header: beforeBiometric.header.copyWithBiometric(biometricEnvelope),
+      );
+      final Uint8List beforeBytes = File(path).readAsBytesSync();
+      final Uint8List beforeSalt = Uint8List.fromList(
+        beforeBiometric.header.kdfSalt,
+      );
+      final int derivedKeyCount = crypto.derivedKeys.length;
+      final int decryptedKeyCount = crypto.decryptedKeys.length;
+
+      await repository.changeMasterPassword(
+        currentMasterPassword: 'current password',
+        newMasterPassword: 'new password',
+      );
+
+      final OpenVaultFile changed = engine.openVaultFile(path);
+      final Uint8List afterBytes = File(path).readAsBytesSync();
+      expect(changed.header.kdfSalt, isNot(orderedEquals(beforeSalt)));
+      expect(
+        changed.header.biometricWrappedMasterVaultKey,
+        orderedEquals(biometricEnvelope),
+      );
+      expect(
+        afterBytes.sublist(vaultFileHeaderLength),
+        orderedEquals(beforeBytes.sublist(vaultFileHeaderLength)),
+      );
+      expect(repository.hasUnlockedSession, isTrue);
+      expect(repository.entrySummaries.single.name, 'Envelope test');
+      expect(
+        crypto.derivedKeys.skip(derivedKeyCount).every(_isCleared),
+        isTrue,
+      );
+      expect(
+        crypto.decryptedKeys.skip(decryptedKeyCount).every(_isCleared),
+        isTrue,
+      );
+
+      await expectLater(
+        repository.unlockWithMasterPassword('current password'),
+        throwsA(isA<InvalidMasterPasswordException>()),
+      );
+      await repository.unlockWithMasterPassword('new password');
+      final EntryDetail detail = await repository.getEntryDetail(
+        summary.entryId,
+      );
+      expect(detail.entry.password, 'entry ciphertext must not change');
+    },
+  );
+
+  test(
+    'keeps the vault byte-for-byte unchanged after a wrong password',
+    () async {
+      final String path = '${temporaryDirectory.path}/rejected-change.psw';
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: FakeCryptoService(),
+        vaultFileEngine: VaultFileEngine(),
+        vaultPathResolver: () async => path,
+      );
+      await repository.createEmptyVault(
+        masterPassword: 'current password',
+        kdfParameters: const Argon2idParameters(
+          memoryKiB: 64 * 1024,
+          iterations: 3,
+        ),
+      );
+      await repository.unlockWithMasterPassword('current password');
+      final Uint8List before = File(path).readAsBytesSync();
+
+      await expectLater(
+        repository.changeMasterPassword(
+          currentMasterPassword: 'wrong password',
+          newMasterPassword: 'new password',
+        ),
+        throwsA(isA<InvalidMasterPasswordException>()),
+      );
+
+      expect(File(path).readAsBytesSync(), orderedEquals(before));
+      expect(repository.hasUnlockedSession, isTrue);
+    },
+  );
+
   test('normalizes a storage location failure as VaultIoException', () async {
     final File blocker = File('${temporaryDirectory.path}/blocker')
       ..createSync();
