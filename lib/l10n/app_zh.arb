@@ -143,6 +143,21 @@
   "masterPasswordRecoveryCancelled": "已取消生物识别确认。",
   "masterPasswordRecoveryBiometricUnavailable": "生物识别确认不可用，密码库未被修改。",
   "masterPasswordRecoveryFailed": "无法恢复主密码。",
+  "deadlockWipeTitle": "永久删除密码库",
+  "deadlockWipeWarning": "此操作将永久删除所有密码，且无法撤销。",
+  "deadlockWipeInstructions": "请准确输入 DELETE。开始删除前会有可取消的 10 秒倒计时。",
+  "deadlockWipeConfirmation": "输入 DELETE 以确认",
+  "deadlockWipeConfirmationInvalid": "请准确输入 DELETE 后继续。",
+  "startDeadlockWipeCountdown": "开始 10 秒倒计时",
+  "deadlockWipeCountdown": "将在 {seconds} 秒后删除",
+  "@deadlockWipeCountdown": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "cancelDeadlockWipe": "取消删除",
+  "deadlockWipeWorking": "正在删除并验证密码库数据…",
+  "deadlockWipeFailed": "删除未完成。新建密码库仍被阻止；请检查警告后重试。",
   "biometricSettings": "生物识别解锁",
   "biometricSecurityBoundary": "生物识别只会释放受设备保护的密码库密钥。应用不会保存主密码，主密码始终可作为退路。",
   "biometricEnabled": "此设备已启用生物识别解锁。",
