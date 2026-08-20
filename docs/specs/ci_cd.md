@@ -18,7 +18,7 @@
 | Workflow | 触发器 | 职责 | 失败后果 |
 |----------|--------|------|----------|
 | **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 集成测试 | 阻止 PR 合并(分支保护要求状态检查通过) |
-| **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug/release 产物并上传 artifact | 不阻断主干,但 artifact 缺失可被发版流程检出 |
+| **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug 产物并上传 artifact;签名 release 产物由 `release.yml` 负责 | 不阻断主干,但 artifact 缺失可被发版流程检出 |
 | **`release.yml`(发版)** | `push` tag `v*.*.*` | 构建各平台 release 分发包、签名、创建 GitHub Release | 发版失败,不打 tag 不发版 |
 | **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查(`fvm dart pub outdated`)、安全审计、SDK 上限漂移检测 | 仅报告,开 issue 跟踪 |
 
@@ -209,7 +209,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 | Workflow | 产物 | 留存 |
 |----------|------|------|
-| `build.yml` | debug APK(Android)、debug IPA(iOS,若有签名) | GitHub Actions artifact,90 天 |
+| `build.yml` | debug APK(Android)、无签名 debug `.app`(iOS) | GitHub Actions artifact,90 天 |
 | `release.yml` | signed AAB/APK(Android)、signed IPA(iOS) | 绑定到 GitHub Release,长期 |
 
 - 产物命名含版本号 + commit short sha + 平台,可追溯到具体提交。
