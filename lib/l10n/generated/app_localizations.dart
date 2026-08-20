@@ -728,6 +728,66 @@ abstract class AppLocalizations {
   /// **'The master password could not be recovered.'**
   String get masterPasswordRecoveryFailed;
 
+  /// No description provided for @deadlockWipeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete vault'**
+  String get deadlockWipeTitle;
+
+  /// No description provided for @deadlockWipeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes every password and cannot be undone.'**
+  String get deadlockWipeWarning;
+
+  /// No description provided for @deadlockWipeInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Type DELETE exactly. A cancelable 10-second countdown starts before deletion.'**
+  String get deadlockWipeInstructions;
+
+  /// No description provided for @deadlockWipeConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Type DELETE to confirm'**
+  String get deadlockWipeConfirmation;
+
+  /// No description provided for @deadlockWipeConfirmationInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter DELETE exactly to continue.'**
+  String get deadlockWipeConfirmationInvalid;
+
+  /// No description provided for @startDeadlockWipeCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Start 10-second countdown'**
+  String get startDeadlockWipeCountdown;
+
+  /// No description provided for @deadlockWipeCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting in {seconds} seconds'**
+  String deadlockWipeCountdown(int seconds);
+
+  /// No description provided for @cancelDeadlockWipe.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel deletion'**
+  String get cancelDeadlockWipe;
+
+  /// No description provided for @deadlockWipeWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting and verifying vault data…'**
+  String get deadlockWipeWorking;
+
+  /// No description provided for @deadlockWipeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion did not complete. Setup remains blocked; review the warning and retry.'**
+  String get deadlockWipeFailed;
+
   /// No description provided for @biometricSettings.
   ///
   /// In en, this message translates to:

@@ -340,6 +340,38 @@ class AppLocalizationsZh extends AppLocalizations {
   String get masterPasswordRecoveryFailed => '无法恢复主密码。';
 
   @override
+  String get deadlockWipeTitle => '永久删除密码库';
+
+  @override
+  String get deadlockWipeWarning => '此操作将永久删除所有密码，且无法撤销。';
+
+  @override
+  String get deadlockWipeInstructions => '请准确输入 DELETE。开始删除前会有可取消的 10 秒倒计时。';
+
+  @override
+  String get deadlockWipeConfirmation => '输入 DELETE 以确认';
+
+  @override
+  String get deadlockWipeConfirmationInvalid => '请准确输入 DELETE 后继续。';
+
+  @override
+  String get startDeadlockWipeCountdown => '开始 10 秒倒计时';
+
+  @override
+  String deadlockWipeCountdown(int seconds) {
+    return '将在 $seconds 秒后删除';
+  }
+
+  @override
+  String get cancelDeadlockWipe => '取消删除';
+
+  @override
+  String get deadlockWipeWorking => '正在删除并验证密码库数据…';
+
+  @override
+  String get deadlockWipeFailed => '删除未完成。新建密码库仍被阻止；请检查警告后重试。';
+
+  @override
   String get biometricSettings => '生物识别解锁';
 
   @override

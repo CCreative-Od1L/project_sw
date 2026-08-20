@@ -17,6 +17,7 @@ import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 
 import '../helpers/fake_crypto_service.dart';
@@ -97,6 +98,7 @@ void main() {
     );
     expect(serviceLocator<VaultWipeRepository>(), isA<VaultWipeRepository>());
     expect(serviceLocator<WipeVault>(), isA<WipeVault>());
+    expect(serviceLocator<DeadlockWipeCubit>(), isA<DeadlockWipeCubit>());
   });
 }
 

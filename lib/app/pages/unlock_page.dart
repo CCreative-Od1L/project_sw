@@ -7,6 +7,7 @@ import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 
 /// Locked-vault route that accepts the master-password unlock path.
@@ -17,6 +18,7 @@ final class UnlockPage extends StatefulWidget {
     required this.sessionController,
     this.unlockCubit,
     this.biometricUnlockCubit,
+    this.deadlockWipeCubit,
   });
 
   /// The session source of truth that owns route availability.
@@ -28,6 +30,9 @@ final class UnlockPage extends StatefulWidget {
   /// The optional biometric action coordinator.
   final BiometricUnlockCubit? biometricUnlockCubit;
 
+  /// Optional hidden deadlock-wipe escape path coordinator.
+  final DeadlockWipeCubit? deadlockWipeCubit;
+
   @override
   State<UnlockPage> createState() => _UnlockPageState();
 }
@@ -35,6 +40,7 @@ final class UnlockPage extends StatefulWidget {
 final class _UnlockPageState extends State<UnlockPage>
     implements SessionSecretCleaner {
   final TextEditingController _passwordController = TextEditingController();
+  var _wipeDialogOpen = false;
 
   @override
   void initState() {
@@ -90,6 +96,7 @@ final class _UnlockPageState extends State<UnlockPage>
         biometricState: null,
         controller: _passwordController,
         canUseBiometric: false,
+        onLockIconTap: widget.deadlockWipeCubit?.registerLockIconTap,
       );
     }
     return BlocProvider<BiometricUnlockCubit>.value(
@@ -109,6 +116,7 @@ final class _UnlockPageState extends State<UnlockPage>
             biometricState: state,
             controller: _passwordController,
             canUseBiometric: canUseBiometric,
+            onLockIconTap: widget.deadlockWipeCubit?.registerLockIconTap,
           );
         },
       ),
@@ -118,16 +126,52 @@ final class _UnlockPageState extends State<UnlockPage>
   @override
   Widget build(BuildContext context) {
     final UnlockCubit? unlockCubit = widget.unlockCubit;
+    final Widget content;
     if (unlockCubit == null) {
-      return _buildContent(const UnlockReady(), onSubmit: null);
+      content = _buildContent(const UnlockReady(), onSubmit: null);
+    } else {
+      content = BlocProvider<UnlockCubit>.value(
+        value: unlockCubit,
+        child: BlocBuilder<UnlockCubit, UnlockViewState>(
+          builder: (BuildContext context, UnlockViewState state) =>
+              _buildContent(state, onSubmit: _submit),
+        ),
+      );
     }
-    return BlocProvider<UnlockCubit>.value(
-      value: unlockCubit,
-      child: BlocBuilder<UnlockCubit, UnlockViewState>(
-        builder: (BuildContext context, UnlockViewState state) =>
-            _buildContent(state, onSubmit: _submit),
+    final DeadlockWipeCubit? wipeCubit = widget.deadlockWipeCubit;
+    if (wipeCubit == null) return content;
+    return BlocProvider<DeadlockWipeCubit>.value(
+      value: wipeCubit,
+      child: BlocListener<DeadlockWipeCubit, DeadlockWipeViewState>(
+        listener: (BuildContext context, DeadlockWipeViewState state) {
+          if (state is DeadlockWipeRevealed && !_wipeDialogOpen) {
+            _showDeadlockWipeDialog(context, wipeCubit);
+          }
+        },
+        child: content,
       ),
     );
+  }
+
+  Future<void> _showDeadlockWipeDialog(
+    BuildContext context,
+    DeadlockWipeCubit cubit,
+  ) async {
+    _wipeDialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) => BlocProvider<DeadlockWipeCubit>.value(
+        value: cubit,
+        child: const _DeadlockWipeDialog(),
+      ),
+    );
+    _wipeDialogOpen = false;
+    if (mounted &&
+        cubit.state is! DeadlockWipeCompleted &&
+        cubit.state is! DeadlockWipeWorking) {
+      cubit.hide();
+    }
   }
 }
 
@@ -140,6 +184,7 @@ final class _UnlockContent extends StatelessWidget {
     required this.biometricState,
     required this.controller,
     required this.canUseBiometric,
+    required this.onLockIconTap,
   });
 
   final Future<void> Function()? onSubmit;
@@ -149,6 +194,7 @@ final class _UnlockContent extends StatelessWidget {
   final BiometricUnlockViewState? biometricState;
   final TextEditingController controller;
   final bool canUseBiometric;
+  final VoidCallback? onLockIconTap;
 
   @override
   Widget build(BuildContext context) {
@@ -177,6 +223,18 @@ final class _UnlockContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          Center(
+            child: InkResponse(
+              key: const ValueKey<String>('deadlock-wipe-trigger'),
+              onTap: onLockIconTap,
+              radius: 32,
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.lock_outline_rounded, size: 40),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
             context.l10n.unlockYourVault,
             style: Theme.of(context).textTheme.headlineMedium,
@@ -230,6 +288,121 @@ final class _UnlockContent extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+final class _DeadlockWipeDialog extends StatefulWidget {
+  const _DeadlockWipeDialog();
+
+  @override
+  State<_DeadlockWipeDialog> createState() => _DeadlockWipeDialogState();
+}
+
+final class _DeadlockWipeDialogState extends State<_DeadlockWipeDialog> {
+  final TextEditingController _confirmationController = TextEditingController();
+
+  @override
+  void dispose() {
+    _confirmationController
+      ..clear()
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<DeadlockWipeCubit, DeadlockWipeViewState>(
+      listener: (BuildContext context, DeadlockWipeViewState state) {
+        if (state is DeadlockWipeCompleted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      },
+      builder: (BuildContext context, DeadlockWipeViewState state) {
+        final bool countingDown = state is DeadlockWipeCountingDown;
+        final bool working = state is DeadlockWipeWorking;
+        final bool confirmationInvalid = switch (state) {
+          DeadlockWipeRevealed(:final bool confirmationInvalid) =>
+            confirmationInvalid,
+          _ => false,
+        };
+        return AlertDialog(
+          icon: Icon(
+            Icons.warning_amber_rounded,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: Text(context.l10n.deadlockWipeTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                context.l10n.deadlockWipeWarning,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (countingDown)
+                Text(
+                  context.l10n.deadlockWipeCountdown(state.remainingSeconds),
+                  style: Theme.of(context).textTheme.titleMedium,
+                )
+              else if (working) ...<Widget>[
+                Text(context.l10n.deadlockWipeWorking),
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(),
+              ] else ...<Widget>[
+                Text(context.l10n.deadlockWipeInstructions),
+                if (state is DeadlockWipeFault) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Text(
+                    context.l10n.deadlockWipeFailed,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                TextField(
+                  key: const ValueKey<String>('deadlock-wipe-confirmation'),
+                  controller: _confirmationController,
+                  autofocus: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  enabled: !working,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.deadlockWipeConfirmation,
+                    errorText: confirmationInvalid
+                        ? context.l10n.deadlockWipeConfirmationInvalid
+                        : null,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: <Widget>[
+            if (countingDown)
+              TextButton(
+                onPressed: context.read<DeadlockWipeCubit>().cancelCountdown,
+                child: Text(context.l10n.cancelDeadlockWipe),
+              )
+            else if (!working) ...<Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(context.l10n.close),
+              ),
+              FilledButton(
+                onPressed: () => context
+                    .read<DeadlockWipeCubit>()
+                    .startCountdown(_confirmationController.text),
+                child: Text(context.l10n.startDeadlockWipeCountdown),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

@@ -35,6 +35,7 @@ import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
@@ -188,6 +189,10 @@ void registerAppDependencies(
           serviceLocator<VaultWipeRepository>(),
           serviceLocator<SessionController>(),
         ),
+      );
+      serviceLocator.registerSingleton<DeadlockWipeCubit>(
+        DeadlockWipeCubit(serviceLocator<WipeVault>()),
+        dispose: (DeadlockWipeCubit cubit) => cubit.close(),
       );
     }
     if (serviceLocator.isRegistered<BiometricKeyStore>() &&

@@ -143,6 +143,21 @@
   "masterPasswordRecoveryCancelled": "Biometric confirmation was cancelled.",
   "masterPasswordRecoveryBiometricUnavailable": "Biometric confirmation is unavailable. Your vault was not changed.",
   "masterPasswordRecoveryFailed": "The master password could not be recovered.",
+  "deadlockWipeTitle": "Permanently delete vault",
+  "deadlockWipeWarning": "This permanently deletes every password and cannot be undone.",
+  "deadlockWipeInstructions": "Type DELETE exactly. A cancelable 10-second countdown starts before deletion.",
+  "deadlockWipeConfirmation": "Type DELETE to confirm",
+  "deadlockWipeConfirmationInvalid": "Enter DELETE exactly to continue.",
+  "startDeadlockWipeCountdown": "Start 10-second countdown",
+  "deadlockWipeCountdown": "Deleting in {seconds} seconds",
+  "@deadlockWipeCountdown": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "cancelDeadlockWipe": "Cancel deletion",
+  "deadlockWipeWorking": "Deleting and verifying vault data…",
+  "deadlockWipeFailed": "Deletion did not complete. Setup remains blocked; review the warning and retry.",
   "biometricSettings": "Biometric unlock",
   "biometricSecurityBoundary": "Biometrics release a device-protected key for this vault. Your master password is never stored and remains the fallback.",
   "biometricEnabled": "Biometric unlock is enabled on this device.",

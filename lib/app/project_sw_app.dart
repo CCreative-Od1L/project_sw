@@ -10,6 +10,7 @@ import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
@@ -26,6 +27,7 @@ final class ProjectSwApp extends StatefulWidget {
     this.setupCubit,
     this.unlockCubit,
     this.biometricUnlockCubit,
+    this.deadlockWipeCubit,
     this.vaultEntriesCubit,
     this.sensitiveClipboardController,
     this.generatorPageBuilder,
@@ -48,6 +50,9 @@ final class ProjectSwApp extends StatefulWidget {
 
   /// Optional biometric unlock action coordinator.
   final BiometricUnlockCubit? biometricUnlockCubit;
+
+  /// Optional hidden deadlock-wipe escape path coordinator.
+  final DeadlockWipeCubit? deadlockWipeCubit;
 
   /// Optional unlocked-entry projection, omitted only by route skeleton tests.
   final VaultEntriesCubit? vaultEntriesCubit;
@@ -79,6 +84,7 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     setupCubit: widget.setupCubit,
     unlockCubit: widget.unlockCubit,
     biometricUnlockCubit: widget.biometricUnlockCubit,
+    deadlockWipeCubit: widget.deadlockWipeCubit,
     vaultEntriesCubit: widget.vaultEntriesCubit,
     generatorPageBuilder: widget.generatorPageBuilder,
     settingsPageBuilder: widget.settingsPageBuilder,
