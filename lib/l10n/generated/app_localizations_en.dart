@@ -266,6 +266,53 @@ class AppLocalizationsEn extends AppLocalizations {
       'No credentials or vault plaintext are shown here.';
 
   @override
+  String get masterPasswordSettings => 'Master password';
+
+  @override
+  String get masterPasswordChangeDescription =>
+      'Changing it creates a fresh salt and re-wraps the vault key without re-encrypting your entries.';
+
+  @override
+  String get changeMasterPassword => 'Change master password';
+
+  @override
+  String get changeMasterPasswordTitle => 'Change master password';
+
+  @override
+  String get masterPasswordChangeWarning =>
+      'This security-sensitive action verifies your current master password. Keep the new password safe; it cannot be recovered without a valid biometric recovery path.';
+
+  @override
+  String get currentMasterPassword => 'Current master password';
+
+  @override
+  String get newMasterPassword => 'New master password';
+
+  @override
+  String get confirmNewMasterPassword => 'Confirm new master password';
+
+  @override
+  String get changePassword => 'Change password';
+
+  @override
+  String get masterPasswordChanged => 'Master password changed';
+
+  @override
+  String get currentMasterPasswordInvalid =>
+      'Current master password is incorrect.';
+
+  @override
+  String get newMasterPasswordRequired => 'Enter a new master password.';
+
+  @override
+  String get newMasterPasswordsDoNotMatch =>
+      'The new master passwords do not match.';
+
+  @override
+  String get masterPasswordChangeFailed =>
+      'The master password could not be changed.';
+
+  @override
   String get biometricSettings => 'Biometric unlock';
 
   @override

@@ -258,6 +258,49 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsNoCredentials => '此处不显示凭据或密码库明文。';
 
   @override
+  String get masterPasswordSettings => '主密码';
+
+  @override
+  String get masterPasswordChangeDescription => '修改时会生成新的盐并重新包裹密码库密钥，不会重新加密条目。';
+
+  @override
+  String get changeMasterPassword => '修改主密码';
+
+  @override
+  String get changeMasterPasswordTitle => '修改主密码';
+
+  @override
+  String get masterPasswordChangeWarning =>
+      '此安全敏感操作会验证当前主密码。请妥善保管新主密码；没有有效的生物恢复路径时无法找回。';
+
+  @override
+  String get currentMasterPassword => '当前主密码';
+
+  @override
+  String get newMasterPassword => '新主密码';
+
+  @override
+  String get confirmNewMasterPassword => '确认新主密码';
+
+  @override
+  String get changePassword => '修改密码';
+
+  @override
+  String get masterPasswordChanged => '主密码已修改';
+
+  @override
+  String get currentMasterPasswordInvalid => '当前主密码不正确。';
+
+  @override
+  String get newMasterPasswordRequired => '请输入新主密码。';
+
+  @override
+  String get newMasterPasswordsDoNotMatch => '两次输入的新主密码不一致。';
+
+  @override
+  String get masterPasswordChangeFailed => '无法修改主密码。';
+
+  @override
   String get biometricSettings => '生物识别解锁';
 
   @override
