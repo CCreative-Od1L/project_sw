@@ -357,6 +357,42 @@ class AppLocalizationsEn extends AppLocalizations {
       'The master password could not be recovered.';
 
   @override
+  String get deadlockWipeTitle => 'Permanently delete vault';
+
+  @override
+  String get deadlockWipeWarning =>
+      'This permanently deletes every password and cannot be undone.';
+
+  @override
+  String get deadlockWipeInstructions =>
+      'Type DELETE exactly. A cancelable 10-second countdown starts before deletion.';
+
+  @override
+  String get deadlockWipeConfirmation => 'Type DELETE to confirm';
+
+  @override
+  String get deadlockWipeConfirmationInvalid =>
+      'Enter DELETE exactly to continue.';
+
+  @override
+  String get startDeadlockWipeCountdown => 'Start 10-second countdown';
+
+  @override
+  String deadlockWipeCountdown(int seconds) {
+    return 'Deleting in $seconds seconds';
+  }
+
+  @override
+  String get cancelDeadlockWipe => 'Cancel deletion';
+
+  @override
+  String get deadlockWipeWorking => 'Deleting and verifying vault data…';
+
+  @override
+  String get deadlockWipeFailed =>
+      'Deletion did not complete. Setup remains blocked; review the warning and retry.';
+
+  @override
   String get biometricSettings => 'Biometric unlock';
 
   @override
