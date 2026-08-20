@@ -212,6 +212,46 @@ void main() {
       LockSuppressionReason.migrationInProgress,
     );
   });
+
+  test(
+    'loads a persisted recovery window without another failed attempt',
+    () async {
+      final _RecoveryStore store = _RecoveryStore();
+      final MasterPasswordRecoveryGate firstGate = MasterPasswordRecoveryGate(
+        store,
+      );
+      for (var attempt = 0; attempt < 3; attempt++) {
+        await firstGate.recordChangePasswordFailure(biometricConfigured: true);
+      }
+      final SessionController sessionController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      final MasterPasswordRecoveryGate recreatedGate =
+          MasterPasswordRecoveryGate(store);
+      final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
+        ChangeMasterPassword(_PasswordChangeRepository()),
+        sessionController,
+        recoveryGate: recreatedGate,
+        hasConfiguredBiometricRecovery: () async => true,
+        recoverMasterPassword: RecoverMasterPassword(
+          gate: recreatedGate,
+          biometricConfirmer: _RecoveryConfirmer(),
+          repository: _RecoveryRepository(),
+        ),
+      );
+      addTearDown(cubit.close);
+      addTearDown(sessionController.dispose);
+
+      await cubit.reset();
+
+      expect(
+        (cubit.state as MasterPasswordChangeReady).recoveryAvailable,
+        isTrue,
+      );
+    },
+  );
 }
 
 final class _PasswordChangeRepository
@@ -232,17 +272,22 @@ final class _PasswordChangeRepository
 }
 
 final class _RecoveryStore implements MasterPasswordRecoveryStore {
-  DateTime? cooldownUntil;
+  MasterPasswordRecoveryMetadata metadata =
+      const MasterPasswordRecoveryMetadata();
+
+  DateTime? get cooldownUntil => metadata.cooldownUntil;
 
   @override
-  Future<void> clearCooldown() async => cooldownUntil = null;
+  Future<void> clear() async {
+    metadata = const MasterPasswordRecoveryMetadata();
+  }
 
   @override
-  Future<DateTime?> readCooldownUntil() async => cooldownUntil;
+  Future<MasterPasswordRecoveryMetadata> read() async => metadata;
 
   @override
-  Future<void> writeCooldownUntil(DateTime value) async {
-    cooldownUntil = value;
+  Future<void> write(MasterPasswordRecoveryMetadata value) async {
+    metadata = value;
   }
 }
 

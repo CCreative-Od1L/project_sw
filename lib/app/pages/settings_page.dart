@@ -97,7 +97,8 @@ final class _SettingsContent extends StatelessWidget {
   Future<void> _showMasterPasswordChange(BuildContext context) async {
     final MasterPasswordChangeCubit? cubit = masterPasswordChangeCubit;
     if (cubit == null) return;
-    cubit.reset();
+    await cubit.reset();
+    if (!context.mounted) return;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -452,6 +453,8 @@ final class _MasterPasswordChangeDialogState
           _ => null,
         };
         final bool recoveryAvailable = switch (state) {
+          MasterPasswordChangeReady(:final bool recoveryAvailable) =>
+            recoveryAvailable,
           MasterPasswordChangeInvalidCurrent(:final bool recoveryAvailable) =>
             recoveryAvailable,
           _ => false,
