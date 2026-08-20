@@ -1,7 +1,8 @@
 # CI/CD 设计规格 · PROJECT_SW
 
 > 概述见 [DEVELOPMENT.md §8](../DEVELOPMENT.md);触发点与分支保护见 [GIT_WORKFLOW.md](../GIT_WORKFLOW.md)。
-> 本规格为 CI/CD 的**设计依据**,代码就绪后据此落地 `.github/workflows/` 与 `scripts/`。当前项目处于设计阶段(无 `pubspec.yaml` / `.github/` / `scripts/`),本规格不假设任何已存在代码。
+> 本规格为 CI/CD 的**设计依据**。PR/主干质量门禁已开始落地到
+> `.github/workflows/ci.yml`;构建、发布与定期维护工作流继续按 §12 分批实现。
 
 ## 1. 目标与定位
 
@@ -38,7 +39,7 @@
 
 按"快失败在前"排序,任一失败即终止后续:
 
-1. **checkout + setup**(安装 FVM,执行 `fvm install` 读取入库 `.fvmrc`)
+1. **checkout + setup**(GitHub Action 直接读取入库 `.fvmrc`,安装其中锁定的 Flutter SDK)
 2. **依赖缓存**(`pub-cache` 缓存,见 §5)
 3. **`fvm flutter pub get`**(基于入库的 `pubspec.lock`,可重放)
 4. **`fvm dart format --set-exit-if-changed .`**(格式化把关)
@@ -46,7 +47,8 @@
 6. **`fvm flutter test`**(单元 + widget)
 7. **`fvm flutter test integration_test/`**(集成测试)
 
-> 顺序与 [GIT_WORKFLOW.md §3.3](../GIT_WORKFLOW.md) 提交前本地检查一致,CI 是同一套的强制重放。
+> 顺序与 [GIT_WORKFLOW.md §3.3](../GIT_WORKFLOW.md) 提交前本地检查一致。CI
+> 直接调用由 `.fvmrc` 锁定并安装的 SDK;本地仍通过 FVM 调用同一版本。
 
 ## 5. 缓存策略
 
