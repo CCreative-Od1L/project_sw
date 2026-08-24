@@ -123,7 +123,7 @@ _Avoid_: 生成配置, generator config, profile
 _Avoid_: biometric auth, 指纹解锁(泛指)
 
 **会话真相源 (Session Source of Truth)**:
-全局唯一的会话状态机与协调器,负责持有 `Locked/Unlocked`、锁定原因、认证强度、idle timer、step-up challenge 与路由态派生。`AuthCubit`、GoRouter、页面局部状态都只能订阅它,不能各自维护独立真相(见 ADR-0010)。
+全局唯一的会话状态机与协调器,负责持有 `Locked/Unlocked`、锁定原因、认证强度、idle timer、step-up challenge 与路由态派生。状态通知按顺序发布;锁定期间拒绝重入解锁或新建流程,单个敏感数据清理器失败不得阻止其余清理和最终锁定。`AuthCubit`、GoRouter、页面局部状态都只能订阅它,不能各自维护独立真相(见 ADR-0010)。
 _Avoid_: auth cubit 真相源, router state authority, page-owned session
 
 **认证强度 (Auth Strength)**:
@@ -131,7 +131,7 @@ _Avoid_: auth cubit 真相源, router state authority, page-owned session
 _Avoid_: 登录态强度, unlock level
 
 **Step-up Challenge**:
-已解锁会话内为高敏操作补充主密码验证的一次强认证升级。它不是重新锁定,成功后会把当前会话的 `authStrength` 升级为 `master_password` 直到下一次锁定。
+已解锁会话内为高敏操作补充主密码验证的一次强认证升级。每次 challenge 由会话真相源签发唯一 lease,认证升级只能通过当前 lease 完成;锁定会立即作废,旧异步验证结果不能升级重新解锁后的新会话。它不是重新锁定,成功后会把所属会话的 `authStrength` 升级为 `master_password` 直到下一次锁定。
 _Avoid_: re-login, forced relock, one-shot token
 
 **Session Activity**:

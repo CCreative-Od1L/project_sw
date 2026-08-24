@@ -64,14 +64,15 @@ void main() {
 
       expect(controller.requiresMasterPasswordStepUp, isTrue);
 
-      controller.beginActivity(SessionActivity.passwordRecovery);
-      controller.completeMasterPasswordStepUp();
+      final MasterPasswordStepUpChallenge challenge = controller
+          .beginMasterPasswordStepUp();
+      expect(challenge.complete(), isTrue);
 
       final UnlockedSession steppedUp = controller.state as UnlockedSession;
       expect(steppedUp.authStrength, AuthStrength.masterPassword);
-      expect(steppedUp.activity, SessionActivity.passwordRecovery);
+      expect(steppedUp.activity, SessionActivity.none);
       expect(controller.requiresMasterPasswordStepUp, isFalse);
-      expect(controller.hasActiveIdleTimer, isFalse);
+      expect(controller.hasActiveIdleTimer, isTrue);
     });
 
     test('records biometric invalidation even when already locked', () {
@@ -315,6 +316,148 @@ void main() {
       );
     });
 
+    test('does not overlap step-up challenges with session activities', () {
+      final SessionController challenging = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      final SessionController active = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      addTearDown(challenging.dispose);
+      addTearDown(active.dispose);
+
+      challenging.beginMasterPasswordStepUp();
+      active.beginActivity(SessionActivity.migrationSending);
+
+      expect(
+        () => challenging.beginActivity(SessionActivity.migrationSending),
+        throwsStateError,
+      );
+      expect(active.beginMasterPasswordStepUp, throwsStateError);
+    });
+
+    test('a stale step-up challenge cannot upgrade a newer session', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      addTearDown(controller.dispose);
+
+      final MasterPasswordStepUpChallenge stale = controller
+          .beginMasterPasswordStepUp();
+      controller.lock(LockReason.manualLock);
+      controller.unlock(AuthStrength.masterPassword);
+      controller.lock(LockReason.backgroundOrTimeout);
+      controller.unlock(AuthStrength.biometric);
+      final MasterPasswordStepUpChallenge current = controller
+          .beginMasterPasswordStepUp();
+
+      expect(stale.complete(), isFalse);
+      expect(stale.isActive, isFalse);
+      expect(current.isActive, isTrue);
+      expect(
+        (controller.state as UnlockedSession).authStrength,
+        AuthStrength.biometric,
+      );
+
+      expect(current.complete(), isTrue);
+      expect(
+        (controller.state as UnlockedSession).authStrength,
+        AuthStrength.masterPassword,
+      );
+    });
+
+    test('rejects challenge reentry while a lock is being published', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      addTearDown(controller.dispose);
+      final MasterPasswordStepUpChallenge challenge = controller
+          .beginMasterPasswordStepUp();
+      var reentryRejected = false;
+      challenge.onInvalidated(() {
+        try {
+          controller.beginMasterPasswordStepUp();
+        } on StateError {
+          reentryRejected = true;
+        }
+      });
+
+      controller.lock(LockReason.manualLock);
+
+      expect(reentryRejected, isTrue);
+      controller.unlock(AuthStrength.masterPassword);
+      controller.lock(LockReason.backgroundOrTimeout);
+      controller.unlock(AuthStrength.biometric);
+      expect(controller.beginMasterPasswordStepUp().isActive, isTrue);
+    });
+
+    test('rejects unlock reentry while a lock is being published', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      addTearDown(controller.dispose);
+      var reentryRejected = false;
+      final subscription = controller.states.listen((SessionState state) {
+        if (state is LockedSession) {
+          try {
+            controller.unlock(AuthStrength.masterPassword);
+          } on StateError {
+            reentryRejected = true;
+          }
+        }
+      });
+      addTearDown(subscription.cancel);
+
+      controller.lock(LockReason.manualLock);
+
+      expect(reentryRejected, isTrue);
+      expect(controller.state, isA<LockedSession>());
+      expect(controller.hasActiveIdleTimer, isFalse);
+    });
+
+    test('locks and continues cleanup when one cleaner throws', () {
+      final RecordingCleaner survivor = RecordingCleaner();
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+        secretCleaner: SessionSecretCleaners(<SessionSecretCleaner>[
+          ThrowingCleaner(),
+          survivor,
+        ]),
+      );
+      addTearDown(controller.dispose);
+
+      controller.lock(LockReason.backgroundOrTimeout);
+
+      expect(controller.state, isA<LockedSession>());
+      expect(survivor.clearCount, 1);
+    });
+
+    test('cleans an unlocked session when disposed directly', () {
+      final RecordingCleaner cleaner = RecordingCleaner();
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+        secretCleaner: cleaner,
+      );
+
+      controller.dispose();
+
+      expect(cleaner.clearCount, 1);
+    });
+
     test('ignores lock events before a vault exists', () {
       final SessionController controller = SessionController();
       addTearDown(controller.dispose);
@@ -437,4 +580,9 @@ final class RecordingCleaner implements SessionSecretCleaner {
 
   @override
   void clearUnlockedSession() => clearCount++;
+}
+
+final class ThrowingCleaner implements SessionSecretCleaner {
+  @override
+  void clearUnlockedSession() => throw StateError('cleanup failed');
 }
