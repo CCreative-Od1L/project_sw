@@ -35,6 +35,7 @@ void main() {
       final SessionController controller = SessionController();
       addTearDown(controller.dispose);
 
+      controller.markVaultCreated();
       controller.unlock(AuthStrength.masterPassword);
 
       expect(controller.state, isA<UnlockedSession>());
@@ -106,6 +107,7 @@ void main() {
       );
       addTearDown(controller.dispose);
 
+      controller.markVaultCreated();
       controller.unlock(AuthStrength.masterPassword);
       expect(controller.hasActiveIdleTimer, isTrue);
       expect(timers, hasLength(1));
@@ -170,6 +172,7 @@ void main() {
       );
       addTearDown(controller.dispose);
 
+      controller.markVaultCreated();
       controller.unlock(AuthStrength.masterPassword);
       controller.beginIdleTimeoutSuppression(
         LockSuppressionReason.migrationInProgress,
@@ -197,6 +200,7 @@ void main() {
       );
       addTearDown(controller.dispose);
 
+      controller.markVaultCreated();
       controller.unlock(AuthStrength.masterPassword);
       controller.beginIdleTimeoutSuppression(
         LockSuppressionReason.migrationInProgress,
@@ -208,6 +212,102 @@ void main() {
       expect(controller.isIdleTimeoutSuppressed, isFalse);
       expect(controller.hasActiveIdleTimer, isTrue);
       expect(timers, hasLength(2));
+    });
+
+    test('ignores lock events before a vault exists', () {
+      final SessionController controller = SessionController();
+      addTearDown(controller.dispose);
+
+      controller.handle(SessionEvent.appBackgrounded);
+
+      expect(controller.state, isA<VaultNotCreatedSession>());
+      expect(controller.routeState, SessionRouteState.setup);
+    });
+
+    test('does not downgrade wipe or biometric-invalidation locks', () {
+      final SessionController wipeController = SessionController(
+        initialState: const LockedSession(reason: LockReason.wipeStarted),
+      );
+      final SessionController biometricController = SessionController(
+        initialState: const LockedSession(
+          reason: LockReason.biometricInvalidated,
+        ),
+      );
+      addTearDown(wipeController.dispose);
+      addTearDown(biometricController.dispose);
+
+      wipeController.handle(SessionEvent.appBackgrounded);
+      biometricController.handle(SessionEvent.appBackgrounded);
+
+      expect(
+        (wipeController.state as LockedSession).reason,
+        LockReason.wipeStarted,
+      );
+      expect(
+        (biometricController.state as LockedSession).reason,
+        LockReason.biometricInvalidated,
+      );
+      expect((wipeController.state as LockedSession).canUseBiometric, isFalse);
+      expect(
+        (biometricController.state as LockedSession).canUseBiometric,
+        isFalse,
+      );
+    });
+
+    test('rejects unlock transitions that bypass the current lock reason', () {
+      final SessionController noVault = SessionController();
+      final SessionController wiping = SessionController(
+        initialState: const LockedSession(reason: LockReason.wipeStarted),
+      );
+      final SessionController manual = SessionController(
+        initialState: const LockedSession(reason: LockReason.manualLock),
+      );
+      final SessionController invalidated = SessionController(
+        initialState: const LockedSession(
+          reason: LockReason.biometricInvalidated,
+        ),
+      );
+      addTearDown(noVault.dispose);
+      addTearDown(wiping.dispose);
+      addTearDown(manual.dispose);
+      addTearDown(invalidated.dispose);
+
+      expect(
+        () => noVault.unlock(AuthStrength.masterPassword),
+        throwsStateError,
+      );
+      expect(
+        () => wiping.unlock(AuthStrength.masterPassword),
+        throwsStateError,
+      );
+      expect(() => manual.unlock(AuthStrength.biometric), throwsStateError);
+      expect(
+        () => invalidated.unlock(AuthStrength.biometric),
+        throwsStateError,
+      );
+
+      invalidated.unlock(AuthStrength.masterPassword);
+      expect(invalidated.state, isA<UnlockedSession>());
+      expect(
+        (invalidated.state as UnlockedSession).authStrength,
+        AuthStrength.masterPassword,
+      );
+    });
+
+    test('allows vault creation only from the first-run state', () {
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      addTearDown(controller.dispose);
+
+      expect(controller.markVaultCreated, throwsStateError);
+    });
+
+    test('rejects starting a wipe before a vault exists', () {
+      final SessionController controller = SessionController();
+      addTearDown(controller.dispose);
+
+      expect(controller.beginWipe, throwsStateError);
     });
   });
 }
