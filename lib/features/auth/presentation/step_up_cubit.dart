@@ -48,6 +48,7 @@ final class StepUpCubit extends Cubit<StepUpViewState> {
 
   final VerifyMasterPassword _verifyMasterPassword;
   final SessionController _sessionController;
+  MasterPasswordStepUpChallenge? _activeChallenge;
 
   /// Whether this session currently needs a master-password challenge.
   bool get requiresMasterPassword =>
@@ -65,23 +66,59 @@ final class StepUpCubit extends Cubit<StepUpViewState> {
     if (state is StepUpVerifying) {
       return false;
     }
+    final MasterPasswordStepUpChallenge challenge;
+    try {
+      challenge = _sessionController.beginMasterPasswordStepUp();
+    } on StateError {
+      emit(const StepUpUnavailable());
+      return false;
+    }
+    _activeChallenge = challenge;
+    challenge.onInvalidated(() {
+      if (!isClosed && identical(_activeChallenge, challenge)) {
+        _activeChallenge = null;
+        emit(const StepUpUnavailable());
+      }
+    });
     emit(const StepUpVerifying());
     try {
       final Result<VerifiedMasterPassword, VerifyMasterPasswordFailure> result =
           await _verifyMasterPassword(masterPassword);
+      if (!identical(_activeChallenge, challenge) || !challenge.isActive) {
+        return false;
+      }
       switch (result) {
         case Success<VerifiedMasterPassword, VerifyMasterPasswordFailure>():
-          _sessionController.completeMasterPasswordStepUp();
+          if (!challenge.complete()) {
+            _activeChallenge = null;
+            emit(const StepUpUnavailable());
+            return false;
+          }
+          _activeChallenge = null;
           emit(const StepUpReady());
           return true;
         case Failure<VerifiedMasterPassword, VerifyMasterPasswordFailure>():
+          challenge.cancel();
+          _activeChallenge = null;
           emit(const StepUpInvalidPassword());
           return false;
       }
     } on Object {
+      if (!identical(_activeChallenge, challenge) || !challenge.isActive) {
+        return false;
+      }
+      challenge.cancel();
+      _activeChallenge = null;
       emit(const StepUpFault());
       return false;
     }
+  }
+
+  @override
+  Future<void> close() async {
+    _activeChallenge?.cancel();
+    _activeChallenge = null;
+    await super.close();
   }
 }
 

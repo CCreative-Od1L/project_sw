@@ -190,6 +190,15 @@ final class MasterPasswordChangeCubit
       emit(const MasterPasswordChangeConfirmationMismatch());
       return;
     }
+    MasterPasswordStepUpChallenge? challenge;
+    if (_sessionController.requiresMasterPasswordStepUp) {
+      try {
+        challenge = _sessionController.beginMasterPasswordStepUp();
+      } on StateError {
+        emit(const MasterPasswordChangeFault());
+        return;
+      }
+    }
     emit(const MasterPasswordChangeWorking());
     try {
       final Result<ChangedMasterPassword, ChangeMasterPasswordFailure> result =
@@ -204,14 +213,16 @@ final class MasterPasswordChangeCubit
             emit(const MasterPasswordChangeFault());
             return;
           }
-          if (_sessionController.requiresMasterPasswordStepUp) {
-            _sessionController.completeMasterPasswordStepUp();
+          if (challenge != null && !challenge.complete()) {
+            emit(const MasterPasswordChangeFault());
+            return;
           }
           await _recoveryGate?.recordChangePasswordSuccess();
           emit(const MasterPasswordChangeCompleted());
         case Failure<ChangedMasterPassword, ChangeMasterPasswordFailure>(
           :final ChangeMasterPasswordFailure failure,
         ):
+          challenge?.cancel();
           if (failure ==
               ChangeMasterPasswordFailure.invalidCurrentMasterPassword) {
             emit(
@@ -224,6 +235,7 @@ final class MasterPasswordChangeCubit
           }
       }
     } on Object {
+      challenge?.cancel();
       emit(const MasterPasswordChangeFault());
     }
   }

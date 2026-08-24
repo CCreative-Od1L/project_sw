@@ -86,6 +86,64 @@ final class SessionActivityLease implements SessionActivityGuard {
   }
 }
 
+/// Unique ownership token for one master-password step-up challenge.
+final class MasterPasswordStepUpChallenge {
+  MasterPasswordStepUpChallenge._(this._owner);
+
+  final SessionController _owner;
+  final List<void Function()> _invalidationListeners = <void Function()>[];
+  var _ended = false;
+  var _invalidated = false;
+
+  /// Whether this exact challenge still belongs to the unlocked session.
+  bool get isActive => !_ended && _owner._ownsStepUpChallenge(this);
+
+  /// Registers synchronous notification when locking invalidates the challenge.
+  void onInvalidated(void Function() listener) {
+    if (_ended) {
+      if (_invalidated) {
+        _callSafely(listener);
+      }
+      return;
+    }
+    _invalidationListeners.add(listener);
+  }
+
+  /// Applies a verified master password only to the owning session.
+  bool complete() => _owner._completeStepUpChallenge(this);
+
+  /// Releases an unsuccessful or abandoned challenge without upgrading.
+  void cancel() => _owner._cancelStepUpChallenge(this);
+
+  void _markCompleted() {
+    _ended = true;
+    _invalidationListeners.clear();
+  }
+
+  void _markInvalidated() {
+    if (_ended) {
+      return;
+    }
+    _ended = true;
+    _invalidated = true;
+    final List<void Function()> listeners = List<void Function()>.of(
+      _invalidationListeners,
+    );
+    _invalidationListeners.clear();
+    for (final void Function() listener in listeners) {
+      _callSafely(listener);
+    }
+  }
+
+  static void _callSafely(void Function() listener) {
+    try {
+      listener();
+    } on Object {
+      // Locking must remain fail-closed when UI invalidation cleanup fails.
+    }
+  }
+}
+
 /// Global session source of truth for route access and authentication state.
 final class SessionController extends ChangeNotifier {
   /// Creates a session controller with an explicit bootstrap [initialState].
@@ -109,6 +167,10 @@ final class SessionController extends ChangeNotifier {
   SessionState _state;
   SessionTimer? _idleTimer;
   SessionActivityLease? _activityLease;
+  MasterPasswordStepUpChallenge? _stepUpChallenge;
+  final List<SessionState> _pendingStateTransitions = <SessionState>[];
+  var _isPublishingState = false;
+  var _isLocking = false;
 
   /// Collaborator that clears sensitive unlocked state before routing to lock.
   final SessionSecretCleaner? secretCleaner;
@@ -181,6 +243,9 @@ final class SessionController extends ChangeNotifier {
 
   /// Records a successful authentication without reinterpreting its strength.
   void unlock(AuthStrength authStrength) {
+    if (_isLocking) {
+      throw StateError('A session cannot unlock while locking.');
+    }
     if (authStrength == AuthStrength.none) {
       throw ArgumentError.value(
         authStrength,
@@ -210,12 +275,18 @@ final class SessionController extends ChangeNotifier {
         'An active workflow requires a concrete activity.',
       );
     }
+    if (_isLocking) {
+      throw StateError('A session activity cannot start while locking.');
+    }
     final SessionState current = _state;
     if (current is! UnlockedSession) {
       throw StateError('Only an unlocked session can start an activity.');
     }
     if (current.activity != SessionActivity.none) {
       throw StateError('Another session activity is already active.');
+    }
+    if (_stepUpChallenge != null) {
+      throw StateError('A step-up challenge is already active.');
     }
     final SessionActivityLease lease = SessionActivityLease._(this, activity);
     _activityLease = lease;
@@ -224,6 +295,28 @@ final class SessionController extends ChangeNotifier {
       UnlockedSession(authStrength: current.authStrength, activity: activity),
     );
     return lease;
+  }
+
+  /// Starts one master-password challenge bound to the current session.
+  MasterPasswordStepUpChallenge beginMasterPasswordStepUp() {
+    if (_isLocking) {
+      throw StateError('A step-up challenge cannot start while locking.');
+    }
+    final SessionState current = _state;
+    if (current is! UnlockedSession ||
+        current.authStrength == AuthStrength.masterPassword) {
+      throw StateError('The current session does not require a step-up.');
+    }
+    if (current.activity != SessionActivity.none) {
+      throw StateError('A session activity cannot overlap a step-up.');
+    }
+    if (_stepUpChallenge != null) {
+      throw StateError('Another step-up challenge is already active.');
+    }
+    final MasterPasswordStepUpChallenge challenge =
+        MasterPasswordStepUpChallenge._(this);
+    _stepUpChallenge = challenge;
+    return challenge;
   }
 
   /// Locks the current vault session for [reason].
@@ -244,12 +337,17 @@ final class SessionController extends ChangeNotifier {
       _transition(LockedSession(reason: reason));
       return;
     }
-    _interruptActivity();
-    _cancelIdleTimer();
-    for (final SessionSecretCleaner cleaner in _secretCleaners) {
-      cleaner.clearUnlockedSession();
+    _isLocking = true;
+    try {
+      _invalidateStepUpChallenge();
+      _interruptActivity();
+      _cancelIdleTimer();
+      _clearSessionSecrets();
+      _transition(LockedSession(reason: reason));
+    } on Object {
+      _isLocking = false;
+      rethrow;
     }
-    _transition(LockedSession(reason: reason));
   }
 
   /// Clears unlocked state and blocks every route while a wipe is in progress.
@@ -268,26 +366,6 @@ final class SessionController extends ChangeNotifier {
     }
     _cancelIdleTimer();
     _transition(const VaultNotCreatedSession());
-  }
-
-  /// Upgrades an unlocked biometric session to master-password strength.
-  ///
-  /// The password verification itself belongs to the authentication use case;
-  /// this method only applies the already-verified state transition.
-  void completeMasterPasswordStepUp() {
-    final SessionState current = _state;
-    if (current is! UnlockedSession) {
-      throw StateError('A locked session cannot complete a step-up.');
-    }
-    if (current.authStrength == AuthStrength.masterPassword) {
-      return;
-    }
-    _transition(
-      UnlockedSession(
-        authStrength: AuthStrength.masterPassword,
-        activity: current.activity,
-      ),
-    );
   }
 
   /// Sends a domain event through the session state machine.
@@ -313,8 +391,12 @@ final class SessionController extends ChangeNotifier {
   /// Releases stream resources owned by this controller.
   @override
   void dispose() {
+    _invalidateStepUpChallenge();
     _interruptActivity();
     _cancelIdleTimer();
+    if (_state is UnlockedSession) {
+      _clearSessionSecrets();
+    }
     _events.close();
     _states.close();
     super.dispose();
@@ -345,6 +427,16 @@ final class SessionController extends ChangeNotifier {
     _idleTimer = null;
   }
 
+  void _clearSessionSecrets() {
+    for (final SessionSecretCleaner cleaner in _secretCleaners) {
+      try {
+        cleaner.clearUnlockedSession();
+      } on Object {
+        // Lock and disposal remain fail-closed when cleanup is faulty.
+      }
+    }
+  }
+
   bool _owns(SessionActivityLease lease) {
     final SessionState current = _state;
     return identical(_activityLease, lease) &&
@@ -370,9 +462,69 @@ final class SessionController extends ChangeNotifier {
     lease?._markInterrupted();
   }
 
+  bool _ownsStepUpChallenge(MasterPasswordStepUpChallenge challenge) {
+    final SessionState current = _state;
+    return identical(_stepUpChallenge, challenge) &&
+        current is UnlockedSession &&
+        current.authStrength != AuthStrength.masterPassword;
+  }
+
+  bool _completeStepUpChallenge(MasterPasswordStepUpChallenge challenge) {
+    if (!_ownsStepUpChallenge(challenge)) {
+      challenge._markInvalidated();
+      return false;
+    }
+    final UnlockedSession current = _state as UnlockedSession;
+    _stepUpChallenge = null;
+    challenge._markCompleted();
+    _transition(
+      UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+        activity: current.activity,
+      ),
+    );
+    return switch (_state) {
+      UnlockedSession(authStrength: AuthStrength.masterPassword) => true,
+      _ => false,
+    };
+  }
+
+  void _cancelStepUpChallenge(MasterPasswordStepUpChallenge challenge) {
+    if (!identical(_stepUpChallenge, challenge)) {
+      challenge._markInvalidated();
+      return;
+    }
+    _stepUpChallenge = null;
+    challenge._markCompleted();
+  }
+
+  void _invalidateStepUpChallenge() {
+    final MasterPasswordStepUpChallenge? challenge = _stepUpChallenge;
+    _stepUpChallenge = null;
+    challenge?._markInvalidated();
+  }
+
   void _transition(SessionState nextState) {
-    _state = nextState;
-    _states.add(nextState);
-    notifyListeners();
+    _pendingStateTransitions.add(nextState);
+    if (_isPublishingState) {
+      return;
+    }
+    _isPublishingState = true;
+    try {
+      while (_pendingStateTransitions.isNotEmpty) {
+        final SessionState pending = _pendingStateTransitions.removeAt(0);
+        _state = pending;
+        try {
+          _states.add(pending);
+          notifyListeners();
+        } finally {
+          if (pending is LockedSession) {
+            _isLocking = false;
+          }
+        }
+      }
+    } finally {
+      _isPublishingState = false;
+    }
   }
 }

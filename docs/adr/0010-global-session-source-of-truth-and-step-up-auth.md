@@ -152,6 +152,7 @@
 
 - 若当前已是 `Unlocked(authStrength: master_password)`,高敏操作可直接继续;
 - 若当前是 `Unlocked(authStrength: biometric)`,由会话真相源发起主密码 step-up challenge;
+- challenge 必须绑定唯一 session lease;认证升级没有绕过 lease 的公开入口;任一锁定事件立即使其失效,旧异步结果不得作用于后续重新解锁的会话;
 - 挑战成功后,会话保持 `Unlocked`,但 `authStrength` 升级为 `master_password`;
 - 失败则当前操作不放行,但不因此自动转入锁定态。
 
@@ -200,6 +201,8 @@ step-up 成功后,当前会话的 `authStrength` 升级为 `master_password`,并
 - 发出会话状态变化供 GoRouter redirect
 - 记录锁定埋点
 - 作废未完成的高敏 challenge
+
+状态变化按顺序发布。锁定开始后到 `Locked(...)` 发布完成前,会话真相源拒绝重入解锁、step-up challenge 或新 activity。每个敏感数据清理器独立按 best-effort 执行:单个清理器异常不得跳过后续清理,也不得阻止最终锁定;会话真相源在解锁态被销毁时同样触发清理。
 
 ### 7. 生命周期事件先适配为项目内领域事件
 
@@ -351,6 +354,7 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
   - 生物解锁会话访问高敏操作时触发主密码 challenge
   - challenge 成功后升级到 `master_password` 并保持到下一次锁定
   - challenge 失败不自动全局锁定
+  - challenge 验证挂起时锁定会立即作废,且 stale completion 不会升级新会话或覆盖新 challenge
 - suppression 测试:
   - `migration_sending` / `migration_receiving` / `password_recovery` 抑制 idle timeout
   - 但不抑制 `appBackgrounded` 立即锁定

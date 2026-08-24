@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
@@ -53,7 +55,7 @@ void main() {
   });
 
   test('does not prompt again after a session is upgraded', () async {
-    sessionController.completeMasterPasswordStepUp();
+    sessionController.beginMasterPasswordStepUp().complete();
 
     final bool verified = await cubit.verify('not consulted');
 
@@ -70,15 +72,105 @@ void main() {
     expect(cubit.state, isA<StepUpUnavailable>());
     expect(verifier.passwords, isEmpty);
   });
+
+  test(
+    'invalidates an in-flight challenge before a new session unlocks',
+    () async {
+      verifier.blockNextVerification();
+      final Future<bool> verification = cubit.verify('correct password');
+      await verifier.started.future;
+
+      sessionController.lock(LockReason.manualLock);
+
+      expect(cubit.state, isA<StepUpUnavailable>());
+
+      sessionController.unlock(AuthStrength.masterPassword);
+      sessionController.lock(LockReason.backgroundOrTimeout);
+      sessionController.unlock(AuthStrength.biometric);
+      verifier.completeVerification();
+
+      expect(await verification, isFalse);
+      expect(
+        (sessionController.state as UnlockedSession).authStrength,
+        AuthStrength.biometric,
+      );
+      expect(cubit.state, isA<StepUpUnavailable>());
+    },
+  );
+
+  test('stale completion cannot overwrite a newer challenge', () async {
+    verifier.blockNextVerification();
+    final Future<bool> staleVerification = cubit.verify('old password');
+    await verifier.started.future;
+
+    sessionController.lock(LockReason.manualLock);
+    sessionController.unlock(AuthStrength.masterPassword);
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    sessionController.unlock(AuthStrength.biometric);
+
+    final Future<bool> currentVerification = cubit.verify('new password');
+    verifier.completeVerification();
+
+    expect(await staleVerification, isFalse);
+    expect(await currentVerification, isTrue);
+    expect(verifier.passwords, <String>['old password', 'new password']);
+    expect(
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.masterPassword,
+    );
+    expect(cubit.state, isA<StepUpReady>());
+  });
+
+  test(
+    'does not authorize when completion synchronously locks session',
+    () async {
+      final subscription = sessionController.states.listen((
+        SessionState state,
+      ) {
+        if (state case UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        )) {
+          sessionController.lock(LockReason.backgroundOrTimeout);
+        }
+      });
+      addTearDown(subscription.cancel);
+
+      final bool verified = await cubit.verify('correct password');
+
+      expect(verified, isFalse);
+      expect(sessionController.state, isA<LockedSession>());
+      expect(cubit.state, isA<StepUpUnavailable>());
+    },
+  );
 }
 
 final class FakeMasterPasswordVerifier implements MasterPasswordVerifier {
   final List<String> passwords = <String>[];
+  final Completer<void> started = Completer<void>();
   Object? failure;
+  Completer<void>? _pendingVerification;
+
+  void blockNextVerification() {
+    _pendingVerification = Completer<void>();
+  }
+
+  void completeVerification() {
+    final Completer<void>? pending = _pendingVerification;
+    if (pending != null && !pending.isCompleted) {
+      pending.complete();
+    }
+  }
 
   @override
   Future<void> verifyMasterPassword(String masterPassword) async {
     passwords.add(masterPassword);
+    if (!started.isCompleted) {
+      started.complete();
+    }
+    final Completer<void>? pending = _pendingVerification;
+    if (pending != null) {
+      await pending.future;
+    }
     final Object? currentFailure = failure;
     if (currentFailure != null) throw currentFailure;
   }
