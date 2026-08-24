@@ -6,6 +6,7 @@ import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/home_page.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
@@ -34,18 +35,19 @@ void main() {
             username: 'Bob',
           ),
         ]);
-    final VaultEntriesCubit entriesCubit = VaultEntriesCubit(
-      AddVaultEntry(repository),
-      repository,
-    );
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
         authStrength: AuthStrength.masterPassword,
       ),
-      secretCleaner: entriesCubit,
       timerFactory: (Duration _, void Function() _) =>
           const InactiveSessionTimer(),
     );
+    final VaultEntriesCubit entriesCubit = VaultEntriesCubit(
+      AddVaultEntry(repository),
+      repository,
+      sessionController,
+    );
+    sessionController.registerSecretCleaner(entriesCubit);
     addTearDown(entriesCubit.close);
     addTearDown(sessionController.dispose);
 
@@ -129,8 +131,10 @@ final class InMemoryVaultRepository implements VaultRepository {
   bool get hasUnlockedSession => true;
 
   @override
-  Future<EntrySummary> addEntry(NewVaultEntry entry) async =>
-      throw UnimplementedError();
+  Future<EntrySummary> addEntry(
+    NewVaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
   List<EntrySummary> get entrySummaries =>
@@ -140,16 +144,22 @@ final class InMemoryVaultRepository implements VaultRepository {
   Argon2idParameters? get activeKdfParameters => null;
 
   @override
-  Future<EntryDetail> getEntryDetail(Uint8List entryId) async =>
-      throw UnimplementedError();
+  Future<EntryDetail> getEntryDetail(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
-  Future<EntrySummary> updateEntry(VaultEntry entry) async =>
-      throw UnimplementedError();
+  Future<EntrySummary> updateEntry(
+    VaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
-  Future<void> deleteEntry(Uint8List entryId) async =>
-      throw UnimplementedError();
+  Future<void> deleteEntry(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
   void clearUnlockedSession() {}

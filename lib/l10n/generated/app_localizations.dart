@@ -572,6 +572,264 @@ abstract class AppLocalizations {
   /// **'No credentials or vault plaintext are shown here.'**
   String get settingsNoCredentials;
 
+  /// No description provided for @masterPasswordSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password'**
+  String get masterPasswordSettings;
+
+  /// No description provided for @masterPasswordChangeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing it creates a fresh salt and re-wraps the vault key without re-encrypting your entries.'**
+  String get masterPasswordChangeDescription;
+
+  /// No description provided for @changeMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change master password'**
+  String get changeMasterPassword;
+
+  /// No description provided for @changeMasterPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change master password'**
+  String get changeMasterPasswordTitle;
+
+  /// No description provided for @masterPasswordChangeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This security-sensitive action verifies your current master password. Keep the new password safe; it cannot be recovered without a valid biometric recovery path.'**
+  String get masterPasswordChangeWarning;
+
+  /// No description provided for @currentMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Current master password'**
+  String get currentMasterPassword;
+
+  /// No description provided for @newMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'New master password'**
+  String get newMasterPassword;
+
+  /// No description provided for @confirmNewMasterPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm new master password'**
+  String get confirmNewMasterPassword;
+
+  /// No description provided for @changePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change password'**
+  String get changePassword;
+
+  /// No description provided for @masterPasswordChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password changed'**
+  String get masterPasswordChanged;
+
+  /// No description provided for @currentMasterPasswordInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Current master password is incorrect.'**
+  String get currentMasterPasswordInvalid;
+
+  /// No description provided for @newMasterPasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a new master password.'**
+  String get newMasterPasswordRequired;
+
+  /// No description provided for @newMasterPasswordsDoNotMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The new master passwords do not match.'**
+  String get newMasterPasswordsDoNotMatch;
+
+  /// No description provided for @masterPasswordChangeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The master password could not be changed.'**
+  String get masterPasswordChangeFailed;
+
+  /// No description provided for @recoverWithBiometrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover with biometrics'**
+  String get recoverWithBiometrics;
+
+  /// No description provided for @recoverMasterPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover master password'**
+  String get recoverMasterPasswordTitle;
+
+  /// No description provided for @masterPasswordRecoveryWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone who passes this biometric check can take over the vault by setting a new master password. Continue only on a trusted device.'**
+  String get masterPasswordRecoveryWarning;
+
+  /// No description provided for @recoverPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover password'**
+  String get recoverPassword;
+
+  /// No description provided for @masterPasswordRecovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Master password recovered'**
+  String get masterPasswordRecovered;
+
+  /// No description provided for @syncRecoveryBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Update any backup device with the new master password.'**
+  String get syncRecoveryBackup;
+
+  /// No description provided for @masterPasswordStrengthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password strength: {strength}'**
+  String masterPasswordStrengthLabel(String strength);
+
+  /// No description provided for @newMasterPasswordTooWeak.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a stronger master password.'**
+  String get newMasterPasswordTooWeak;
+
+  /// No description provided for @masterPasswordRecoveryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Password recovery is no longer available.'**
+  String get masterPasswordRecoveryUnavailable;
+
+  /// No description provided for @masterPasswordRecoveryCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric confirmation was cancelled.'**
+  String get masterPasswordRecoveryCancelled;
+
+  /// No description provided for @masterPasswordRecoveryBiometricUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric confirmation is unavailable. Your vault was not changed.'**
+  String get masterPasswordRecoveryBiometricUnavailable;
+
+  /// No description provided for @masterPasswordRecoveryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The master password could not be recovered.'**
+  String get masterPasswordRecoveryFailed;
+
+  /// No description provided for @deadlockWipeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete vault'**
+  String get deadlockWipeTitle;
+
+  /// No description provided for @deadlockWipeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes every password and cannot be undone.'**
+  String get deadlockWipeWarning;
+
+  /// No description provided for @deadlockWipeInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Type DELETE exactly. A cancelable 10-second countdown starts before deletion.'**
+  String get deadlockWipeInstructions;
+
+  /// No description provided for @deadlockWipeConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Type DELETE to confirm'**
+  String get deadlockWipeConfirmation;
+
+  /// No description provided for @deadlockWipeConfirmationInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter DELETE exactly to continue.'**
+  String get deadlockWipeConfirmationInvalid;
+
+  /// No description provided for @startDeadlockWipeCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Start 10-second countdown'**
+  String get startDeadlockWipeCountdown;
+
+  /// No description provided for @deadlockWipeCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting in {seconds} seconds'**
+  String deadlockWipeCountdown(int seconds);
+
+  /// No description provided for @cancelDeadlockWipe.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel deletion'**
+  String get cancelDeadlockWipe;
+
+  /// No description provided for @deadlockWipeWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting and verifying vault data…'**
+  String get deadlockWipeWorking;
+
+  /// No description provided for @deadlockWipeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion did not complete. Setup remains blocked; review the warning and retry.'**
+  String get deadlockWipeFailed;
+
+  /// No description provided for @deleteVaultSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete vault'**
+  String get deleteVaultSettings;
+
+  /// No description provided for @deleteVaultDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete this vault, its backups, recovery state, local logs, and biometric key.'**
+  String get deleteVaultDescription;
+
+  /// No description provided for @deleteVaultWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes every password and cannot be undone. Enter the current master password to continue.'**
+  String get deleteVaultWarning;
+
+  /// No description provided for @deleteVaultAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete vault'**
+  String get deleteVaultAction;
+
+  /// No description provided for @deleteVaultInvalidPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'The current master password is incorrect. Nothing was deleted.'**
+  String get deleteVaultInvalidPassword;
+
+  /// No description provided for @deleteVaultFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion did not complete. Setup remains blocked until every target can be removed.'**
+  String get deleteVaultFailed;
+
+  /// No description provided for @vaultDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault permanently deleted'**
+  String get vaultDeleted;
+
   /// No description provided for @biometricSettings.
   ///
   /// In en, this message translates to:

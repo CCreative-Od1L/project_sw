@@ -8,6 +8,10 @@ import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
+import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/data/vault_entry_json_codec.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -23,6 +27,8 @@ final class EncryptedVaultRepository
         VaultRepository,
         BiometricVaultRepository,
         MasterPasswordVerifier,
+        MasterPasswordChangeRepository,
+        MasterPasswordRecoveryRepository,
         MigrationVaultPort {
   /// Creates a repository with a production or test [vaultPathResolver].
   EncryptedVaultRepository({
@@ -86,7 +92,10 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> enableBiometricUnlock() async {
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -96,13 +105,40 @@ final class EncryptedVaultRepository
     Uint8List? aad;
     Uint8List? wrappedMvk;
     AeadCiphertext? encrypted;
-    VaultFileHeader? header;
-    VaultFileHeader? nextHeader;
+    VaultFileHeader? previousHeader;
+    VaultFileHeader? disabledHeader;
+    VaultFileHeader? currentHeader;
+    VaultFileHeader? enabledHeader;
+    var createdKey = false;
+    var committedKey = false;
     try {
       if (await store.availability != BiometricAvailability.available) {
         throw const BiometricUnavailableException();
       }
+      activityGuard.ensureActive();
+      final String previousPath = await vaultPathResolver();
+      activityGuard.ensureActive();
+      final OpenVaultFile previous = vaultFileEngine.openVaultFile(
+        previousPath,
+      );
+      previousHeader = previous.header;
+      _hasBiometricUnlock =
+          previousHeader.biometricWrappedMasterVaultKey != null;
+      if (_hasBiometricUnlock) {
+        disabledHeader = previousHeader.copyWithBiometric(null);
+        activityGuard.ensureActive();
+        vaultFileEngine.commitHeaderUpdate(
+          path: previousPath,
+          opened: previous,
+          header: disabledHeader,
+        );
+        _hasBiometricUnlock = false;
+        await store.deleteKey();
+        activityGuard.ensureActive();
+      }
       biometricKey = await store.createAndStoreKey();
+      createdKey = true;
+      activityGuard.ensureActive();
       _validateBiometricKey(biometricKey);
       aad = AadBuilder.forWrapBiometricMvk(
         magic: vaultMagic,
@@ -115,15 +151,23 @@ final class EncryptedVaultRepository
         throw const CryptoInitializationException();
       }
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
-      header = opened.header;
-      nextHeader = header.copyWithBiometric(wrappedMvk);
+      currentHeader = opened.header;
+      enabledHeader = currentHeader.copyWithBiometric(wrappedMvk);
+      activityGuard.ensureActive();
+      // From this point a thrown backup refresh can still mean that the
+      // primary header was durably replaced. Preserve the matching key.
+      committedKey = true;
       vaultFileEngine.commitHeaderUpdate(
         path: path,
         opened: opened,
-        header: nextHeader,
+        header: enabledHeader,
       );
       _hasBiometricUnlock = true;
+      activityGuard.ensureActive();
+    } on SessionActivityInterrupted {
+      rethrow;
     } on BiometricKeyStoreException {
       rethrow;
     } on VaultException {
@@ -135,11 +179,22 @@ final class EncryptedVaultRepository
     } on Object catch (error) {
       throw VaultIoException(cause: error);
     } finally {
-      if (header != null) {
-        _clearHeaderKeyMaterial(header);
+      if (createdKey && !committedKey) {
+        try {
+          await store.deleteKey();
+        } on Object {
+          // The vault header remains disabled; orphan cleanup is best-effort.
+        }
       }
-      if (nextHeader != null) {
-        _clearHeaderKeyMaterial(nextHeader);
+      for (final VaultFileHeader? header in <VaultFileHeader?>[
+        previousHeader,
+        disabledHeader,
+        currentHeader,
+        enabledHeader,
+      ]) {
+        if (header != null) {
+          _clearHeaderKeyMaterial(header);
+        }
       }
       if (encrypted != null) {
         clearSensitiveBytes(encrypted.nonce);
@@ -158,7 +213,10 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> disableBiometricUnlock() async {
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (_masterVaultKey == null) {
       throw const VaultLockedException();
     }
@@ -167,21 +225,23 @@ final class EncryptedVaultRepository
     VaultFileHeader? nextHeader;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
-      if (header.biometricWrappedMasterVaultKey == null) {
-        _hasBiometricUnlock = false;
-        await store.deleteKey();
-        return;
+      if (header.biometricWrappedMasterVaultKey != null) {
+        nextHeader = header.copyWithBiometric(null);
+        activityGuard.ensureActive();
+        vaultFileEngine.commitHeaderUpdate(
+          path: path,
+          opened: opened,
+          header: nextHeader,
+        );
       }
-      nextHeader = header.copyWithBiometric(null);
-      vaultFileEngine.commitHeaderUpdate(
-        path: path,
-        opened: opened,
-        header: nextHeader,
-      );
       _hasBiometricUnlock = false;
       await store.deleteKey();
+      activityGuard.ensureActive();
+    } on SessionActivityInterrupted {
+      rethrow;
     } on BiometricKeyStoreException {
       rethrow;
     } on VaultException {
@@ -384,7 +444,10 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<List<MigrationEntryPayload>> exportMigrationEntries() async {
+  Future<List<MigrationEntryPayload>> exportMigrationEntries({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -393,6 +456,7 @@ final class EncryptedVaultRepository
     VaultFileHeader? header;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       for (final VaultEntryRecord record in opened.directory.records) {
@@ -405,7 +469,13 @@ final class EncryptedVaultRepository
           ),
         );
       }
+      activityGuard.ensureActive();
       return List<MigrationEntryPayload>.unmodifiable(exported);
+    } on SessionActivityInterrupted {
+      for (final MigrationEntryPayload payload in exported) {
+        payload.dispose();
+      }
+      rethrow;
     } on VaultException {
       for (final MigrationEntryPayload payload in exported) {
         payload.dispose();
@@ -435,8 +505,10 @@ final class EncryptedVaultRepository
 
   @override
   Future<void> importMigrationEntries(
-    List<MigrationEntryPayload> entries,
-  ) async {
+    List<MigrationEntryPayload> entries, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -449,6 +521,7 @@ final class EncryptedVaultRepository
     final List<EntrySummary> projected = <EntrySummary>[..._entrySummaries];
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       for (final MigrationEntryPayload payload in entries) {
@@ -525,13 +598,17 @@ final class EncryptedVaultRepository
         }
       }
       if (buffered.isNotEmpty) {
+        activityGuard.ensureActive();
         vaultFileEngine.commitMigration(
           path: path,
           opened: opened,
           entries: buffered,
         );
+        activityGuard.ensureActive();
         _entrySummaries = List<EntrySummary>.unmodifiable(projected);
       }
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -641,8 +718,16 @@ final class EncryptedVaultRepository
 
   /// Verifies the master password while preserving the current unlocked data.
   @override
-  Future<void> verifyMasterPassword(String masterPassword) async {
-    if (_masterVaultKey == null) {
+  Future<void> verifyMasterPassword(String masterPassword) =>
+      _verifyMasterPassword(masterPassword);
+
+  Future<void> _verifyMasterPassword(
+    String masterPassword, {
+    SessionActivityGuard? activityGuard,
+  }) async {
+    activityGuard?.ensureActive();
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) {
       throw const VaultLockedException();
     }
     Uint8List? kek;
@@ -653,6 +738,7 @@ final class EncryptedVaultRepository
     VaultFileHeader? header;
     try {
       final String path = await vaultPathResolver();
+      activityGuard?.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       kek = await crypto.deriveKek(
@@ -662,6 +748,7 @@ final class EncryptedVaultRepository
         iterations: header.kdfParameters.iterations,
         parallelism: header.kdfParameters.parallelism,
       );
+      activityGuard?.ensureActive();
       final Uint8List kdfBytes = _encodeVaultKdfParameters(
         header.kdfParameters,
       );
@@ -690,6 +777,12 @@ final class EncryptedVaultRepository
       } on Object {
         throw const InvalidMasterPasswordException();
       }
+      activityGuard?.ensureActive();
+      if (!_sameBytes(verifiedMasterVaultKey, masterVaultKey)) {
+        throw const VaultCorruptedException();
+      }
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -720,8 +813,146 @@ final class EncryptedVaultRepository
     }
   }
 
+  /// Atomically re-wraps the unchanged MVK under a fresh salt and new KEK.
   @override
-  Future<EntrySummary> addEntry(NewVaultEntry entry) async {
+  Future<void> changeMasterPassword({
+    required String currentMasterPassword,
+    required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
+    await _verifyMasterPassword(
+      currentMasterPassword,
+      activityGuard: activityGuard,
+    );
+    activityGuard.ensureActive();
+    await _rewrapMasterVaultKey(
+      newMasterPassword: newMasterPassword,
+      activityGuard: activityGuard,
+    );
+    activityGuard.ensureActive();
+  }
+
+  /// Re-wraps the unlocked MVK after the domain recovery gates have passed.
+  @override
+  Future<void> recoverMasterPassword({
+    required String newMasterPassword,
+    required SessionActivityLease activityLease,
+  }) => _rewrapMasterVaultKey(
+    newMasterPassword: newMasterPassword,
+    activityGuard: activityLease,
+  );
+
+  Future<void> _rewrapMasterVaultKey({
+    required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
+    final Uint8List? masterVaultKey = _masterVaultKey;
+    if (masterVaultKey == null) {
+      throw const VaultLockedException();
+    }
+    Uint8List? newSalt;
+    Uint8List? newKek;
+    Uint8List? newAad;
+    Uint8List? newWrappedMasterVaultKey;
+    AeadCiphertext? newWrappedCiphertext;
+    VaultFileHeader? header;
+    VaultFileHeader? nextHeader;
+    try {
+      final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
+      final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
+      header = opened.header;
+      newSalt = crypto.randomBytes(16);
+      if (newSalt.length != 16) {
+        throw const CryptoInitializationException();
+      }
+      newKek = await crypto.deriveKek(
+        newMasterPassword,
+        newSalt,
+        memoryKiB: header.kdfParameters.memoryKiB,
+        iterations: header.kdfParameters.iterations,
+        parallelism: header.kdfParameters.parallelism,
+      );
+      activityGuard.ensureActive();
+      final Uint8List newKdfBytes = _encodeVaultKdfParameters(
+        header.kdfParameters,
+      );
+      try {
+        newAad = AadBuilder.forWrapMvk(
+          magic: vaultMagic,
+          formatVersion: vaultFormatVersion,
+          kdfAlgorithmId: header.kdfAlgorithmId,
+          kdfParameters: newKdfBytes,
+          kdfSalt: newSalt,
+        );
+      } finally {
+        clearSensitiveBytes(newKdfBytes);
+      }
+      newWrappedCiphertext = crypto.encryptWithAead(
+        newKek,
+        masterVaultKey,
+        newAad,
+      );
+      newWrappedMasterVaultKey = _join(
+        newWrappedCiphertext.nonce,
+        newWrappedCiphertext.ciphertext,
+      );
+      if (newWrappedMasterVaultKey.length != 72) {
+        throw const CryptoInitializationException();
+      }
+      nextHeader = header.copyWithMasterPassword(
+        kdfSalt: newSalt,
+        wrappedMasterVaultKey: newWrappedMasterVaultKey,
+      );
+      activityGuard.ensureActive();
+      vaultFileEngine.commitHeaderUpdate(
+        path: path,
+        opened: opened,
+        header: nextHeader,
+      );
+      activityGuard.ensureActive();
+    } on SessionActivityInterrupted {
+      rethrow;
+    } on VaultException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw VaultIoException(cause: error);
+    } on FormatException catch (error) {
+      throw VaultCorruptedException(cause: error);
+    } on Object catch (error) {
+      throw VaultIoException(cause: error);
+    } finally {
+      for (final Uint8List? bytes in <Uint8List?>[
+        newWrappedMasterVaultKey,
+        newAad,
+        newKek,
+        newSalt,
+      ]) {
+        if (bytes != null) {
+          clearSensitiveBytes(bytes);
+        }
+      }
+      if (newWrappedCiphertext != null) {
+        clearSensitiveBytes(newWrappedCiphertext.nonce);
+        clearSensitiveBytes(newWrappedCiphertext.ciphertext);
+      }
+      if (nextHeader != null) {
+        _clearHeaderKeyMaterial(nextHeader);
+      }
+      if (header != null) {
+        _clearHeaderKeyMaterial(header);
+      }
+    }
+  }
+
+  @override
+  Future<EntrySummary> addEntry(
+    NewVaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (entry.name.trim().isEmpty) {
       throw const InvalidArgumentException('An entry name is required.');
     }
@@ -741,6 +972,7 @@ final class EncryptedVaultRepository
     AeadCiphertext? encryptedEntry;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       entryId = crypto.randomBytes(16);
       final DateTime now = DateTime.now().toUtc();
@@ -792,6 +1024,7 @@ final class EncryptedVaultRepository
         plaintextFormatId: 1,
         sequence: opened.header.sequenceCounter,
       );
+      activityGuard.ensureActive();
       vaultFileEngine.commitEntryBlock(
         path: path,
         opened: opened,
@@ -806,6 +1039,8 @@ final class EncryptedVaultRepository
         summary,
       ]);
       return summary;
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -851,16 +1086,23 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<EntryDetail> getEntryDetail(Uint8List entryId) async {
+  Future<EntryDetail> getEntryDetail(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) throw const VaultLockedException();
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       final VaultEntryRecord record = _recordFor(opened.directory, entryId);
       return EntryDetail(
         _decryptEntry(path, opened.header, record, masterVaultKey),
       );
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -871,12 +1113,18 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> deleteEntry(Uint8List entryId) async {
+  Future<void> deleteEntry(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (_masterVaultKey == null) throw const VaultLockedException();
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       final VaultEntryRecord record = _recordFor(opened.directory, entryId);
+      activityGuard.ensureActive();
       vaultFileEngine.commitEntryDeletion(
         path: path,
         opened: opened,
@@ -887,6 +1135,8 @@ final class EncryptedVaultRepository
           (EntrySummary item) => !_sameBytes(item.entryId, entryId),
         ),
       );
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -897,7 +1147,11 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<EntrySummary> updateEntry(VaultEntry entry) async {
+  Future<EntrySummary> updateEntry(
+    VaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (entry.name.trim().isEmpty) {
       throw const InvalidArgumentException('An entry name is required.');
     }
@@ -914,6 +1168,7 @@ final class EncryptedVaultRepository
     AeadCiphertext? encrypted;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       final VaultEntryRecord current = _recordFor(
         opened.directory,
@@ -965,6 +1220,7 @@ final class EncryptedVaultRepository
       final int nextFree = inPlace
           ? opened.header.freeListHead
           : current.blockOffset;
+      activityGuard.ensureActive();
       vaultFileEngine.commitEntryBlock(
         path: path,
         opened: opened,
@@ -984,6 +1240,8 @@ final class EncryptedVaultRepository
         ),
       );
       return summary;
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
