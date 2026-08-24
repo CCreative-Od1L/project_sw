@@ -8,6 +8,7 @@ import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.da
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
@@ -61,11 +62,22 @@ void main() {
   testWidgets('renders the Material biometric settings card', (
     WidgetTester tester,
   ) async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      timerFactory: (Duration duration, void Function() callback) =>
+          FakeSessionTimer(),
+    );
     final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
       FakeBiometricVaultRepository(configured: false),
       FakeBiometricKeyStore(),
+      sessionController: sessionController,
     );
-    addTearDown(settingsCubit.close);
+    addTearDown(() {
+      settingsCubit.close();
+      sessionController.dispose();
+    });
 
     await tester.pumpWidget(
       _localizedApp(SettingsPage(biometricSettingsCubit: settingsCubit)),
@@ -94,6 +106,7 @@ void main() {
     final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
       repository,
       FakeBiometricKeyStore(),
+      sessionController: sessionController,
     );
     addTearDown(() {
       settingsCubit.close();
@@ -128,8 +141,8 @@ void main() {
     expect(find.textContaining('session was not changed'), findsOneWidget);
     expect(repository.enableCount, 0);
     expect(
-      sessionController.state,
-      const UnlockedSession(authStrength: AuthStrength.biometric),
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.biometric,
     );
 
     await tester.enterText(find.byType(TextField), 'correct password');
@@ -138,9 +151,56 @@ void main() {
 
     expect(repository.enableCount, 1);
     expect(
-      sessionController.state,
-      const UnlockedSession(authStrength: AuthStrength.masterPassword),
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.masterPassword,
     );
+  });
+
+  testWidgets('lock dismisses an open biometric step-up password dialog', (
+    WidgetTester tester,
+  ) async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+      timerFactory: (Duration _, void Function() _) => FakeSessionTimer(),
+    );
+    final StepUpCubit stepUpCubit = StepUpCubit(
+      VerifyMasterPassword(FakeMasterPasswordVerifier()),
+      sessionController,
+    );
+    final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
+      FakeBiometricVaultRepository(configured: false),
+      FakeBiometricKeyStore(),
+      sessionController: sessionController,
+    );
+    addTearDown(settingsCubit.close);
+    addTearDown(stepUpCubit.close);
+    addTearDown(sessionController.dispose);
+
+    await tester.pumpWidget(
+      _localizedApp(
+        SettingsPage(
+          sessionController: sessionController,
+          biometricSettingsCubit: settingsCubit,
+          stepUpCubit: stepUpCubit,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilledButton).first);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Enable biometric unlock').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'step-up residual secret');
+
+    sessionController.lock(LockReason.manualLock);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Master password required'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
   });
 }
 
@@ -171,13 +231,19 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   bool get hasBiometricUnlock => configured;
 
   @override
-  Future<void> disableBiometricUnlock() async {
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     disableCount++;
     configured = false;
   }
 
   @override
-  Future<void> enableBiometricUnlock() async {
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     enableCount++;
     configured = true;
   }

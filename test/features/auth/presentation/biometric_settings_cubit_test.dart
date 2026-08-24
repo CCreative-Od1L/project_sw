@@ -1,24 +1,39 @@
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 
 void main() {
   late FakeBiometricVaultRepository repository;
   late FakeBiometricKeyStore keyStore;
+  late SessionController sessionController;
   late BiometricSettingsCubit cubit;
 
   setUp(() {
     repository = FakeBiometricVaultRepository();
     keyStore = FakeBiometricKeyStore();
-    cubit = BiometricSettingsCubit(repository, keyStore);
+    sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    cubit = BiometricSettingsCubit(
+      repository,
+      keyStore,
+      sessionController: sessionController,
+    );
   });
 
-  tearDown(() => cubit.close());
+  tearDown(() {
+    cubit.close();
+    sessionController.dispose();
+  });
 
   test(
     'loads the configured state and enables, disables, and resets access',
@@ -51,15 +66,17 @@ void main() {
   });
 
   test('locks the session when biometric enrollment is invalidated', () async {
-    final SessionController sessionController = SessionController(
-      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+    final SessionController invalidationController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
     );
-    addTearDown(sessionController.dispose);
+    addTearDown(invalidationController.dispose);
     repository.enableFailure = const BiometricInvalidatedException();
     final BiometricSettingsCubit invalidationCubit = BiometricSettingsCubit(
       repository,
       keyStore,
-      sessionController: sessionController,
+      sessionController: invalidationController,
     );
     addTearDown(invalidationCubit.close);
 
@@ -67,10 +84,62 @@ void main() {
     await invalidationCubit.enable();
 
     expect(invalidationCubit.state, isA<BiometricSettingsInvalidated>());
-    expect(sessionController.state, isA<LockedSession>());
+    expect(invalidationController.state, isA<LockedSession>());
     expect(
-      (sessionController.state as LockedSession).reason,
+      (invalidationController.state as LockedSession).reason,
       LockReason.biometricInvalidated,
+    );
+  });
+
+  test('does not publish configuration after lock interruption', () async {
+    repository.blockNextEnable();
+    await cubit.load();
+
+    final Future<void> enable = cubit.enable();
+    await repository.enableStarted.future;
+    expect(
+      (sessionController.state as UnlockedSession).activity,
+      SessionActivity.biometricConfiguration,
+    );
+
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    repository.completeEnable();
+    await enable;
+
+    expect(cubit.state, isA<BiometricSettingsLoading>());
+    expect(repository.configured, isFalse);
+    expect(sessionController.state, isA<LockedSession>());
+  });
+
+  test('drops a metadata load owned by an older session', () async {
+    keyStore.blockNextAvailability();
+    final Future<void> load = cubit.load();
+    await keyStore.availabilityStarted.future;
+
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    sessionController.unlock(AuthStrength.masterPassword);
+    keyStore.completeAvailability();
+    await load;
+
+    expect(cubit.state, isA<BiometricSettingsLoading>());
+  });
+
+  test('releases its activity when a session listener closes it', () async {
+    await cubit.load();
+    final subscription = sessionController.states.listen((SessionState state) {
+      if (state case UnlockedSession(
+        activity: SessionActivity.biometricConfiguration,
+      )) {
+        unawaited(cubit.close());
+      }
+    });
+    addTearDown(subscription.cancel);
+
+    await cubit.enable();
+
+    expect(
+      (sessionController.state as UnlockedSession).activity,
+      SessionActivity.none,
     );
   });
 }
@@ -80,21 +149,39 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   var enableCount = 0;
   var disableCount = 0;
   Object? enableFailure;
+  final Completer<void> enableStarted = Completer<void>();
+  Completer<void>? _enableCompletion;
+
+  void blockNextEnable() => _enableCompletion = Completer<void>();
+
+  void completeEnable() => _enableCompletion?.complete();
 
   @override
   bool get hasBiometricUnlock => configured;
 
   @override
-  Future<void> disableBiometricUnlock() async {
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     disableCount++;
     configured = false;
   }
 
   @override
-  Future<void> enableBiometricUnlock() async {
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     enableCount++;
     final Object? failure = enableFailure;
     if (failure != null) throw failure;
+    final Completer<void>? pending = _enableCompletion;
+    if (pending != null) {
+      if (!enableStarted.isCompleted) enableStarted.complete();
+      await pending.future;
+    }
+    activityGuard.ensureActive();
     configured = true;
   }
 
@@ -107,9 +194,22 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
 
 final class FakeBiometricKeyStore implements BiometricKeyStore {
   BiometricAvailability currentAvailability = BiometricAvailability.available;
+  final Completer<void> availabilityStarted = Completer<void>();
+  Completer<void>? _availabilityCompletion;
+
+  void blockNextAvailability() => _availabilityCompletion = Completer<void>();
+
+  void completeAvailability() => _availabilityCompletion?.complete();
 
   @override
-  Future<BiometricAvailability> get availability async => currentAvailability;
+  Future<BiometricAvailability> get availability async {
+    final Completer<void>? pending = _availabilityCompletion;
+    if (pending != null) {
+      if (!availabilityStarted.isCompleted) availabilityStarted.complete();
+      await pending.future;
+    }
+    return currentAvailability;
+  }
 
   @override
   Future<Uint8List> createAndStoreKey() async => Uint8List(32);
