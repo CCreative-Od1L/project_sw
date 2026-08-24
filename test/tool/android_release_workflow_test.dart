@@ -24,7 +24,11 @@ void main() {
       );
       expect(workflow, contains(r'if: ${{ always() }}'));
       expect(workflow, contains('if-no-files-found: error'));
-      expect(workflow, isNot(contains('contents: write')));
+      expect(workflow, contains('permissions:\n  contents: read'));
+      expect(
+        workflow,
+        contains('permissions:\n      actions: read\n      contents: write'),
+      );
     },
   );
 }
