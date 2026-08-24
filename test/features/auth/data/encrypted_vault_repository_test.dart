@@ -103,7 +103,10 @@ void main() {
     );
     expect(repository.activeKdfParameters, isNull);
 
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     expect(repository.activeKdfParameters?.memoryKiB, parameters.memoryKiB);
     expect(repository.activeKdfParameters?.iterations, parameters.iterations);
     expect(repository.activeKdfParameters?.parallelism, parameters.parallelism);
@@ -130,7 +133,10 @@ void main() {
         masterPassword: 'correct password',
         kdfParameters: parameters,
       );
-      await repository.unlockWithMasterPassword('correct password');
+      await repository.unlockWithMasterPassword(
+        'correct password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
 
       await repository.verifyMasterPassword('correct password');
       expect(repository.hasUnlockedSession, isTrue);
@@ -165,7 +171,10 @@ void main() {
         masterPassword: 'current password',
         kdfParameters: parameters,
       );
-      await repository.unlockWithMasterPassword('current password');
+      await repository.unlockWithMasterPassword(
+        'current password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final EntrySummary summary = await repository.addEntry(
         const NewVaultEntry(
           name: 'Envelope test',
@@ -218,10 +227,16 @@ void main() {
       );
 
       await expectLater(
-        repository.unlockWithMasterPassword('current password'),
+        repository.unlockWithMasterPassword(
+          'current password',
+          activityGuard: const _AlwaysActiveGuard(),
+        ),
         throwsA(isA<InvalidMasterPasswordException>()),
       );
-      await repository.unlockWithMasterPassword('new password');
+      await repository.unlockWithMasterPassword(
+        'new password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final EntryDetail detail = await repository.getEntryDetail(
         summary.entryId,
         activityGuard: const _AlwaysActiveGuard(),
@@ -246,7 +261,10 @@ void main() {
           iterations: 3,
         ),
       );
-      await repository.unlockWithMasterPassword('current password');
+      await repository.unlockWithMasterPassword(
+        'current password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final Uint8List before = File(path).readAsBytesSync();
 
       await expectLater(
@@ -280,7 +298,10 @@ void main() {
           iterations: 3,
         ),
       );
-      await repository.unlockWithMasterPassword('current password');
+      await repository.unlockWithMasterPassword(
+        'current password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final EntrySummary summary = await repository.addEntry(
         const NewVaultEntry(
           name: 'Recovered entry',
@@ -325,10 +346,16 @@ void main() {
         orderedEquals(beforeBytes.sublist(vaultFileHeaderLength)),
       );
       await expectLater(
-        repository.unlockWithMasterPassword('current password'),
+        repository.unlockWithMasterPassword(
+          'current password',
+          activityGuard: const _AlwaysActiveGuard(),
+        ),
         throwsA(isA<InvalidMasterPasswordException>()),
       );
-      await repository.unlockWithMasterPassword('new password');
+      await repository.unlockWithMasterPassword(
+        'new password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       expect(
         (await repository.getEntryDetail(
           summary.entryId,
@@ -364,7 +391,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('current password');
+    await repository.unlockWithMasterPassword(
+      'current password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final Uint8List before = File(path).readAsBytesSync();
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
@@ -413,7 +443,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('current password');
+    await repository.unlockWithMasterPassword(
+      'current password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final Uint8List before = File(path).readAsBytesSync();
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
@@ -464,7 +497,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('current password');
+    await repository.unlockWithMasterPassword(
+      'current password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final Uint8List before = File(path).readAsBytesSync();
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
@@ -518,7 +554,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('current password');
+    await repository.unlockWithMasterPassword(
+      'current password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final Uint8List before = File(path).readAsBytesSync();
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
@@ -572,7 +611,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('current password');
+    await repository.unlockWithMasterPassword(
+      'current password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final Uint8List before = File(path).readAsBytesSync();
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
@@ -625,7 +667,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('current password');
+    await repository.unlockWithMasterPassword(
+      'current password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final Uint8List before = File(path).readAsBytesSync();
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
@@ -717,7 +762,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
         authStrength: AuthStrength.masterPassword,
@@ -784,6 +832,52 @@ void main() {
     },
   );
 
+  test('does not let an older unlock operation clear a newer one', () async {
+    final Completer<void> firstDeriveStarted = Completer<void>();
+    final Completer<void> releaseFirstDerive = Completer<void>();
+    var deriveCount = 0;
+    final FakeCryptoService crypto = FakeCryptoService(
+      beforeDeriveKek: (String password) async {
+        deriveCount++;
+        if (deriveCount == 2) {
+          firstDeriveStarted.complete();
+          await releaseFirstDerive.future;
+        }
+      },
+    );
+    final String path = '${temporaryDirectory.path}/overlapping-unlock.psw';
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: crypto,
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'correct password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+
+    final Future<void> first = repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
+    await firstDeriveStarted.future;
+
+    final Future<void> second = repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
+    await second;
+    releaseFirstDerive.complete();
+
+    await expectLater(first, throwsA(isA<SessionUnlockInterrupted>()));
+    expect(repository.hasUnlockedSession, isTrue);
+    expect(repository.entrySummaries, isEmpty);
+    expect(repository.activeKdfParameters, isNotNull);
+  });
+
   test(
     'persists an encrypted entry and retains only its summary after unlock',
     () async {
@@ -801,7 +895,10 @@ void main() {
           iterations: 3,
         ),
       );
-      await repository.unlockWithMasterPassword('correct password');
+      await repository.unlockWithMasterPassword(
+        'correct password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
 
       final EntrySummary added = await repository.addEntry(
         const NewVaultEntry(
@@ -830,7 +927,10 @@ void main() {
 
       repository.clearUnlockedSession();
       expect(repository.entrySummaries, isEmpty);
-      await repository.unlockWithMasterPassword('correct password');
+      await repository.unlockWithMasterPassword(
+        'correct password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       expect(repository.entrySummaries, hasLength(1));
       expect(repository.entrySummaries.single.name, 'Example');
       expect(repository.entrySummaries.single.favorite, isTrue);
@@ -850,7 +950,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final EntrySummary first = await repository.addEntry(
       const NewVaultEntry(name: 'Before', password: 'secret'),
       activityGuard: const _AlwaysActiveGuard(),
@@ -899,7 +1002,10 @@ void main() {
       updated.blockOffset,
     );
     repository.clearUnlockedSession();
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     expect(repository.entrySummaries.single.name, 'Reused');
   });
 
@@ -922,8 +1028,14 @@ void main() {
       masterPassword: 'receiver password',
       kdfParameters: _testKdfParameters,
     );
-    await sender.unlockWithMasterPassword('sender password');
-    await receiver.unlockWithMasterPassword('receiver password');
+    await sender.unlockWithMasterPassword(
+      'sender password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
+    await receiver.unlockWithMasterPassword(
+      'receiver password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final EntrySummary source = await sender.addEntry(
       const NewVaultEntry(name: 'Migrated', password: 'secret'),
       activityGuard: const _AlwaysActiveGuard(),
@@ -992,8 +1104,14 @@ void main() {
         masterPassword: 'receiver password',
         kdfParameters: _testKdfParameters,
       );
-      await sender.unlockWithMasterPassword('sender password');
-      await receiver.unlockWithMasterPassword('receiver password');
+      await sender.unlockWithMasterPassword(
+        'sender password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
+      await receiver.unlockWithMasterPassword(
+        'receiver password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final EntrySummary source = await sender.addEntry(
         const NewVaultEntry(name: 'Before', password: 'secret'),
         activityGuard: const _AlwaysActiveGuard(),
@@ -1064,8 +1182,14 @@ void main() {
       masterPassword: 'receiver password',
       kdfParameters: _testKdfParameters,
     );
-    await sender.unlockWithMasterPassword('sender password');
-    await receiver.unlockWithMasterPassword('receiver password');
+    await sender.unlockWithMasterPassword(
+      'sender password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
+    await receiver.unlockWithMasterPassword(
+      'receiver password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     await sender.addEntry(
       const NewVaultEntry(name: 'First'),
       activityGuard: const _AlwaysActiveGuard(),
@@ -1124,7 +1248,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final EntrySummary summary = await repository.addEntry(
       const NewVaultEntry(name: 'Damaged', password: 'secret'),
       activityGuard: const _AlwaysActiveGuard(),
@@ -1164,7 +1291,10 @@ void main() {
           iterations: 3,
         ),
       );
-      await repository.unlockWithMasterPassword('correct password');
+      await repository.unlockWithMasterPassword(
+        'correct password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final EntrySummary large = await repository.addEntry(
         NewVaultEntry(
           name: 'Large',

@@ -25,9 +25,9 @@ final class UnlockVault {
   /// Attempts master-password authentication without absorbing system faults.
   Future<Result<UnlockedVault, UnlockFailure>> call(
     String masterPassword, {
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async {
-    activityGuard?.ensureActive();
+    activityGuard.ensureActive();
     if (masterPassword.isEmpty) {
       return const Failure<UnlockedVault, UnlockFailure>(
         UnlockFailure.invalidMasterPassword,

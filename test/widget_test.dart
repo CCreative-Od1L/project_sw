@@ -8,6 +8,7 @@ import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
@@ -160,7 +161,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _WidgetAlwaysActiveGuard(),
+    );
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
         authStrength: AuthStrength.masterPassword,
@@ -258,6 +262,13 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.text('dialog residual notes'), findsNothing);
   });
+}
+
+final class _WidgetAlwaysActiveGuard implements SessionActivityGuard {
+  const _WidgetAlwaysActiveGuard();
+
+  @override
+  void ensureActive() {}
 }
 
 final class _WidgetClipboard implements ClipboardPort {

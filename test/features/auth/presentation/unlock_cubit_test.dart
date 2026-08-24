@@ -42,7 +42,10 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     await repository.addEntry(
       const NewVaultEntry(
         name: 'Sensitive entry name',
@@ -157,6 +160,31 @@ void main() {
       expect(onUnlockedCalls, 0);
     },
   );
+
+  test('cancels a pending password result when the cubit closes', () async {
+    final _BlockingVaultRepository blockingRepository =
+        _BlockingVaultRepository();
+    var onUnlockedCalls = 0;
+    final SessionController controller = SessionController(
+      initialState: const LockedSession(reason: LockReason.coldStart),
+    );
+    final UnlockCubit cubit = UnlockCubit(
+      UnlockVault(blockingRepository),
+      controller,
+      onUnlocked: () => onUnlockedCalls++,
+    );
+    addTearDown(controller.dispose);
+
+    final Future<void> submit = cubit.submit('correct password');
+    await blockingRepository.unlockStarted.future;
+    await cubit.close();
+
+    blockingRepository.releaseUnlock.complete();
+    await submit;
+
+    expect(controller.state, isA<LockedSession>());
+    expect(onUnlockedCalls, 0);
+  });
 }
 
 final class _BlockingVaultRepository implements VaultRepository {
@@ -166,12 +194,12 @@ final class _BlockingVaultRepository implements VaultRepository {
   @override
   Future<void> unlockWithMasterPassword(
     String masterPassword, {
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async {
-    activityGuard?.ensureActive();
+    activityGuard.ensureActive();
     unlockStarted.complete();
     await releaseUnlock.future;
-    activityGuard?.ensureActive();
+    activityGuard.ensureActive();
   }
 
   @override

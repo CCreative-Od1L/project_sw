@@ -265,7 +265,7 @@ final class EncryptedVaultRepository
 
   @override
   Future<void> unlockWithBiometric({
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async {
     final Object operation = _beginUnlockOperation(activityGuard);
     late final BiometricKeyStore store;
@@ -648,7 +648,7 @@ final class EncryptedVaultRepository
   @override
   Future<void> unlockWithMasterPassword(
     String masterPassword, {
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async {
     final Object operation = _beginUnlockOperation(activityGuard);
     Uint8List? kek;
@@ -1617,8 +1617,8 @@ final class EncryptedVaultRepository
     return data.buffer.asUint8List();
   }
 
-  Object _beginUnlockOperation(SessionActivityGuard? activityGuard) {
-    activityGuard?.ensureActive();
+  Object _beginUnlockOperation(SessionActivityGuard activityGuard) {
+    activityGuard.ensureActive();
     clearUnlockedSession();
     final Object operation = Object();
     _activeUnlockOperation = operation;
@@ -1626,12 +1626,9 @@ final class EncryptedVaultRepository
   }
 
   void _ensureUnlockOperationActive(
-    SessionActivityGuard? activityGuard,
+    SessionActivityGuard activityGuard,
     Object operation,
   ) {
-    if (activityGuard == null) {
-      return;
-    }
     activityGuard.ensureActive();
     if (!identical(_activeUnlockOperation, operation)) {
       throw const SessionUnlockInterrupted();

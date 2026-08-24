@@ -20,7 +20,9 @@ abstract interface class BiometricVaultRepository {
 
   /// Uses the platform key to restore the unlocked MVK and safe projections.
   ///
-  /// When [activityGuard] is supplied, every asynchronous boundary and the
-  /// final sensitive projection commit must still belong to that guard.
-  Future<void> unlockWithBiometric({SessionActivityGuard? activityGuard});
+  /// Every asynchronous boundary and the final sensitive projection commit
+  /// must still belong to [activityGuard].
+  Future<void> unlockWithBiometric({
+    required SessionActivityGuard activityGuard,
+  });
 }
