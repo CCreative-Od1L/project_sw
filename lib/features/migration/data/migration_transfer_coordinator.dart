@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:project_sw/core/crypto/crypto_service.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'migration_socket_transport.dart';
 import '../domain/migration_exception.dart';
 import '../domain/migration_message_codec.dart';
@@ -15,92 +18,118 @@ abstract final class MigrationTransferCoordinator {
 
   /// Sends preflight, all entries, and the final transcript MAC.
   static Future<void> send({
+    required SessionController sessionController,
     required MigrationFrameTransport transport,
     required MigrationSession session,
     required MigrationCapabilities capabilities,
     required MigrationVaultPort vault,
   }) async {
-    final List<MigrationEntryPayload> entries = await vault
-        .exportMigrationEntries();
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.migrationSending,
+    );
+    activityLease.onInterrupted(() {
+      unawaited(_closeInterruptedTransport(transport));
+    });
     try {
-      final Uint8List preflightBytes = MigrationPreflightCodec.encode(
-        capabilities,
-      );
-      final MigrationSessionFrame preflight;
+      final List<MigrationEntryPayload> entries = await vault
+          .exportMigrationEntries(activityGuard: activityLease);
       try {
-        preflight = session.seal(
-          MigrationMessageType.preflight,
-          preflightBytes,
+        activityLease.ensureActive();
+        final Uint8List preflightBytes = MigrationPreflightCodec.encode(
+          capabilities,
         );
-      } finally {
-        clearSensitiveBytes(preflightBytes);
-      }
-      try {
-        await transport.send(preflight);
-      } finally {
-        preflight.dispose();
-      }
-
-      final MigrationSessionFrame response = await transport.receive();
-      try {
-        _expectType(response, MigrationMessageType.preflight);
-        final Uint8List responseBytes = session.open(response);
+        final MigrationSessionFrame preflight;
         try {
-          final MigrationCapabilities peer = MigrationPreflightCodec.decode(
-            responseBytes,
+          preflight = session.seal(
+            MigrationMessageType.preflight,
+            preflightBytes,
           );
-          final int negotiated = capabilities.negotiateWith(peer);
-          for (final MigrationEntryPayload entry in entries) {
-            if (entry.plaintextFormatId != negotiated) {
-              throw const MigrationProtocolException(
-                MigrationErrorCode.incompatible,
-                'An entry plaintext format was not negotiated.',
-              );
-            }
-            final Uint8List encoded = MigrationEntryPayloadCodec.encode(entry);
-            final MigrationSessionFrame frame = session.seal(
-              MigrationMessageType.entry,
-              encoded,
+        } finally {
+          clearSensitiveBytes(preflightBytes);
+        }
+        try {
+          await transport.send(preflight);
+          activityLease.ensureActive();
+        } finally {
+          preflight.dispose();
+        }
+
+        final MigrationSessionFrame response = await transport.receive();
+        try {
+          activityLease.ensureActive();
+          _expectType(response, MigrationMessageType.preflight);
+          final Uint8List responseBytes = session.open(response);
+          try {
+            final MigrationCapabilities peer = MigrationPreflightCodec.decode(
+              responseBytes,
             );
-            clearSensitiveBytes(encoded);
-            try {
-              await transport.send(frame);
-            } finally {
-              frame.dispose();
+            final int negotiated = capabilities.negotiateWith(peer);
+            for (final MigrationEntryPayload entry in entries) {
+              if (entry.plaintextFormatId != negotiated) {
+                throw const MigrationProtocolException(
+                  MigrationErrorCode.incompatible,
+                  'An entry plaintext format was not negotiated.',
+                );
+              }
+              final Uint8List encoded = MigrationEntryPayloadCodec.encode(
+                entry,
+              );
+              final MigrationSessionFrame frame = session.seal(
+                MigrationMessageType.entry,
+                encoded,
+              );
+              clearSensitiveBytes(encoded);
+              try {
+                await transport.send(frame);
+                activityLease.ensureActive();
+              } finally {
+                frame.dispose();
+              }
             }
+          } finally {
+            clearSensitiveBytes(responseBytes);
           }
         } finally {
-          clearSensitiveBytes(responseBytes);
+          response.dispose();
+        }
+
+        final MigrationSessionFrame transferEnd = session.sealTransferEnd();
+        try {
+          await transport.send(transferEnd);
+          activityLease.ensureActive();
+        } finally {
+          transferEnd.dispose();
         }
       } finally {
-        response.dispose();
-      }
-
-      final MigrationSessionFrame transferEnd = session.sealTransferEnd();
-      try {
-        await transport.send(transferEnd);
-      } finally {
-        transferEnd.dispose();
+        for (final MigrationEntryPayload entry in entries) {
+          entry.dispose();
+        }
       }
     } finally {
-      for (final MigrationEntryPayload entry in entries) {
-        entry.dispose();
-      }
+      activityLease.complete();
     }
   }
 
   /// Receives and buffers entries, importing only after transcript verification.
   static Future<void> receive({
+    required SessionController sessionController,
     required MigrationFrameTransport transport,
     required MigrationSession session,
     required MigrationCapabilities capabilities,
     required MigrationVaultPort vault,
   }) async {
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.migrationReceiving,
+    );
+    activityLease.onInterrupted(() {
+      unawaited(_closeInterruptedTransport(transport));
+    });
     final List<MigrationEntryPayload> entries = <MigrationEntryPayload>[];
     MigrationCapabilities? peerCapabilities;
     try {
       final MigrationSessionFrame preflight = await transport.receive();
       try {
+        activityLease.ensureActive();
         _expectType(preflight, MigrationMessageType.preflight);
         final Uint8List preflightBytes = session.open(preflight);
         try {
@@ -124,6 +153,7 @@ abstract final class MigrationTransferCoordinator {
       }
       try {
         await transport.send(response);
+        activityLease.ensureActive();
       } finally {
         response.dispose();
       }
@@ -131,8 +161,9 @@ abstract final class MigrationTransferCoordinator {
       final int negotiated = capabilities.negotiateWith(peerCapabilities);
       while (true) {
         final MigrationSessionFrame frame = await transport.receive();
-        if (frame.type == MigrationMessageType.transferEnd) {
-          try {
+        try {
+          activityLease.ensureActive();
+          if (frame.type == MigrationMessageType.transferEnd) {
             final Uint8List receivedMac = MigrationTransferEndCodec.decode(
               session.openTransferEnd(frame),
             );
@@ -141,12 +172,8 @@ abstract final class MigrationTransferCoordinator {
             } finally {
               clearSensitiveBytes(receivedMac);
             }
-          } finally {
-            frame.dispose();
+            break;
           }
-          break;
-        }
-        try {
           _expectType(frame, MigrationMessageType.entry);
           final Uint8List encoded = session.open(frame);
           try {
@@ -174,12 +201,18 @@ abstract final class MigrationTransferCoordinator {
         }
       }
       if (entries.isNotEmpty) {
-        await vault.importMigrationEntries(entries);
+        activityLease.ensureActive();
+        await vault.importMigrationEntries(
+          entries,
+          activityGuard: activityLease,
+        );
+        activityLease.ensureActive();
       }
     } finally {
       for (final MigrationEntryPayload entry in entries) {
         entry.dispose();
       }
+      activityLease.complete();
     }
   }
 
@@ -192,6 +225,16 @@ abstract final class MigrationTransferCoordinator {
         MigrationErrorCode.invalidState,
         'The migration message arrived in an invalid order.',
       );
+    }
+  }
+
+  static Future<void> _closeInterruptedTransport(
+    MigrationFrameTransport transport,
+  ) async {
+    try {
+      await transport.close();
+    } on Object {
+      // Session lock remains authoritative even when transport cleanup fails.
     }
   }
 }

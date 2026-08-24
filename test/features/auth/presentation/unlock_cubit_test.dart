@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,9 +6,12 @@ import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
+import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
 
 import '../../../helpers/fake_crypto_service.dart';
@@ -38,12 +42,16 @@ void main() {
         iterations: 3,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     await repository.addEntry(
       const NewVaultEntry(
         name: 'Sensitive entry name',
         password: 'entry-secret-must-not-leak',
       ),
+      activityGuard: const _AlwaysActiveGuard(),
     );
     repository.clearUnlockedSession();
     sessionController = SessionController(
@@ -88,6 +96,122 @@ void main() {
       },
     );
   }
+
+  test(
+    'ignores a password result after the locked session backgrounds',
+    () async {
+      final _BlockingVaultRepository blockingRepository =
+          _BlockingVaultRepository();
+      var onUnlockedCalls = 0;
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      final UnlockCubit cubit = UnlockCubit(
+        UnlockVault(blockingRepository),
+        controller,
+        onUnlocked: () => onUnlockedCalls++,
+      );
+      addTearDown(cubit.close);
+      addTearDown(controller.dispose);
+
+      final Future<void> submit = cubit.submit('correct password');
+      await blockingRepository.unlockStarted.future;
+
+      controller.handle(SessionEvent.appBackgrounded);
+      blockingRepository.releaseUnlock.complete();
+      await submit;
+
+      expect(controller.state, isA<LockedSession>());
+      expect(cubit.state, isA<UnlockReady>());
+      expect(onUnlockedCalls, 0);
+    },
+  );
+
+  test(
+    'does not let a stale password result replace a newer session',
+    () async {
+      final _BlockingVaultRepository blockingRepository =
+          _BlockingVaultRepository();
+      var onUnlockedCalls = 0;
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      final UnlockCubit cubit = UnlockCubit(
+        UnlockVault(blockingRepository),
+        controller,
+        onUnlocked: () => onUnlockedCalls++,
+      );
+      addTearDown(cubit.close);
+      addTearDown(controller.dispose);
+
+      final Future<void> submit = cubit.submit('correct password');
+      await blockingRepository.unlockStarted.future;
+      controller.handle(SessionEvent.appBackgrounded);
+      controller.unlock(AuthStrength.masterPassword);
+
+      blockingRepository.releaseUnlock.complete();
+      await submit;
+
+      expect(
+        (controller.state as UnlockedSession).authStrength,
+        AuthStrength.masterPassword,
+      );
+      expect(cubit.state, isA<UnlockReady>());
+      expect(onUnlockedCalls, 0);
+    },
+  );
+
+  test('cancels a pending password result when the cubit closes', () async {
+    final _BlockingVaultRepository blockingRepository =
+        _BlockingVaultRepository();
+    var onUnlockedCalls = 0;
+    final SessionController controller = SessionController(
+      initialState: const LockedSession(reason: LockReason.coldStart),
+    );
+    final UnlockCubit cubit = UnlockCubit(
+      UnlockVault(blockingRepository),
+      controller,
+      onUnlocked: () => onUnlockedCalls++,
+    );
+    addTearDown(controller.dispose);
+
+    final Future<void> submit = cubit.submit('correct password');
+    await blockingRepository.unlockStarted.future;
+    await cubit.close();
+
+    blockingRepository.releaseUnlock.complete();
+    await submit;
+
+    expect(controller.state, isA<LockedSession>());
+    expect(onUnlockedCalls, 0);
+  });
+}
+
+final class _BlockingVaultRepository implements VaultRepository {
+  final Completer<void> unlockStarted = Completer<void>();
+  final Completer<void> releaseUnlock = Completer<void>();
+
+  @override
+  Future<void> unlockWithMasterPassword(
+    String masterPassword, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
+    unlockStarted.complete();
+    await releaseUnlock.future;
+    activityGuard.ensureActive();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+final class _AlwaysActiveGuard implements SessionActivityGuard {
+  const _AlwaysActiveGuard();
+
+  @override
+  void ensureActive() {}
 }
 
 void _tamperByte(String path, int offset) {

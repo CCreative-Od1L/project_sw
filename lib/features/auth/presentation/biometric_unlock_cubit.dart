@@ -81,6 +81,7 @@ final class BiometricUnlockCubit extends Cubit<BiometricUnlockViewState> {
 
   bool _isConfigured = false;
   bool _isAvailable = false;
+  SessionUnlockAttempt? _activeUnlockAttempt;
 
   /// Reads only non-sensitive configuration and platform availability.
   Future<void> loadAvailability() async {
@@ -110,29 +111,97 @@ final class BiometricUnlockCubit extends Cubit<BiometricUnlockViewState> {
     if (!_isConfigured || !_isAvailable || state is BiometricUnlocking) {
       return;
     }
+    final SessionState currentSession = _sessionController.state;
+    if (currentSession is! LockedSession || !currentSession.canUseBiometric) {
+      return;
+    }
+    final SessionUnlockAttempt attempt;
+    try {
+      attempt = _sessionController.beginUnlockAttempt();
+    } on StateError {
+      return;
+    }
+    _activeUnlockAttempt = attempt;
     emit(BiometricUnlocking(isConfigured: _isConfigured));
     try {
-      await _repository.unlockWithBiometric();
-      _sessionController.unlock(AuthStrength.biometric);
+      await _repository.unlockWithBiometric(activityGuard: attempt);
+      if (!attempt.complete(AuthStrength.biometric)) {
+        if (!isClosed) {
+          emit(_readyState());
+        }
+        return;
+      }
       onUnlocked?.call();
-      emit(
-        BiometricUnlockReady(
-          isConfigured: _isConfigured,
-          isAvailable: _isAvailable,
-        ),
-      );
+      if (!isClosed) {
+        emit(_readyState());
+      }
     } on BiometricCancelledException {
-      emit(BiometricUnlockCancelled(isConfigured: _isConfigured));
+      final bool stillActive = attempt.isActive;
+      attempt.cancel();
+      if (!isClosed) {
+        emit(
+          stillActive
+              ? BiometricUnlockCancelled(isConfigured: _isConfigured)
+              : _readyState(),
+        );
+      }
     } on BiometricInvalidatedException {
-      _sessionController.handle(SessionEvent.biometricInvalidated);
-      emit(BiometricUnlockInvalidated(isConfigured: _isConfigured));
+      final bool stillActive = attempt.isActive;
+      attempt.cancel();
+      if (stillActive) {
+        _sessionController.handle(SessionEvent.biometricInvalidated);
+      }
+      if (!isClosed) {
+        emit(
+          stillActive
+              ? BiometricUnlockInvalidated(isConfigured: _isConfigured)
+              : _readyState(),
+        );
+      }
     } on BiometricUnavailableException {
-      _isAvailable = false;
-      emit(BiometricUnlockUnavailable(isConfigured: _isConfigured));
+      final bool stillActive = attempt.isActive;
+      attempt.cancel();
+      if (stillActive) {
+        _isAvailable = false;
+      }
+      if (!isClosed) {
+        emit(
+          stillActive
+              ? BiometricUnlockUnavailable(isConfigured: _isConfigured)
+              : _readyState(),
+        );
+      }
     } on BiometricKeyStoreException {
-      emit(BiometricUnlockFault(isConfigured: _isConfigured));
+      final bool stillActive = attempt.isActive;
+      attempt.cancel();
+      if (!isClosed) {
+        emit(
+          stillActive
+              ? BiometricUnlockFault(isConfigured: _isConfigured)
+              : _readyState(),
+        );
+      }
     } on Object {
-      emit(BiometricUnlockFault(isConfigured: _isConfigured));
+      final bool stillActive = attempt.isActive;
+      attempt.cancel();
+      if (!isClosed) {
+        emit(
+          stillActive
+              ? BiometricUnlockFault(isConfigured: _isConfigured)
+              : _readyState(),
+        );
+      }
     }
+  }
+
+  BiometricUnlockReady _readyState() => BiometricUnlockReady(
+    isConfigured: _isConfigured,
+    isAvailable: _isAvailable,
+  );
+
+  @override
+  Future<void> close() {
+    _activeUnlockAttempt?.cancel();
+    return super.close();
   }
 }

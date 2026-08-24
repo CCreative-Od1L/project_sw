@@ -14,7 +14,11 @@ final class SessionSecretCleaners implements SessionSecretCleaner {
   @override
   void clearUnlockedSession() {
     for (final SessionSecretCleaner cleaner in _cleaners) {
-      cleaner.clearUnlockedSession();
+      try {
+        cleaner.clearUnlockedSession();
+      } on Object {
+        // Every cleaner is best-effort; one failure must not retain the rest.
+      }
     }
   }
 }

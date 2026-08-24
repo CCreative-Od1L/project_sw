@@ -123,7 +123,7 @@ _Avoid_: 生成配置, generator config, profile
 _Avoid_: biometric auth, 指纹解锁(泛指)
 
 **会话真相源 (Session Source of Truth)**:
-全局唯一的会话状态机与协调器,负责持有 `Locked/Unlocked`、锁定原因、认证强度、idle timer、step-up challenge 与路由态派生。`AuthCubit`、GoRouter、页面局部状态都只能订阅它,不能各自维护独立真相(见 ADR-0010)。
+全局唯一的会话状态机与协调器,负责持有 `Locked/Unlocked`、锁定原因、认证强度、idle timer、step-up challenge 与路由态派生。状态通知按顺序发布;锁定期间拒绝重入解锁或新建流程,单个敏感数据清理器失败不得阻止其余清理和最终锁定。`AuthCubit`、GoRouter、页面局部状态都只能订阅它,不能各自维护独立真相(见 ADR-0010)。
 _Avoid_: auth cubit 真相源, router state authority, page-owned session
 
 **认证强度 (Auth Strength)**:
@@ -131,12 +131,16 @@ _Avoid_: auth cubit 真相源, router state authority, page-owned session
 _Avoid_: 登录态强度, unlock level
 
 **Step-up Challenge**:
-已解锁会话内为高敏操作补充主密码验证的一次强认证升级。它不是重新锁定,成功后会把当前会话的 `authStrength` 升级为 `master_password` 直到下一次锁定。
+已解锁会话内为高敏操作补充主密码验证的一次强认证升级。每次 challenge 由会话真相源签发唯一 lease,认证升级只能通过当前 lease 完成;锁定会立即作废,旧异步验证结果不能升级重新解锁后的新会话。它不是重新锁定,成功后会把所属会话的 `authStrength` 升级为 `master_password` 直到下一次锁定。
 _Avoid_: re-login, forced relock, one-shot token
 
-**Lock Suppression**:
-会话真相源对白名单流程提供的窄范围 idle timeout 抑制机制。首批仅用于迁移中与忘码恢复中,且不抑制切后台立即锁、手动锁或生物失效。
-_Avoid_: no-lock mode, background unlock bypass
+**Session Activity**:
+会话真相源在 `UnlockedSession` 中发布的前台流程状态,当前区分 `none`、迁移发送、迁移接收、忘码恢复、主密码变更、生物配置、认证擦除与页面条目访问。每次活动由唯一 lease 标识,旧异步回调不能结束后续同类活动。主密码变更在生物会话中复用 step-up challenge 作为同等 guard;认证擦除只允许当前密码验证结果在同一 lease 内进入不可逆销毁;条目读取和 CRUD 必须在异步边界及原子提交前持有 `vaultAccess` lease。非 `none` 活动只抑制 idle timeout;切后台、手动锁、生物失效和擦除仍立即锁定并中断外部 I/O 或敏感提交。
+_Avoid_: page-owned workflow flag, no-lock mode, background unlock bypass
+
+**Session Unlock Attempt**:
+当前 `LockedSession` 为一次密码或生物解锁签发的单次归属令牌。它同时是解锁 repository 的 `SessionActivityGuard`,锁定、直接开始新会话或 Cubit 销毁都会使其失效;失效后的异步结果不得发布 `UnlockedSession`、恢复 MVK/摘要或触发后续会话的副作用。
+_Avoid_: unowned unlock callback, background unlock bypass, reusable unlock token
 
 **Session Route State**:
 由会话真相源派生出的单一路由可访问状态,供 GoRouter redirect 消费。redirect 不自己拼多份会话信号,只读取这份派生结果。
