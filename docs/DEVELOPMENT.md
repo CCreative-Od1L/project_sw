@@ -116,7 +116,7 @@ linter:
 ### 8.2 CI(GitHub Actions,示意)
 - **PR 检查**:`fvm dart analyze` + `fvm dart format --set-exit-if-changed` + `fvm flutter test` + 集成测试(模拟器)。
 - **主分支**:同上 + 构建 Android debug APK 与 iOS 无签名 debug `.app`,并上传为 artifact;签名 release 由后续发版 lane 负责。
-- **发布**:打 tag 触发 release preflight 与 Android signed AAB 构建;签名 iOS、GitHub Release 汇总与分发仍待后续 lane。
+- **发布**:打 tag 触发 release preflight、Android signed AAB 构建与 GitHub Release 汇总;签名 iOS 与分发仍待后续 lane。
 - 安全:CI 中禁用打印 secrets;依赖固定版本与 hash 校验。
 
 ### 8.3 CD / 分发
@@ -143,6 +143,6 @@ linter:
 - [ ] `pubspec.yaml` 依赖清单(含 dev 依赖)
 - [ ] `analysis_options.yaml` 最终 lint 规则集
 - [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 按其 §12 分阶段落地)
-- [x] release metadata preflight 与 Android signed AAB——tag、`pubspec.yaml` 版本、`CHANGELOG.md`、Flutter/lockfile 可重建元数据及 Android 签名构建已落地;iOS 签名与 GitHub Release 仍待完成
+- [x] release metadata preflight、Android signed AAB 与 GitHub Release 汇总——tag、`pubspec.yaml` 版本、`CHANGELOG.md`、Flutter/lockfile 可重建元数据及 Android 签名构建已落地;iOS 签名与分发仍待完成
 - [ ] CI workflow 文件(.github/workflows/)与打包脚本——按 [specs/ci_cd.md §12](./specs/ci_cd.md) 里程碑分阶段落
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)

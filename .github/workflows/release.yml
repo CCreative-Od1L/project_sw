@@ -86,3 +86,44 @@ jobs:
       - name: Remove Android signing keystore
         if: ${{ always() }}
         run: rm -f -- "${RUNNER_TEMP}/project-sw-release.keystore"
+
+  publish:
+    name: Create GitHub Release
+    needs: [metadata, android]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      actions: read
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Check out the complete tag history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Download release metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-metadata-${{ github.ref_name }}-${{ github.sha }}
+          path: release-assets/metadata
+
+      - name: Download signed Android AAB
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: project-sw-android-release-${{ github.ref_name }}-${{ github.sha }}
+          path: release-assets/android
+
+      - name: Extract release notes
+        run: bash scripts/extract_changelog_section.sh "${GITHUB_REF_NAME#v}" > release-notes.md
+
+      - name: Create GitHub Release with Android artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          --verify-tag
+          --title "PROJECT_SW ${GITHUB_REF_NAME}"
+          --notes-file release-notes.md
+          release-assets/metadata/release-metadata.txt
+          release-assets/android/app-release.aab

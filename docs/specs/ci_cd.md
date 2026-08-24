@@ -20,7 +20,7 @@
 |----------|--------|------|----------|
 | **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 集成测试 | 阻止 PR 合并(分支保护要求状态检查通过) |
 | **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug 产物并上传 artifact;签名 release 产物由 `release.yml` 负责 | 不阻断主干,但 artifact 缺失可被发版流程检出 |
-| **`release.yml`(发版)** | `push` tag `v*.*.*` | tag metadata preflight 与 Android signed AAB; iOS 签名和 GitHub Release 汇总由后续 lane 接入 | Android 签名或 preflight 失败,不继续发版 |
+| **`release.yml`(发版)** | `push` tag `v*.*.*` | tag metadata preflight、Android signed AAB 与 GitHub Release 汇总; iOS 签名由后续 lane 接入 | Android 签名或 preflight 失败,不继续发版 |
 | **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查、pub 安全公告解析、锁定 SDK 工具链记录 | 生成报告 artifact,由 Dependabot PR 跟踪可用更新 |
 
 > 触发器与 [GIT_WORKFLOW.md §1.1/§4.2](../GIT_WORKFLOW.md) 对齐:PR 必过 `ci.yml`,tag 触发 `release.yml`。
@@ -206,19 +206,20 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 - CI 日志禁用 `ACTIONS_STEP_DEBUG` 打印 secret;GitHub 自动 mask 注入的 secret 值。
 - secret 最小权限:发版 workflow 用 `environment: release`(带必需 reviewer / 分支限定),`ci.yml` 不持有任何签名 secret。
 - Android release 配置不得回退到 debug signing;缺少 `ANDROID_KEYSTORE_PATH`、`ANDROID_KEY_ALIAS`、`ANDROID_KEYSTORE_PASSWORD` 或 `ANDROID_KEY_PASSWORD` 时必须在 Gradle 任务中失败,且不得输出 secret 值。
+- GitHub Release 汇总 job 仅授予 `actions: read` 与 `contents: write`; metadata 与签名 job 继续使用 `contents: read`。
 
 ## 8. 产物与留存
 
 | Workflow | 产物 | 留存 |
 |----------|------|------|
 | `build.yml` | debug APK(Android)、无签名 debug `.app`(iOS) | GitHub Actions artifact,90 天 |
-| `release.yml` | tag/version/CHANGELOG 与可重建 metadata preflight、signed AAB(Android);signed IPA(iOS) 与 GitHub Release 汇总为后续 lane | metadata 与 Android artifact 各 90 天;正式发布目标为长期绑定 GitHub Release |
+| `release.yml` | tag/version/CHANGELOG 与可重建 metadata preflight、signed AAB(Android)、GitHub Release;signed IPA(iOS) 为后续 lane | metadata 与 workflow artifact 各 90 天;Android release 长期绑定 GitHub Release |
 
 - 产物命名含版本号 + commit short sha + 平台,可追溯到具体提交。
 - `build.yml` 的平台构建通过 `scripts/build_android.sh debug-apk` 与
   `scripts/build_ios.sh unsigned-debug` 执行;脚本显式校验产物,避免 workflow
   命令与本地构建语义漂移。
-- 当前 `release.yml` 上传非敏感的可重建 metadata 与 signed Android AAB;签名 iOS、GitHub Release 汇总与 `CHANGELOG.md` 摘要将在后续 lane 接入。
+- 当前 `release.yml` 上传非敏感的可重建 metadata 与 signed Android AAB,并将对应 CHANGELOG 段落和两个 artifact 汇总到 GitHub Release;签名 iOS 与分发仍待后续 lane。
 
 ## 9. 依赖校验与安全
 
@@ -231,13 +232,13 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 触发:`push` tag `v*.*.*`(annotated tag,[GIT_WORKFLOW.md §4.2](../GIT_WORKFLOW.md))。
 
-当前已落地 tag 格式、版本号、`CHANGELOG.md`、annotated tag、Flutter toolchain 与 lockfile checksum 的 preflight,以及 Android signed AAB job;签名环境变量或 keystore 缺失时必须失败。
+当前已落地 tag 格式、版本号、`CHANGELOG.md`、annotated tag、Flutter toolchain 与 lockfile checksum 的 preflight、Android signed AAB job 和 Android artifact → GitHub Release 汇总;签名环境变量或 keystore 缺失时必须失败。
 
 目标签名发版流程为:
 
 1. 校验 tag 格式 + `CHANGELOG.md` 含对应版本段落(缺失则失败)。
 2. 当前已接入 Android(`ubuntu-latest`) signed AAB; iOS(`macos-latest`) 签名仍待方案与凭据确定。
-3. 汇总 job:创建 GitHub Release(tag 对应),上传 signed 产物,附 `CHANGELOG.md` 摘要 + commit 范围。
+3. 当前汇总 job 创建 GitHub Release(tag 对应),上传 Android signed AAB 与 metadata,并附对应 `CHANGELOG.md` 段落;接入 iOS 后再扩展附件。
 4. 分发(可选,实现期定):Android → Firebase App Distribution / Play;iOS → TestFlight / App Store。个人项目阶段可仅到"GitHub Release 产物",分发渠道按需接。
 
 > 发版前的版本号/CHANGELOG 提交(`chore(release): bump version to vX.Y.Z`)由人手工做([GIT_WORKFLOW.md §4.3](../GIT_WORKFLOW.md)),CI 只在 tag 触发后接管构建与发布。
@@ -258,7 +259,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
 2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
-3. **首次发版前**:已落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight、平台构建脚本与 Android signed AAB job;仍需接入 iOS 签名 lane、GitHub Release 汇总、签名 secret 配置审计与 tag → Release 产物演练。
+3. **首次发版前**:已落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight、平台构建脚本、Android signed AAB job 与 GitHub Release 汇总;仍需接入 iOS 签名 lane、分发和完整 tag → Release 产物演练。
 4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)与 Dependabot 周期更新(已完成)。
 
 ## 13. 待决(实现期)
