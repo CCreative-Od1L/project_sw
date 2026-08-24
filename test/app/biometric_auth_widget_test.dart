@@ -253,7 +253,7 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
 
   @override
   Future<void> unlockWithBiometric({
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async {}
 }
 

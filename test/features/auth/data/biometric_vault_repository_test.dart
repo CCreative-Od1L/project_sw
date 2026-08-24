@@ -41,7 +41,10 @@ void main() {
         parallelism: 1,
       ),
     );
-    await repository.unlockWithMasterPassword('correct password');
+    await repository.unlockWithMasterPassword(
+      'correct password',
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     await repository.addEntry(
       const NewVaultEntry(name: 'Example', password: 'private'),
       activityGuard: const _AlwaysActiveGuard(),
@@ -85,7 +88,9 @@ void main() {
       addTearDown(restarted.clearUnlockedSession);
 
       expect(await restarted.hasConfiguredBiometricUnlock(), isTrue);
-      await restarted.unlockWithBiometric();
+      await restarted.unlockWithBiometric(
+        activityGuard: const _AlwaysActiveGuard(),
+      );
 
       expect(restarted.hasUnlockedSession, isTrue);
       expect(restarted.entrySummaries.single.name, 'Example');
@@ -149,13 +154,18 @@ void main() {
       repository.clearUnlockedSession();
       keyStore.loadFailure = const BiometricCancelledException();
 
-      expect(
-        repository.unlockWithBiometric(),
+      await expectLater(
+        repository.unlockWithBiometric(
+          activityGuard: const _AlwaysActiveGuard(),
+        ),
         throwsA(isA<BiometricCancelledException>()),
       );
       expect(repository.hasUnlockedSession, isFalse);
 
-      await repository.unlockWithMasterPassword('correct password');
+      await repository.unlockWithMasterPassword(
+        'correct password',
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       expect(repository.hasUnlockedSession, isTrue);
     },
   );

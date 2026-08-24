@@ -113,6 +113,24 @@ void main() {
     },
   );
 
+  test('cancels a pending biometric result when the cubit closes', () async {
+    await cubit.loadAvailability();
+    final Completer<void> unlockStarted = Completer<void>();
+    final Completer<void> releaseUnlock = Completer<void>();
+    repository.unlockStarted = unlockStarted;
+    repository.releaseUnlock = releaseUnlock;
+
+    final Future<void> unlock = cubit.unlock();
+    await unlockStarted.future;
+    await cubit.close();
+
+    releaseUnlock.complete();
+    await unlock;
+
+    expect(sessionController.state, isA<LockedSession>());
+    expect(onUnlockedCalls, 0);
+  });
+
   test(
     'maps biometric invalidation without hiding the master fallback',
     () async {
@@ -169,14 +187,14 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
 
   @override
   Future<void> unlockWithBiometric({
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async {
-    activityGuard?.ensureActive();
+    activityGuard.ensureActive();
     unlockCount++;
     unlockStarted?.complete();
     final Completer<void>? release = releaseUnlock;
     if (release != null) await release.future;
-    activityGuard?.ensureActive();
+    activityGuard.ensureActive();
     final Object? failure = unlockFailure;
     if (failure != null) throw failure;
   }

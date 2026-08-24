@@ -168,7 +168,7 @@ final class BlockingVaultRepository implements VaultRepository {
   @override
   Future<void> unlockWithMasterPassword(
     String masterPassword, {
-    SessionActivityGuard? activityGuard,
+    required SessionActivityGuard activityGuard,
   }) async => throw UnimplementedError();
 
   @override
