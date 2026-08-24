@@ -268,6 +268,7 @@ void main() {
       AuthenticatedWipeVault(
         VerifyMasterPassword(_SettingsWipeVerifier()),
         WipeVault(_SettingsWipeRepository(), sessionController),
+        sessionController,
       ),
     );
     addTearDown(changeCubit.close);
@@ -347,6 +348,7 @@ void main() {
           _SettingsWipeVerifier(error: const InvalidMasterPasswordException()),
         ),
         WipeVault(repository, sessionController),
+        sessionController,
       ),
     );
     addTearDown(wipeCubit.close);

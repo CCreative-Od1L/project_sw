@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
@@ -27,6 +29,7 @@ void main() {
           ),
         ),
         WipeVault(repository, sessionController),
+        sessionController,
       );
       addTearDown(sessionController.dispose);
 
@@ -59,6 +62,7 @@ void main() {
     final AuthenticatedWipeVault wipe = AuthenticatedWipeVault(
       VerifyMasterPassword(_AuthenticatedWipeVerifier()),
       WipeVault(repository, sessionController),
+      sessionController,
     );
     addTearDown(sessionController.dispose);
 
@@ -69,6 +73,36 @@ void main() {
     expect(result, isA<Success<WipedVault, AuthenticatedWipeFailure>>());
     expect(repository.calls, 1);
     expect(sessionController.state, isA<VaultNotCreatedSession>());
+  });
+
+  test('lock interrupts verification before destructive wipe begins', () async {
+    final _AuthenticatedWipeRepository repository =
+        _AuthenticatedWipeRepository();
+    final _BlockingAuthenticatedWipeVerifier verifier =
+        _BlockingAuthenticatedWipeVerifier();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    final AuthenticatedWipeVault wipe = AuthenticatedWipeVault(
+      VerifyMasterPassword(verifier),
+      WipeVault(repository, sessionController),
+      sessionController,
+    );
+    addTearDown(sessionController.dispose);
+
+    final Future<Result<WipedVault, AuthenticatedWipeFailure>> result = wipe(
+      'current password',
+    );
+    await verifier.started.future;
+
+    sessionController.lock(LockReason.manualLock);
+    verifier.release.complete();
+
+    await expectLater(result, throwsA(isA<SessionActivityInterrupted>()));
+    expect(repository.calls, 0);
+    expect(sessionController.state, isA<LockedSession>());
   });
 }
 
@@ -81,6 +115,18 @@ final class _AuthenticatedWipeVerifier implements MasterPasswordVerifier {
   Future<void> verifyMasterPassword(String masterPassword) async {
     final Object? failure = error;
     if (failure != null) throw failure;
+  }
+}
+
+final class _BlockingAuthenticatedWipeVerifier
+    implements MasterPasswordVerifier {
+  final Completer<void> started = Completer<void>();
+  final Completer<void> release = Completer<void>();
+
+  @override
+  Future<void> verifyMasterPassword(String masterPassword) async {
+    started.complete();
+    await release.future;
   }
 }
 

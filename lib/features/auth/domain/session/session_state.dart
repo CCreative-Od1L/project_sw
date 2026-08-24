@@ -65,6 +65,9 @@ enum SessionActivity {
 
   /// Enabling, disabling, or resetting biometric access is in progress.
   biometricConfiguration,
+
+  /// Current-password verification before an irreversible vault wipe.
+  authenticatedWipe,
 }
 
 /// Authentication strength held by an unlocked session.
