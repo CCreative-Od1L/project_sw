@@ -87,7 +87,7 @@ final class SessionActivityLease implements SessionActivityGuard {
 }
 
 /// Unique ownership token for one master-password step-up challenge.
-final class MasterPasswordStepUpChallenge {
+final class MasterPasswordStepUpChallenge implements SessionActivityGuard {
   MasterPasswordStepUpChallenge._(this._owner);
 
   final SessionController _owner;
@@ -111,6 +111,14 @@ final class MasterPasswordStepUpChallenge {
 
   /// Applies a verified master password only to the owning session.
   bool complete() => _owner._completeStepUpChallenge(this);
+
+  /// Rejects sensitive work after this challenge loses its owning session.
+  @override
+  void ensureActive() {
+    if (!isActive) {
+      throw const SessionActivityInterrupted(SessionActivity.passwordChange);
+    }
+  }
 
   /// Releases an unsuccessful or abandoned challenge without upgrading.
   void cancel() => _owner._cancelStepUpChallenge(this);

@@ -6,6 +6,7 @@ import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/migration/domain/migration_transfer.dart';
@@ -14,6 +15,13 @@ import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:test/test.dart';
 
 import '../../../helpers/fake_crypto_service.dart';
+
+final class _AlwaysActiveGuard implements SessionActivityGuard {
+  const _AlwaysActiveGuard();
+
+  @override
+  void ensureActive() {}
+}
 
 void main() {
   late Directory temporaryDirectory;
@@ -183,6 +191,7 @@ void main() {
       await repository.changeMasterPassword(
         currentMasterPassword: 'current password',
         newMasterPassword: 'new password',
+        activityGuard: const _AlwaysActiveGuard(),
       );
 
       final OpenVaultFile changed = engine.openVaultFile(path);
@@ -242,6 +251,7 @@ void main() {
         repository.changeMasterPassword(
           currentMasterPassword: 'wrong password',
           newMasterPassword: 'new password',
+          activityGuard: const _AlwaysActiveGuard(),
         ),
         throwsA(isA<InvalidMasterPasswordException>()),
       );
@@ -370,6 +380,166 @@ void main() {
     blockedPath.complete(path);
 
     await expectLater(recovery, throwsA(isA<SessionActivityInterrupted>()));
+    expect(File(path).readAsBytesSync(), orderedEquals(before));
+  });
+
+  test('does not commit a password change after the session locks', () async {
+    final String path = '${temporaryDirectory.path}/interrupted-change.psw';
+    final Completer<void> resolverStarted = Completer<void>();
+    var operationResolverCalls = 0;
+    var blockChange = false;
+    final Completer<String> blockedPath = Completer<String>();
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () {
+        if (blockChange && ++operationResolverCalls == 2) {
+          resolverStarted.complete();
+          return blockedPath.future;
+        }
+        return Future<String>.value(path);
+      },
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'current password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('current password');
+    final Uint8List before = File(path).readAsBytesSync();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      secretCleaner: repository,
+    );
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.passwordChange,
+    );
+    addTearDown(sessionController.dispose);
+    blockChange = true;
+
+    final Future<void> change = repository.changeMasterPassword(
+      currentMasterPassword: 'current password',
+      newMasterPassword: 'new password',
+      activityGuard: activityLease,
+    );
+    await resolverStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    blockedPath.complete(path);
+
+    await expectLater(change, throwsA(isA<SessionActivityInterrupted>()));
+    expect(File(path).readAsBytesSync(), orderedEquals(before));
+  });
+
+  test('does not commit a password change when lock interrupts KDF', () async {
+    final String path = '${temporaryDirectory.path}/interrupted-change-kdf.psw';
+    final Completer<void> derivationStarted = Completer<void>();
+    final Completer<void> releaseDerivation = Completer<void>();
+    var blockNewPassword = false;
+    final FakeCryptoService crypto = FakeCryptoService(
+      beforeDeriveKek: (String password) {
+        if (!blockNewPassword || password != 'new password') {
+          return Future<void>.value();
+        }
+        derivationStarted.complete();
+        return releaseDerivation.future;
+      },
+    );
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: crypto,
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'current password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('current password');
+    final Uint8List before = File(path).readAsBytesSync();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      secretCleaner: repository,
+    );
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.passwordChange,
+    );
+    addTearDown(sessionController.dispose);
+    blockNewPassword = true;
+
+    final Future<void> change = repository.changeMasterPassword(
+      currentMasterPassword: 'current password',
+      newMasterPassword: 'new password',
+      activityGuard: activityLease,
+    );
+    await derivationStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    releaseDerivation.complete();
+
+    await expectLater(change, throwsA(isA<SessionActivityInterrupted>()));
+    expect(File(path).readAsBytesSync(), orderedEquals(before));
+  });
+
+  test('classifies lock during current-password KDF as interruption', () async {
+    final String path = '${temporaryDirectory.path}/interrupted-verify-kdf.psw';
+    final Completer<void> derivationStarted = Completer<void>();
+    final Completer<void> releaseDerivation = Completer<void>();
+    var blockCurrentPassword = false;
+    final FakeCryptoService crypto = FakeCryptoService(
+      beforeDeriveKek: (String password) {
+        if (!blockCurrentPassword || password != 'current password') {
+          return Future<void>.value();
+        }
+        derivationStarted.complete();
+        return releaseDerivation.future;
+      },
+    );
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: crypto,
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () async => path,
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'current password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('current password');
+    final Uint8List before = File(path).readAsBytesSync();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      secretCleaner: repository,
+    );
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.passwordChange,
+    );
+    addTearDown(sessionController.dispose);
+    blockCurrentPassword = true;
+
+    final Future<void> change = repository.changeMasterPassword(
+      currentMasterPassword: 'current password',
+      newMasterPassword: 'new password',
+      activityGuard: activityLease,
+    );
+    await derivationStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    releaseDerivation.complete();
+
+    await expectLater(change, throwsA(isA<SessionActivityInterrupted>()));
     expect(File(path).readAsBytesSync(), orderedEquals(before));
   });
 

@@ -8,6 +8,7 @@ import 'package:project_sw/features/auth/domain/recovery/master_password_recover
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
@@ -70,10 +71,128 @@ void main() {
     await submission;
 
     expect(cubit.state, isA<MasterPasswordChangeFault>());
+    expect(repository.writes, 0);
     expect(
       (sessionController.state as UnlockedSession).authStrength,
       AuthStrength.biometric,
     );
+  });
+
+  test('locks out a master-authenticated password change in flight', () async {
+    final _BlockingPasswordChangeRepository repository =
+        _BlockingPasswordChangeRepository();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(repository),
+      sessionController,
+    );
+    addTearDown(cubit.close);
+    addTearDown(sessionController.dispose);
+
+    final Future<void> submission = cubit.submit(
+      currentMasterPassword: 'current password',
+      newMasterPassword: 'new password',
+      confirmation: 'new password',
+    );
+    await repository.started.future;
+    expect(
+      (sessionController.state as UnlockedSession).activity,
+      SessionActivity.passwordChange,
+    );
+
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    repository.complete();
+    await submission;
+
+    expect(cubit.state, isA<MasterPasswordChangeFault>());
+    expect(repository.writes, 0);
+    expect(sessionController.state, isA<LockedSession>());
+  });
+
+  test('does not publish success after lock during recovery reset', () async {
+    final _BlockingRecoveryStore store = _BlockingRecoveryStore();
+    final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(_PasswordChangeRepository()),
+      sessionController,
+      recoveryGate: gate,
+      hasConfiguredBiometricRecovery: () async => true,
+      recoverMasterPassword: RecoverMasterPassword(
+        gate: gate,
+        biometricConfirmer: _RecoveryConfirmer(),
+        repository: _RecoveryRepository(),
+      ),
+    );
+    addTearDown(cubit.close);
+    addTearDown(sessionController.dispose);
+    store.blockNextClear();
+
+    final Future<void> submission = cubit.submit(
+      currentMasterPassword: 'current password',
+      newMasterPassword: 'new password',
+      confirmation: 'new password',
+    );
+    await store.clearStarted.future;
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    sessionController.unlock(AuthStrength.masterPassword);
+    store.completeClear();
+    await submission;
+
+    expect(cubit.state, isA<MasterPasswordChangeFault>());
+  });
+
+  test('does not publish a stale invalid-password result', () async {
+    final Completer<void> availabilityStarted = Completer<void>();
+    final Completer<bool> releaseAvailability = Completer<bool>();
+    final _RecoveryStore store = _RecoveryStore();
+    final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(
+        _PasswordChangeRepository(
+          error: const InvalidMasterPasswordException(),
+        ),
+      ),
+      sessionController,
+      recoveryGate: gate,
+      hasConfiguredBiometricRecovery: () {
+        availabilityStarted.complete();
+        return releaseAvailability.future;
+      },
+      recoverMasterPassword: RecoverMasterPassword(
+        gate: gate,
+        biometricConfirmer: _RecoveryConfirmer(),
+        repository: _RecoveryRepository(),
+      ),
+    );
+    addTearDown(cubit.close);
+    addTearDown(sessionController.dispose);
+
+    final Future<void> submission = cubit.submit(
+      currentMasterPassword: 'wrong password',
+      newMasterPassword: 'new password',
+      confirmation: 'new password',
+    );
+    await availabilityStarted.future;
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    sessionController.unlock(AuthStrength.masterPassword);
+    releaseAvailability.complete(true);
+    await submission;
+
+    expect(cubit.state, isA<MasterPasswordChangeFault>());
   });
 
   test('rejects a mismatched confirmation before changing the vault', () async {
@@ -363,7 +482,9 @@ final class _PasswordChangeRepository
   Future<void> changeMasterPassword({
     required String currentMasterPassword,
     required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
   }) async {
+    activityGuard.ensureActive();
     calls.add((currentMasterPassword, newMasterPassword));
     if (error != null) throw error!;
   }
@@ -373,14 +494,18 @@ final class _BlockingPasswordChangeRepository
     implements MasterPasswordChangeRepository {
   final Completer<void> started = Completer<void>();
   final Completer<void> _completion = Completer<void>();
+  var writes = 0;
 
   @override
   Future<void> changeMasterPassword({
     required String currentMasterPassword,
     required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
   }) async {
     started.complete();
     await _completion.future;
+    activityGuard.ensureActive();
+    writes++;
   }
 
   void complete() => _completion.complete();
@@ -404,6 +529,30 @@ final class _RecoveryStore implements MasterPasswordRecoveryStore {
   Future<void> write(MasterPasswordRecoveryMetadata value) async {
     metadata = value;
   }
+}
+
+final class _BlockingRecoveryStore implements MasterPasswordRecoveryStore {
+  final Completer<void> clearStarted = Completer<void>();
+  Completer<void>? _clearCompletion;
+
+  void blockNextClear() => _clearCompletion = Completer<void>();
+
+  void completeClear() => _clearCompletion?.complete();
+
+  @override
+  Future<void> clear() async {
+    if (!clearStarted.isCompleted) {
+      clearStarted.complete();
+    }
+    await _clearCompletion?.future;
+  }
+
+  @override
+  Future<MasterPasswordRecoveryMetadata> read() async =>
+      const MasterPasswordRecoveryMetadata();
+
+  @override
+  Future<void> write(MasterPasswordRecoveryMetadata metadata) async {}
 }
 
 final class _RecoveryConfirmer implements BiometricRecoveryConfirmer {

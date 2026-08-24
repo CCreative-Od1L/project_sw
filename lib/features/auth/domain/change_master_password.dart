@@ -1,4 +1,5 @@
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:project_sw/shared/result.dart';
 
@@ -28,6 +29,7 @@ final class ChangeMasterPassword {
   Future<Result<ChangedMasterPassword, ChangeMasterPasswordFailure>> call({
     required String currentMasterPassword,
     required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
   }) async {
     if (currentMasterPassword.isEmpty) {
       return const Failure<ChangedMasterPassword, ChangeMasterPasswordFailure>(
@@ -39,15 +41,19 @@ final class ChangeMasterPassword {
         ChangeMasterPasswordFailure.invalidNewMasterPassword,
       );
     }
+    activityGuard.ensureActive();
     try {
       await _repository.changeMasterPassword(
         currentMasterPassword: currentMasterPassword,
         newMasterPassword: newMasterPassword,
+        activityGuard: activityGuard,
       );
+      activityGuard.ensureActive();
       return const Success<ChangedMasterPassword, ChangeMasterPasswordFailure>(
         ChangedMasterPassword(),
       );
     } on InvalidMasterPasswordException {
+      activityGuard.ensureActive();
       return const Failure<ChangedMasterPassword, ChangeMasterPasswordFailure>(
         ChangeMasterPasswordFailure.invalidCurrentMasterPassword,
       );

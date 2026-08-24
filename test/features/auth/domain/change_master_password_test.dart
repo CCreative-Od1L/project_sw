@@ -1,5 +1,6 @@
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:project_sw/shared/result.dart';
 import 'package:test/test.dart';
@@ -11,11 +12,13 @@ void main() {
     final ChangeMasterPassword changeMasterPassword = ChangeMasterPassword(
       repository,
     );
+    final _RecordingGuard guard = _RecordingGuard();
 
     final Result<ChangedMasterPassword, ChangeMasterPasswordFailure> result =
         await changeMasterPassword(
           currentMasterPassword: 'current password',
           newMasterPassword: 'new password',
+          activityGuard: guard,
         );
 
     expect(
@@ -25,6 +28,7 @@ void main() {
     expect(repository.calls, <(String, String)>[
       ('current password', 'new password'),
     ]);
+    expect(guard.ensureCalls, 2);
   });
 
   test('maps a rejected current password to a business failure', () async {
@@ -38,6 +42,7 @@ void main() {
         await changeMasterPassword(
           currentMasterPassword: 'wrong password',
           newMasterPassword: 'new password',
+          activityGuard: _RecordingGuard(),
         );
 
     expect(
@@ -60,10 +65,18 @@ final class _FakeMasterPasswordChangeRepository
   Future<void> changeMasterPassword({
     required String currentMasterPassword,
     required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
   }) async {
     calls.add((currentMasterPassword, newMasterPassword));
     if (error != null) {
       throw error!;
     }
   }
+}
+
+final class _RecordingGuard implements SessionActivityGuard {
+  var ensureCalls = 0;
+
+  @override
+  void ensureActive() => ensureCalls++;
 }
