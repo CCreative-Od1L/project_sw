@@ -258,6 +258,141 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsNoCredentials => '此处不显示凭据或密码库明文。';
 
   @override
+  String get masterPasswordSettings => '主密码';
+
+  @override
+  String get masterPasswordChangeDescription => '修改时会生成新的盐并重新包裹密码库密钥，不会重新加密条目。';
+
+  @override
+  String get changeMasterPassword => '修改主密码';
+
+  @override
+  String get changeMasterPasswordTitle => '修改主密码';
+
+  @override
+  String get masterPasswordChangeWarning =>
+      '此安全敏感操作会验证当前主密码。请妥善保管新主密码；没有有效的生物恢复路径时无法找回。';
+
+  @override
+  String get currentMasterPassword => '当前主密码';
+
+  @override
+  String get newMasterPassword => '新主密码';
+
+  @override
+  String get confirmNewMasterPassword => '确认新主密码';
+
+  @override
+  String get changePassword => '修改密码';
+
+  @override
+  String get masterPasswordChanged => '主密码已修改';
+
+  @override
+  String get currentMasterPasswordInvalid => '当前主密码不正确。';
+
+  @override
+  String get newMasterPasswordRequired => '请输入新主密码。';
+
+  @override
+  String get newMasterPasswordsDoNotMatch => '两次输入的新主密码不一致。';
+
+  @override
+  String get masterPasswordChangeFailed => '无法修改主密码。';
+
+  @override
+  String get recoverWithBiometrics => '使用生物识别恢复';
+
+  @override
+  String get recoverMasterPasswordTitle => '恢复主密码';
+
+  @override
+  String get masterPasswordRecoveryWarning =>
+      '任何通过此次生物识别验证的人都可以通过设置新主密码接管密码库。请仅在可信设备上继续。';
+
+  @override
+  String get recoverPassword => '恢复密码';
+
+  @override
+  String get masterPasswordRecovered => '主密码已恢复';
+
+  @override
+  String get syncRecoveryBackup => '请在冷备设备上同步更新新的主密码。';
+
+  @override
+  String masterPasswordStrengthLabel(String strength) {
+    return '密码强度：$strength';
+  }
+
+  @override
+  String get newMasterPasswordTooWeak => '请选择强度更高的主密码。';
+
+  @override
+  String get masterPasswordRecoveryUnavailable => '密码恢复目前不可用。';
+
+  @override
+  String get masterPasswordRecoveryCancelled => '已取消生物识别确认。';
+
+  @override
+  String get masterPasswordRecoveryBiometricUnavailable => '生物识别确认不可用，密码库未被修改。';
+
+  @override
+  String get masterPasswordRecoveryFailed => '无法恢复主密码。';
+
+  @override
+  String get deadlockWipeTitle => '永久删除密码库';
+
+  @override
+  String get deadlockWipeWarning => '此操作将永久删除所有密码，且无法撤销。';
+
+  @override
+  String get deadlockWipeInstructions => '请准确输入 DELETE。开始删除前会有可取消的 10 秒倒计时。';
+
+  @override
+  String get deadlockWipeConfirmation => '输入 DELETE 以确认';
+
+  @override
+  String get deadlockWipeConfirmationInvalid => '请准确输入 DELETE 后继续。';
+
+  @override
+  String get startDeadlockWipeCountdown => '开始 10 秒倒计时';
+
+  @override
+  String deadlockWipeCountdown(int seconds) {
+    return '将在 $seconds 秒后删除';
+  }
+
+  @override
+  String get cancelDeadlockWipe => '取消删除';
+
+  @override
+  String get deadlockWipeWorking => '正在删除并验证密码库数据…';
+
+  @override
+  String get deadlockWipeFailed => '删除未完成。新建密码库仍被阻止；请检查警告后重试。';
+
+  @override
+  String get deleteVaultSettings => '删除密码库';
+
+  @override
+  String get deleteVaultDescription => '永久删除此密码库、备份、恢复状态、本地日志和生物识别密钥。';
+
+  @override
+  String get deleteVaultWarning => '此操作将永久删除所有密码，且无法撤销。请输入当前主密码以继续。';
+
+  @override
+  String get deleteVaultAction => '永久删除密码库';
+
+  @override
+  String get deleteVaultInvalidPassword => '当前主密码不正确，未删除任何数据。';
+
+  @override
+  String get deleteVaultFailed => '删除未完成。在所有目标均可清除前，新建密码库仍被阻止。';
+
+  @override
+  String get vaultDeleted => '密码库已永久删除';
+
+  @override
   String get biometricSettings => '生物识别解锁';
 
   @override

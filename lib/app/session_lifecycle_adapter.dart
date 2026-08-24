@@ -10,6 +10,7 @@ final class SessionLifecycleAdapter extends StatefulWidget {
     required this.sessionController,
     required this.child,
     this.onForegrounded,
+    this.onBackgrounded,
   });
 
   /// The global session source of truth.
@@ -17,6 +18,10 @@ final class SessionLifecycleAdapter extends StatefulWidget {
 
   /// Optional foreground callback for timed data-hygiene services.
   final VoidCallback? onForegrounded;
+
+  /// Optional cleanup callback for transient data that can also exist while
+  /// the vault session is already locked.
+  final VoidCallback? onBackgrounded;
 
   /// The application widget tree.
   final Widget child;
@@ -45,6 +50,9 @@ final class _SessionLifecycleAdapterState extends State<SessionLifecycleAdapter>
     final SessionEvent? event = sessionEventForLifecycleState(state);
     if (event == SessionEvent.appForegrounded) {
       widget.onForegrounded?.call();
+    }
+    if (event == SessionEvent.appBackgrounded) {
+      widget.onBackgrounded?.call();
     }
     if (event != null) {
       widget.sessionController.handle(event);

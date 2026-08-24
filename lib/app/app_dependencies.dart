@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:get_it/get_it.dart';
@@ -10,19 +11,35 @@ import 'package:project_sw/core/observability/logger.dart';
 import 'package:project_sw/core/observability/redaction_filter.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/features/auth/data/biometric_recovery_confirmer.dart';
+import 'package:project_sw/features/auth/data/file_master_password_recovery_store.dart';
+import 'package:project_sw/features/auth/data/file_vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
+import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
+import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
+import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
+import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
+import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
 import 'package:project_sw/features/auth/domain/verify_master_password.dart';
+import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
@@ -40,6 +57,8 @@ void registerAppDependencies(
   AppConfig config = const AppConfig(),
   CryptoService? cryptoService,
   VaultPathResolver? vaultPathResolver,
+  RecoveryStatePathResolver? recoveryStatePathResolver,
+  VaultWipeTargetPathsResolver? vaultWipeTargetPathsResolver,
   ClipboardPort? clipboardPort,
   BiometricKeyStore? biometricKeyStore,
 }) {
@@ -62,6 +81,25 @@ void registerAppDependencies(
       timeout: config.sensitiveClipboardTimeout,
     ),
     dispose: (SensitiveClipboardController controller) => controller.dispose(),
+  );
+  final List<SessionSecretCleaner> sessionSecretCleaners =
+      <SessionSecretCleaner>[
+        _SensitiveClipboardSessionCleaner(
+          serviceLocator<SensitiveClipboardController>(),
+        ),
+      ];
+  final SessionState initialState = config.vaultExistsAtLaunch
+      ? const LockedSession(reason: LockReason.coldStart)
+      : const VaultNotCreatedSession();
+  serviceLocator.registerSingleton<SessionSecretCleaner>(
+    SessionSecretCleaners(sessionSecretCleaners),
+  );
+  serviceLocator.registerSingleton<SessionController>(
+    SessionController(
+      initialState: initialState,
+      secretCleaner: serviceLocator<SessionSecretCleaner>(),
+    ),
+    dispose: (SessionController controller) => controller.dispose(),
   );
 
   if (cryptoService != null && vaultPathResolver != null) {
@@ -102,15 +140,14 @@ void registerAppDependencies(
       VaultEntriesCubit(
         serviceLocator<AddVaultEntry>(),
         serviceLocator<VaultRepository>(),
+        serviceLocator<SessionController>(),
       ),
       dispose: (VaultEntriesCubit cubit) => cubit.close(),
     );
-    serviceLocator.registerSingleton<SessionSecretCleaner>(
-      SessionSecretCleaners(<SessionSecretCleaner>[
-        serviceLocator<EncryptedVaultRepository>(),
-        serviceLocator<VaultEntriesCubit>(),
-      ]),
-    );
+    sessionSecretCleaners.addAll(<SessionSecretCleaner>[
+      serviceLocator<EncryptedVaultRepository>(),
+      serviceLocator<VaultEntriesCubit>(),
+    ]);
   }
 
   if (cryptoService != null) {
@@ -122,18 +159,6 @@ void registerAppDependencies(
     );
   }
 
-  final SessionState initialState = config.vaultExistsAtLaunch
-      ? const LockedSession(reason: LockReason.coldStart)
-      : const VaultNotCreatedSession();
-  serviceLocator.registerSingleton<SessionController>(
-    SessionController(
-      initialState: initialState,
-      secretCleaner: serviceLocator.isRegistered<SessionSecretCleaner>()
-          ? serviceLocator<SessionSecretCleaner>()
-          : null,
-    ),
-    dispose: (SessionController controller) => controller.dispose(),
-  );
   if (serviceLocator.isRegistered<BiometricKeyStore>()) {
     serviceLocator.registerSingleton<BiometricSettingsCubit>(
       BiometricSettingsCubit(
@@ -145,12 +170,110 @@ void registerAppDependencies(
     );
   }
   if (serviceLocator.isRegistered<EncryptedVaultRepository>()) {
+    if (serviceLocator.isRegistered<BiometricKeyStore>() &&
+        vaultPathResolver != null &&
+        recoveryStatePathResolver != null) {
+      final VaultWipeTargetPathsResolver wipeTargets =
+          vaultWipeTargetPathsResolver ??
+          () async {
+            final String vaultPath = await vaultPathResolver();
+            final String recoveryPath = await recoveryStatePathResolver();
+            return <String>[
+              vaultPath,
+              '$vaultPath.bak',
+              '$vaultPath.tmp',
+              '$vaultPath.migration.tmp',
+              recoveryPath,
+              '$recoveryPath.tmp',
+            ];
+          };
+      serviceLocator.registerSingleton<VaultWipeRepository>(
+        FileVaultWipeRepository(
+          biometricKeyStore: serviceLocator<BiometricKeyStore>(),
+          targetPathsResolver: wipeTargets,
+        ),
+      );
+      serviceLocator.registerSingleton<WipeVault>(
+        WipeVault(
+          serviceLocator<VaultWipeRepository>(),
+          serviceLocator<SessionController>(),
+        ),
+      );
+      serviceLocator.registerSingleton<DeadlockWipeCubit>(
+        DeadlockWipeCubit(serviceLocator<WipeVault>()),
+        dispose: (DeadlockWipeCubit cubit) => cubit.close(),
+      );
+    }
+    if (serviceLocator.isRegistered<BiometricKeyStore>() &&
+        recoveryStatePathResolver != null) {
+      serviceLocator.registerSingleton<MasterPasswordRecoveryStore>(
+        FileMasterPasswordRecoveryStore(
+          pathResolver: recoveryStatePathResolver,
+        ),
+      );
+      serviceLocator.registerSingleton<MasterPasswordRecoveryGate>(
+        MasterPasswordRecoveryGate(
+          serviceLocator<MasterPasswordRecoveryStore>(),
+        ),
+      );
+      serviceLocator.registerSingleton<BiometricRecoveryConfirmer>(
+        BiometricKeyStoreRecoveryConfirmer(serviceLocator<BiometricKeyStore>()),
+      );
+      serviceLocator.registerSingleton<MasterPasswordRecoveryRepository>(
+        serviceLocator<EncryptedVaultRepository>(),
+      );
+      serviceLocator.registerSingleton<RecoverMasterPassword>(
+        RecoverMasterPassword(
+          gate: serviceLocator<MasterPasswordRecoveryGate>(),
+          biometricConfirmer: serviceLocator<BiometricRecoveryConfirmer>(),
+          repository: serviceLocator<MasterPasswordRecoveryRepository>(),
+        ),
+      );
+    }
+    serviceLocator.registerSingleton<MasterPasswordChangeRepository>(
+      serviceLocator<EncryptedVaultRepository>(),
+    );
+    serviceLocator.registerSingleton<ChangeMasterPassword>(
+      ChangeMasterPassword(serviceLocator<MasterPasswordChangeRepository>()),
+    );
+    serviceLocator.registerSingleton<MasterPasswordChangeCubit>(
+      MasterPasswordChangeCubit(
+        serviceLocator<ChangeMasterPassword>(),
+        serviceLocator<SessionController>(),
+        recoveryGate: serviceLocator.isRegistered<MasterPasswordRecoveryGate>()
+            ? serviceLocator<MasterPasswordRecoveryGate>()
+            : null,
+        hasConfiguredBiometricRecovery:
+            serviceLocator.isRegistered<RecoverMasterPassword>()
+            ? serviceLocator<EncryptedVaultRepository>()
+                  .hasConfiguredBiometricUnlock
+            : null,
+        recoverMasterPassword:
+            serviceLocator.isRegistered<RecoverMasterPassword>()
+            ? serviceLocator<RecoverMasterPassword>()
+            : null,
+      ),
+      dispose: (MasterPasswordChangeCubit cubit) => cubit.close(),
+    );
     serviceLocator.registerSingleton<MasterPasswordVerifier>(
       serviceLocator<EncryptedVaultRepository>(),
     );
     serviceLocator.registerSingleton<VerifyMasterPassword>(
       VerifyMasterPassword(serviceLocator<MasterPasswordVerifier>()),
     );
+    if (serviceLocator.isRegistered<WipeVault>()) {
+      serviceLocator.registerSingleton<AuthenticatedWipeVault>(
+        AuthenticatedWipeVault(
+          serviceLocator<VerifyMasterPassword>(),
+          serviceLocator<WipeVault>(),
+          serviceLocator<SessionController>(),
+        ),
+      );
+      serviceLocator.registerSingleton<AuthenticatedWipeCubit>(
+        AuthenticatedWipeCubit(serviceLocator<AuthenticatedWipeVault>()),
+        dispose: (AuthenticatedWipeCubit cubit) => cubit.close(),
+      );
+    }
     serviceLocator.registerSingleton<StepUpCubit>(
       StepUpCubit(
         serviceLocator<VerifyMasterPassword>(),
@@ -187,17 +310,51 @@ void registerAppDependencies(
   }
 }
 
+final class _SensitiveClipboardSessionCleaner implements SessionSecretCleaner {
+  const _SensitiveClipboardSessionCleaner(this._controller);
+
+  final SensitiveClipboardController _controller;
+
+  @override
+  void clearUnlockedSession() {
+    unawaited(_clearBestEffort());
+  }
+
+  Future<void> _clearBestEffort() async {
+    try {
+      await _controller.clearForSessionLock();
+    } on Object {
+      // Platform clipboard cleanup cannot block fail-closed session locking.
+    }
+  }
+}
+
 /// Initializes native crypto and the application-support vault location.
 Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
   final Directory appSupportDirectory = await getApplicationSupportDirectory();
+  final Directory appDocumentsDirectory =
+      await getApplicationDocumentsDirectory();
   final String vaultPath =
       '${appSupportDirectory.path}${Platform.pathSeparator}vault.psw';
+  final String recoveryStatePath =
+      '${appSupportDirectory.path}${Platform.pathSeparator}'
+      'master_password_recovery.json';
   final CryptoService cryptoService = await SodiumCryptoService.initialize();
   registerAppDependencies(
     serviceLocator,
     config: AppConfig(vaultExistsAtLaunch: File(vaultPath).existsSync()),
     cryptoService: cryptoService,
     vaultPathResolver: () async => vaultPath,
+    recoveryStatePathResolver: () async => recoveryStatePath,
+    vaultWipeTargetPathsResolver: () async => <String>[
+      vaultPath,
+      '$vaultPath.bak',
+      '$vaultPath.tmp',
+      '$vaultPath.migration.tmp',
+      recoveryStatePath,
+      '$recoveryStatePath.tmp',
+      '${appDocumentsDirectory.path}${Platform.pathSeparator}logs',
+    ],
     biometricKeyStore: const MethodChannelBiometricKeyStore(),
   );
 }
