@@ -43,6 +43,39 @@ void main() {
     );
   });
 
+  test('a stale password change cannot upgrade a newer session', () async {
+    final _BlockingPasswordChangeRepository repository =
+        _BlockingPasswordChangeRepository();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+    );
+    final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(repository),
+      sessionController,
+    );
+    addTearDown(cubit.close);
+    addTearDown(sessionController.dispose);
+
+    final Future<void> submission = cubit.submit(
+      currentMasterPassword: 'current password',
+      newMasterPassword: 'new password',
+      confirmation: 'new password',
+    );
+    await repository.started.future;
+    sessionController.lock(LockReason.manualLock);
+    sessionController.unlock(AuthStrength.masterPassword);
+    sessionController.lock(LockReason.backgroundOrTimeout);
+    sessionController.unlock(AuthStrength.biometric);
+    repository.complete();
+    await submission;
+
+    expect(cubit.state, isA<MasterPasswordChangeFault>());
+    expect(
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.biometric,
+    );
+  });
+
   test('rejects a mismatched confirmation before changing the vault', () async {
     final _PasswordChangeRepository repository = _PasswordChangeRepository();
     final SessionController sessionController = SessionController();
@@ -334,6 +367,23 @@ final class _PasswordChangeRepository
     calls.add((currentMasterPassword, newMasterPassword));
     if (error != null) throw error!;
   }
+}
+
+final class _BlockingPasswordChangeRepository
+    implements MasterPasswordChangeRepository {
+  final Completer<void> started = Completer<void>();
+  final Completer<void> _completion = Completer<void>();
+
+  @override
+  Future<void> changeMasterPassword({
+    required String currentMasterPassword,
+    required String newMasterPassword,
+  }) async {
+    started.complete();
+    await _completion.future;
+  }
+
+  void complete() => _completion.complete();
 }
 
 final class _RecoveryStore implements MasterPasswordRecoveryStore {
