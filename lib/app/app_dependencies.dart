@@ -88,6 +88,19 @@ void registerAppDependencies(
           serviceLocator<SensitiveClipboardController>(),
         ),
       ];
+  final SessionState initialState = config.vaultExistsAtLaunch
+      ? const LockedSession(reason: LockReason.coldStart)
+      : const VaultNotCreatedSession();
+  serviceLocator.registerSingleton<SessionSecretCleaner>(
+    SessionSecretCleaners(sessionSecretCleaners),
+  );
+  serviceLocator.registerSingleton<SessionController>(
+    SessionController(
+      initialState: initialState,
+      secretCleaner: serviceLocator<SessionSecretCleaner>(),
+    ),
+    dispose: (SessionController controller) => controller.dispose(),
+  );
 
   if (cryptoService != null && vaultPathResolver != null) {
     if (biometricKeyStore != null) {
@@ -127,6 +140,7 @@ void registerAppDependencies(
       VaultEntriesCubit(
         serviceLocator<AddVaultEntry>(),
         serviceLocator<VaultRepository>(),
+        serviceLocator<SessionController>(),
       ),
       dispose: (VaultEntriesCubit cubit) => cubit.close(),
     );
@@ -145,21 +159,6 @@ void registerAppDependencies(
     );
   }
 
-  final SessionState initialState = config.vaultExistsAtLaunch
-      ? const LockedSession(reason: LockReason.coldStart)
-      : const VaultNotCreatedSession();
-  serviceLocator.registerSingleton<SessionSecretCleaner>(
-    SessionSecretCleaners(sessionSecretCleaners),
-  );
-  serviceLocator.registerSingleton<SessionController>(
-    SessionController(
-      initialState: initialState,
-      secretCleaner: serviceLocator.isRegistered<SessionSecretCleaner>()
-          ? serviceLocator<SessionSecretCleaner>()
-          : null,
-    ),
-    dispose: (SessionController controller) => controller.dispose(),
-  );
   if (serviceLocator.isRegistered<BiometricKeyStore>()) {
     serviceLocator.registerSingleton<BiometricSettingsCubit>(
       BiometricSettingsCubit(

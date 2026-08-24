@@ -31,16 +31,16 @@ void main() {
       vaultFileEngine: VaultFileEngine(),
       vaultPathResolver: () async => vaultPath,
     );
+    final SessionController sessionController = SessionController(
+      initialState: const LockedSession(reason: LockReason.coldStart),
+    );
     final VaultEntriesCubit entriesCubit = VaultEntriesCubit(
       AddVaultEntry(repository),
       repository,
+      sessionController,
     );
-    final SessionController sessionController = SessionController(
-      initialState: const LockedSession(reason: LockReason.coldStart),
-      secretCleaner: SessionSecretCleaners(<SessionSecretCleaner>[
-        repository,
-        entriesCubit,
-      ]),
+    sessionController.registerSecretCleaner(
+      SessionSecretCleaners(<SessionSecretCleaner>[repository, entriesCubit]),
     );
     final UnlockCubit unlockCubit = UnlockCubit(
       UnlockVault(repository),

@@ -5,6 +5,7 @@ import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
@@ -44,6 +45,7 @@ void main() {
         name: 'Sensitive entry name',
         password: 'entry-secret-must-not-leak',
       ),
+      activityGuard: const _AlwaysActiveGuard(),
     );
     repository.clearUnlockedSession();
     sessionController = SessionController(
@@ -88,6 +90,13 @@ void main() {
       },
     );
   }
+}
+
+final class _AlwaysActiveGuard implements SessionActivityGuard {
+  const _AlwaysActiveGuard();
+
+  @override
+  void ensureActive() {}
 }
 
 void _tamperByte(String path, int offset) {

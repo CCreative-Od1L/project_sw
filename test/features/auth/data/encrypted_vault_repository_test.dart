@@ -171,6 +171,7 @@ void main() {
           name: 'Envelope test',
           password: 'entry ciphertext must not change',
         ),
+        activityGuard: const _AlwaysActiveGuard(),
       );
       final OpenVaultFile beforeBiometric = engine.openVaultFile(path);
       final Uint8List biometricEnvelope = Uint8List.fromList(
@@ -223,6 +224,7 @@ void main() {
       await repository.unlockWithMasterPassword('new password');
       final EntryDetail detail = await repository.getEntryDetail(
         summary.entryId,
+        activityGuard: const _AlwaysActiveGuard(),
       );
       expect(detail.entry.password, 'entry ciphertext must not change');
     },
@@ -284,6 +286,7 @@ void main() {
           name: 'Recovered entry',
           password: 'unchanged entry secret',
         ),
+        activityGuard: const _AlwaysActiveGuard(),
       );
       final OpenVaultFile before = engine.openVaultFile(path);
       final Uint8List biometricEnvelope = Uint8List.fromList(
@@ -327,7 +330,10 @@ void main() {
       );
       await repository.unlockWithMasterPassword('new password');
       expect(
-        (await repository.getEntryDetail(summary.entryId)).entry.password,
+        (await repository.getEntryDetail(
+          summary.entryId,
+          activityGuard: const _AlwaysActiveGuard(),
+        )).entry.password,
         'unchanged entry secret',
       );
     },
@@ -433,6 +439,57 @@ void main() {
 
     await expectLater(change, throwsA(isA<SessionActivityInterrupted>()));
     expect(File(path).readAsBytesSync(), orderedEquals(before));
+  });
+
+  test('does not commit an entry add after the session locks', () async {
+    final String path = '${temporaryDirectory.path}/interrupted-add.psw';
+    final Completer<void> resolverStarted = Completer<void>();
+    final Completer<String> blockedPath = Completer<String>();
+    var blockAdd = false;
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () {
+        if (blockAdd) {
+          resolverStarted.complete();
+          return blockedPath.future;
+        }
+        return Future<String>.value(path);
+      },
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'current password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('current password');
+    final Uint8List before = File(path).readAsBytesSync();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      secretCleaner: repository,
+    );
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.vaultAccess,
+    );
+    addTearDown(sessionController.dispose);
+    blockAdd = true;
+
+    final Future<EntrySummary> add = repository.addEntry(
+      const NewVaultEntry(name: 'Interrupted add', password: 'secret'),
+      activityGuard: activityLease,
+    );
+    await resolverStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    blockedPath.complete(path);
+
+    await expectLater(add, throwsA(isA<SessionActivityInterrupted>()));
+    expect(File(path).readAsBytesSync(), orderedEquals(before));
+    expect(repository.entrySummaries, isEmpty);
   });
 
   test('does not commit a password change when lock interrupts KDF', () async {
@@ -707,6 +764,7 @@ void main() {
             CustomField(label: 'PIN', value: '1234', secret: true),
           ],
         ),
+        activityGuard: const _AlwaysActiveGuard(),
       );
 
       expect(added.name, 'Example');
@@ -744,16 +802,21 @@ void main() {
     await repository.unlockWithMasterPassword('correct password');
     final EntrySummary first = await repository.addEntry(
       const NewVaultEntry(name: 'Before', password: 'secret'),
+      activityGuard: const _AlwaysActiveGuard(),
     );
     final VaultEntryRecord initial = VaultFileEngine()
         .openVaultFile(path)
         .directory
         .records
         .single;
-    final EntryDetail detail = await repository.getEntryDetail(first.entryId);
+    final EntryDetail detail = await repository.getEntryDetail(
+      first.entryId,
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     expect(detail.entry.password, 'secret');
     await repository.updateEntry(
       detail.entry.copyWith(name: 'After', password: 'new secret'),
+      activityGuard: const _AlwaysActiveGuard(),
     );
     expect(repository.entrySummaries.single.name, 'After');
     final VaultEntryRecord updated = VaultFileEngine()
@@ -762,13 +825,19 @@ void main() {
         .records
         .single;
     expect(updated.sequence, initial.sequence + 1);
-    await repository.deleteEntry(first.entryId);
+    await repository.deleteEntry(
+      first.entryId,
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     expect(repository.entrySummaries, isEmpty);
     expect(
       VaultFileEngine().openVaultFile(path).header.freeListHead,
       updated.blockOffset,
     );
-    await repository.addEntry(const NewVaultEntry(name: 'Reused'));
+    await repository.addEntry(
+      const NewVaultEntry(name: 'Reused'),
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     expect(
       VaultFileEngine()
           .openVaultFile(path)
@@ -806,6 +875,7 @@ void main() {
     await receiver.unlockWithMasterPassword('receiver password');
     final EntrySummary source = await sender.addEntry(
       const NewVaultEntry(name: 'Migrated', password: 'secret'),
+      activityGuard: const _AlwaysActiveGuard(),
     );
     final SessionActivityLease senderActivity = _activityLease(
       SessionActivity.migrationSending,
@@ -826,6 +896,7 @@ void main() {
       expect(receiver.entrySummaries.single.entryId, source.entryId);
       final EntryDetail imported = await receiver.getEntryDetail(
         source.entryId,
+        activityGuard: const _AlwaysActiveGuard(),
       );
       expect(imported.entry.password, 'secret');
       final VaultEntryRecord importedRecord = VaultFileEngine()
@@ -874,6 +945,7 @@ void main() {
       await receiver.unlockWithMasterPassword('receiver password');
       final EntrySummary source = await sender.addEntry(
         const NewVaultEntry(name: 'Before', password: 'secret'),
+        activityGuard: const _AlwaysActiveGuard(),
       );
       final SessionActivityLease senderActivity = _activityLease(
         SessionActivity.migrationSending,
@@ -894,8 +966,12 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 2));
       final EntryDetail sourceDetail = await sender.getEntryDetail(
         source.entryId,
+        activityGuard: const _AlwaysActiveGuard(),
       );
-      await sender.updateEntry(sourceDetail.entry.copyWith(name: 'After'));
+      await sender.updateEntry(
+        sourceDetail.entry.copyWith(name: 'After'),
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final List<MigrationEntryPayload> newer = await sender
           .exportMigrationEntries(activityGuard: senderActivity);
       try {
@@ -939,8 +1015,14 @@ void main() {
     );
     await sender.unlockWithMasterPassword('sender password');
     await receiver.unlockWithMasterPassword('receiver password');
-    await sender.addEntry(const NewVaultEntry(name: 'First'));
-    await sender.addEntry(const NewVaultEntry(name: 'Second'));
+    await sender.addEntry(
+      const NewVaultEntry(name: 'First'),
+      activityGuard: const _AlwaysActiveGuard(),
+    );
+    await sender.addEntry(
+      const NewVaultEntry(name: 'Second'),
+      activityGuard: const _AlwaysActiveGuard(),
+    );
     final SessionActivityLease senderActivity = _activityLease(
       SessionActivity.migrationSending,
     );
@@ -994,6 +1076,7 @@ void main() {
     await repository.unlockWithMasterPassword('correct password');
     final EntrySummary summary = await repository.addEntry(
       const NewVaultEntry(name: 'Damaged', password: 'secret'),
+      activityGuard: const _AlwaysActiveGuard(),
     );
     final VaultEntryRecord record = VaultFileEngine()
         .openVaultFile(path)
@@ -1006,7 +1089,10 @@ void main() {
     bytes.fillRange(0, bytes.length, 0);
 
     expect(
-      repository.getEntryDetail(summary.entryId),
+      repository.getEntryDetail(
+        summary.entryId,
+        activityGuard: const _AlwaysActiveGuard(),
+      ),
       throwsA(isA<VaultCorruptedException>()),
     );
   });
@@ -1033,15 +1119,20 @@ void main() {
           name: 'Large',
           password: List<String>.filled(512, 'x').join(),
         ),
+        activityGuard: const _AlwaysActiveGuard(),
       );
       final VaultEntryRecord released = VaultFileEngine()
           .openVaultFile(path)
           .directory
           .records
           .single;
-      await repository.deleteEntry(large.entryId);
+      await repository.deleteEntry(
+        large.entryId,
+        activityGuard: const _AlwaysActiveGuard(),
+      );
       final EntrySummary small = await repository.addEntry(
         const NewVaultEntry(name: 'Small'),
+        activityGuard: const _AlwaysActiveGuard(),
       );
       final OpenVaultFile afterSplit = VaultFileEngine().openVaultFile(path);
       final VaultEntryRecord reused = afterSplit.directory.records.single;
@@ -1058,6 +1149,7 @@ void main() {
           name: 'Oversized',
           password: List<String>.filled(1024, 'y').join(),
         ),
+        activityGuard: const _AlwaysActiveGuard(),
       );
       final OpenVaultFile afterAppend = VaultFileEngine().openVaultFile(path);
       final VaultEntryRecord appended = afterAppend.directory.records

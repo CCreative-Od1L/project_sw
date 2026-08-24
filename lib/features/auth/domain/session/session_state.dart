@@ -68,6 +68,9 @@ enum SessionActivity {
 
   /// Current-password verification before an irreversible vault wipe.
   authenticatedWipe,
+
+  /// One page-local entry read or atomic entry mutation is in progress.
+  vaultAccess,
 }
 
 /// Authentication strength held by an unlocked session.

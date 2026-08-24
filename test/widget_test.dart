@@ -161,18 +161,18 @@ void main() {
       ),
     );
     await repository.unlockWithMasterPassword('correct password');
-    final VaultEntriesCubit entriesCubit = VaultEntriesCubit(
-      AddVaultEntry(repository),
-      repository,
-    );
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(
         authStrength: AuthStrength.masterPassword,
       ),
-      secretCleaner: SessionSecretCleaners(<SessionSecretCleaner>[
-        repository,
-        entriesCubit,
-      ]),
+    );
+    final VaultEntriesCubit entriesCubit = VaultEntriesCubit(
+      AddVaultEntry(repository),
+      repository,
+      sessionController,
+    );
+    sessionController.registerSecretCleaner(
+      SessionSecretCleaners(<SessionSecretCleaner>[repository, entriesCubit]),
     );
     final AuthCubit authCubit = AuthCubit(sessionController);
     addTearDown(entriesCubit.close);

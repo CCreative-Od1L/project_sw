@@ -420,10 +420,14 @@ final class _EntriesPanel extends StatelessWidget {
 
   Future<void> _showDetail(BuildContext context, EntrySummary summary) async {
     final VaultEntriesCubit cubit = context.read<VaultEntriesCubit>();
-    final SessionState owner = sessionController.state;
-    if (owner is! UnlockedSession) return;
-    EntryDetail? detail = await cubit.detail(summary.entryId);
-    if (!context.mounted || !identical(sessionController.state, owner)) {
+    if (sessionController.state is! UnlockedSession) return;
+    EntryDetail? detail;
+    try {
+      detail = await cubit.detail(summary.entryId);
+    } on SessionActivityInterrupted {
+      return;
+    }
+    if (!context.mounted || sessionController.state is! UnlockedSession) {
       detail = null;
       return;
     }
@@ -431,13 +435,12 @@ final class _EntriesPanel extends StatelessWidget {
     detail = null;
     sessionController.registerSecretCleaner(detailHolder);
     try {
-      if (!identical(sessionController.state, owner)) return;
+      if (sessionController.state is! UnlockedSession) return;
       await showDialog<void>(
         context: context,
         builder: (BuildContext context) => _EntryDetailDialog(
           cubit: cubit,
           detailHolder: detailHolder,
-          owner: owner,
           sessionController: sessionController,
           sensitiveClipboardController: SensitiveClipboardScope.maybeOf(
             context,
@@ -467,14 +470,12 @@ final class _EntryDetailDialog extends StatefulWidget {
   const _EntryDetailDialog({
     required this.cubit,
     required this.detailHolder,
-    required this.owner,
     required this.sessionController,
     this.sensitiveClipboardController,
   });
 
   final VaultEntriesCubit cubit;
   final _EntryDetailHolder detailHolder;
-  final SessionState owner;
   final SessionController sessionController;
   final SensitiveClipboardController? sensitiveClipboardController;
 
@@ -501,7 +502,7 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
     _notes = TextEditingController(text: entry?.notes ?? '');
     _favorite = entry?.favorite ?? false;
     super.initState();
-    if (entry == null || !identical(sessionController.state, widget.owner)) {
+    if (entry == null || sessionController.state is! UnlockedSession) {
       clearUnlockedSession();
     }
   }
@@ -631,23 +632,31 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
   Future<void> _delete() async {
     final EntryDetail? detail = widget.detailHolder.value;
     if (detail == null) return;
-    await widget.cubit.delete(detail.entry.entryId);
+    try {
+      await widget.cubit.delete(detail.entry.entryId);
+    } on SessionActivityInterrupted {
+      return;
+    }
     if (mounted) Navigator.pop(context);
   }
 
   Future<void> _save() async {
     final EntryDetail? detail = widget.detailHolder.value;
     if (detail == null) return;
-    await widget.cubit.update(
-      detail.entry.copyWith(
-        name: _name.text,
-        url: _url.text,
-        username: _username.text,
-        password: _password.text,
-        notes: _notes.text,
-        favorite: _favorite,
-      ),
-    );
+    try {
+      await widget.cubit.update(
+        detail.entry.copyWith(
+          name: _name.text,
+          url: _url.text,
+          username: _username.text,
+          password: _password.text,
+          notes: _notes.text,
+          favorite: _favorite,
+        ),
+      );
+    } on SessionActivityInterrupted {
+      return;
+    }
     if (mounted) Navigator.pop(context);
   }
 }
