@@ -251,6 +251,86 @@ void main() {
     );
   });
 
+  testWidgets('lock dismisses settings dialogs that hold master passwords', (
+    WidgetTester tester,
+  ) async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      timerFactory: (Duration _, void Function() _) => _SettingsSessionTimer(),
+    );
+    final MasterPasswordChangeCubit changeCubit = MasterPasswordChangeCubit(
+      ChangeMasterPassword(_SettingsPasswordChangeRepository()),
+      sessionController,
+    );
+    final AuthenticatedWipeCubit wipeCubit = AuthenticatedWipeCubit(
+      AuthenticatedWipeVault(
+        VerifyMasterPassword(_SettingsWipeVerifier()),
+        WipeVault(_SettingsWipeRepository(), sessionController),
+      ),
+    );
+    addTearDown(changeCubit.close);
+    addTearDown(wipeCubit.close);
+    addTearDown(sessionController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SettingsPage(
+          sessionController: sessionController,
+          masterPasswordChangeCubit: changeCubit,
+          authenticatedWipeCubit: wipeCubit,
+        ),
+      ),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change master password'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('current-master-password')),
+      'current residual secret',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('new-master-password')),
+      'new residual secret',
+    );
+
+    sessionController.lock(LockReason.manualLock);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('current-master-password')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('new-master-password')),
+      findsNothing,
+    );
+
+    sessionController.unlock(AuthStrength.masterPassword);
+    await tester.pump();
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Permanently delete vault'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('authenticated-wipe-password')),
+      'wipe residual secret',
+    );
+
+    sessionController.lock(LockReason.manualLock);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('authenticated-wipe-password')),
+      findsNothing,
+    );
+  });
+
   testWidgets('rejects normal deletion before a current password verifies', (
     WidgetTester tester,
   ) async {

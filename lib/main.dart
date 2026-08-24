@@ -51,6 +51,7 @@ Future<void> main() async {
       ),
       settingsPageBuilder: (_) => SettingsPage(
         config: appServiceLocator<AppConfig>(),
+        sessionController: appServiceLocator<SessionController>(),
         vaultRepository: appServiceLocator<VaultRepository>(),
         stepUpCubit: appServiceLocator<StepUpCubit>(),
         masterPasswordChangeCubit:
