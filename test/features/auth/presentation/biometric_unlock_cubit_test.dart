@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 
@@ -12,6 +15,7 @@ void main() {
   late FakeBiometricKeyStore keyStore;
   late SessionController sessionController;
   late BiometricUnlockCubit cubit;
+  late int onUnlockedCalls;
 
   setUp(() {
     repository = FakeBiometricVaultRepository();
@@ -19,7 +23,13 @@ void main() {
     sessionController = SessionController(
       initialState: const LockedSession(reason: LockReason.coldStart),
     );
-    cubit = BiometricUnlockCubit(repository, keyStore, sessionController);
+    onUnlockedCalls = 0;
+    cubit = BiometricUnlockCubit(
+      repository,
+      keyStore,
+      sessionController,
+      onUnlocked: () => onUnlockedCalls++,
+    );
   });
 
   tearDown(() {
@@ -56,6 +66,72 @@ void main() {
   });
 
   test(
+    'ignores a biometric result after the locked session backgrounds',
+    () async {
+      await cubit.loadAvailability();
+      final Completer<void> unlockStarted = Completer<void>();
+      final Completer<void> releaseUnlock = Completer<void>();
+      repository.unlockStarted = unlockStarted;
+      repository.releaseUnlock = releaseUnlock;
+
+      final Future<void> unlock = cubit.unlock();
+      await unlockStarted.future;
+
+      sessionController.handle(SessionEvent.appBackgrounded);
+      releaseUnlock.complete();
+      await unlock;
+
+      expect(sessionController.state, isA<LockedSession>());
+      expect(cubit.state, isA<BiometricUnlockReady>());
+      expect(onUnlockedCalls, 0);
+    },
+  );
+
+  test(
+    'does not let a stale biometric result replace a newer session',
+    () async {
+      await cubit.loadAvailability();
+      final Completer<void> unlockStarted = Completer<void>();
+      final Completer<void> releaseUnlock = Completer<void>();
+      repository.unlockStarted = unlockStarted;
+      repository.releaseUnlock = releaseUnlock;
+
+      final Future<void> unlock = cubit.unlock();
+      await unlockStarted.future;
+      sessionController.handle(SessionEvent.appBackgrounded);
+      sessionController.unlock(AuthStrength.masterPassword);
+
+      releaseUnlock.complete();
+      await unlock;
+
+      expect(
+        (sessionController.state as UnlockedSession).authStrength,
+        AuthStrength.masterPassword,
+      );
+      expect(cubit.state, isA<BiometricUnlockReady>());
+      expect(onUnlockedCalls, 0);
+    },
+  );
+
+  test('cancels a pending biometric result when the cubit closes', () async {
+    await cubit.loadAvailability();
+    final Completer<void> unlockStarted = Completer<void>();
+    final Completer<void> releaseUnlock = Completer<void>();
+    repository.unlockStarted = unlockStarted;
+    repository.releaseUnlock = releaseUnlock;
+
+    final Future<void> unlock = cubit.unlock();
+    await unlockStarted.future;
+    await cubit.close();
+
+    releaseUnlock.complete();
+    await unlock;
+
+    expect(sessionController.state, isA<LockedSession>());
+    expect(onUnlockedCalls, 0);
+  });
+
+  test(
     'maps biometric invalidation without hiding the master fallback',
     () async {
       await cubit.loadAvailability();
@@ -88,6 +164,8 @@ void main() {
 
 final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   Object? unlockFailure;
+  Completer<void>? unlockStarted;
+  Completer<void>? releaseUnlock;
   var unlockCount = 0;
   var configured = true;
 
@@ -95,17 +173,28 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   bool get hasBiometricUnlock => configured;
 
   @override
-  Future<void> disableBiometricUnlock() async => configured = false;
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async => configured = false;
 
   @override
-  Future<void> enableBiometricUnlock() async => configured = true;
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async => configured = true;
 
   @override
   Future<bool> hasConfiguredBiometricUnlock() async => configured;
 
   @override
-  Future<void> unlockWithBiometric() async {
+  Future<void> unlockWithBiometric({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     unlockCount++;
+    unlockStarted?.complete();
+    final Completer<void>? release = releaseUnlock;
+    if (release != null) await release.future;
+    activityGuard.ensureActive();
     final Object? failure = unlockFailure;
     if (failure != null) throw failure;
   }

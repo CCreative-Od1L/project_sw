@@ -1,0 +1,129 @@
+name: Release preflight and Android signed build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metadata:
+    name: Validate release metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the complete tag history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag, version, and changelog
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REQUIRE_ANNOTATED_TAG: '1'
+          OUTPUT_FILE: release-metadata/release-metadata.txt
+        run: bash scripts/verify_release_metadata.sh
+
+      - name: Upload reproducibility metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-metadata-${{ github.ref_name }}-${{ github.sha }}
+          path: release-metadata/release-metadata.txt
+          if-no-files-found: error
+          retention-days: 90
+
+  android:
+    name: Build signed Android AAB
+    needs: metadata
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 40
+    steps:
+      - name: Check out the complete tag history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up pinned Flutter SDK
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+          pub-cache: true
+
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Prepare Android signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/project-sw-release.keystore
+        run: bash scripts/prepare_android_signing.sh
+
+      - name: Build signed Android AAB
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/project-sw-release.keystore
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash scripts/build_android.sh release-aab
+
+      - name: Upload signed Android AAB
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: project-sw-android-release-${{ github.ref_name }}-${{ github.sha }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove Android signing keystore
+        if: ${{ always() }}
+        run: rm -f -- "${RUNNER_TEMP}/project-sw-release.keystore"
+
+  publish:
+    name: Create GitHub Release
+    needs: [metadata, android]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      actions: read
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - name: Check out the complete tag history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Download release metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-metadata-${{ github.ref_name }}-${{ github.sha }}
+          path: release-assets/metadata
+
+      - name: Download signed Android AAB
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: project-sw-android-release-${{ github.ref_name }}-${{ github.sha }}
+          path: release-assets/android
+
+      - name: Extract release notes
+        run: bash scripts/extract_changelog_section.sh "${GITHUB_REF_NAME#v}" > release-notes.md
+
+      - name: Create GitHub Release with Android artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          --verify-tag
+          --title "PROJECT_SW ${GITHUB_REF_NAME}"
+          --notes-file release-notes.md
+          release-assets/metadata/release-metadata.txt
+          release-assets/android/app-release.aab

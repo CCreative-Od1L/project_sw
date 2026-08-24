@@ -131,13 +131,16 @@
 - `background_or_timeout`
 - `manual_lock`
 - `biometric_invalidated`
-- 未来可扩展恢复/擦除等其他状态原因
+- `wipe_started`
 
 #### 当前认证强度
 
 - `none`
 - `biometric`
 - `master_password`
+
+`none` 只表示没有已认证的会话(例如 UI 投影的默认值);`SessionController` 不会
+发布或接受 `Unlocked(authStrength: none)`。
 
 因此推荐的最小状态形状为:
 
@@ -152,6 +155,7 @@
 
 - 若当前已是 `Unlocked(authStrength: master_password)`,高敏操作可直接继续;
 - 若当前是 `Unlocked(authStrength: biometric)`,由会话真相源发起主密码 step-up challenge;
+- challenge 必须绑定唯一 session lease;认证升级没有绕过 lease 的公开入口;任一锁定事件立即使其失效,旧异步结果不得作用于后续重新解锁的会话;
 - 挑战成功后,会话保持 `Unlocked`,但 `authStrength` 升级为 `master_password`;
 - 失败则当前操作不放行,但不因此自动转入锁定态。
 
@@ -201,6 +205,22 @@ step-up 成功后,当前会话的 `authStrength` 升级为 `master_password`,并
 - 记录锁定埋点
 - 作废未完成的高敏 challenge
 
+状态变化按顺序发布。锁定开始后到 `Locked(...)` 发布完成前,会话真相源拒绝重入解锁、step-up challenge 或新 activity。每个敏感数据清理器独立按 best-effort 执行:单个清理器异常不得跳过后续清理,也不得阻止最终锁定;会话真相源在解锁态被销毁时同样触发清理。
+
+### 6.1 异步解锁结果的会话归属
+
+密码解锁与生物解锁都必须先从当前 `Locked(...)` 状态取得唯一的
+`SessionUnlockAttempt`。该 attempt 同时作为只读 `SessionActivityGuard` 传入
+repository,因此 repository 必须在每个异步边界、敏感内存投影提交前检查它仍然有效。
+
+- 任一锁定事件、直接开始新的解锁会话或 Cubit 销毁都会使 attempt 失效;
+- 失效后到达的密码/KDF/生物结果不得发布 `Unlocked(...)`,不得调用 `onUnlocked`,也不得
+  触发生物失效事件去锁定后续会话;
+- 即使会话已经处于 `Locked(...)`,只要仍有挂起的 unlock attempt,锁定入口仍必须清除
+  repository 的 MVK、摘要与 KDF 投影;
+- repository 的异步解锁操作必须以自己的操作所有权提交敏感投影,旧操作的失败清理不得
+  清除后续新解锁操作已经建立的会话。
+
 ### 7. 生命周期事件先适配为项目内领域事件
 
 业务层不直接依赖 Flutter `AppLifecycleState` 作为会话状态机输入。
@@ -246,14 +266,31 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 - 收到 `appBackgrounded` / `manual_lock` / `biometric_invalidated` / `wipe_started` 时,清理 timer;
 - 锁定态不运行 idle timer。
 
-### 10. 受控的 lock suppression 白名单
+### 10. 显式 Session Activity 与受控 lock suppression
 
-会话真相源支持一个极窄的受控机制: `lockSuppression`
+会话真相源在 `Unlocked(...)` 中显式发布 `SessionActivity`,而不是另存一份页面不可见的 timer 标志。当前活动至少包括:
+
+- `none`
+- `migration_sending`
+- `migration_receiving`
+- `password_recovery`
+- `password_change`
+- `biometric_configuration`
+- `authenticated_wipe`
+- `vault_access`
+
+迁移协调器、忘码恢复、主密码变更、生物配置、认证擦除与条目页面访问入口必须通过会话真相源取得唯一 guard;已满足主密码强度时使用 activity lease,生物会话的主密码变更复用 step-up challenge。认证擦除在验证当前主密码前取得 lease,并在开始不可逆销毁前再次检查;锁定后的旧验证结果不得启动擦除。条目读取、新增、更新和删除在路径解析等异步边界及原子提交前复核 `vaultAccess` lease。页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 guard 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁、写入新 header 或结束后续同类活动。
+
+非 `none` 活动提供一个极窄的受控 `lockSuppression` 效果。
 
 首批仅允许以下流程申请:
 
-- `migration_in_progress`
-- `password_recovery_in_progress`
+- `migration_sending` / `migration_receiving`
+- `password_recovery`
+- `password_change`
+- `biometric_configuration`
+- `authenticated_wipe`
+- `vault_access`
 
 其效果只限于:
 
@@ -297,9 +334,14 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
 - `/home`
 - `/migration/sender`
 - `/migration/receiver`
-- `/wiping`
+- `/wiping` (若未来引入独立擦除进度路由)
 
 或等价的 `SessionRouteState` 抽象。
+
+当前实现将 `wipe_started` 建模为 `Locked(reason: wipeStarted)`,并由
+`SessionRouteState.unlock` 派生 `/unlock`;它没有独立的 `/wiping` 路由。若未来
+需要独立擦除进度页面,必须同时扩展 `SessionRouteState` 及锁定/擦除状态矩阵,不能由
+页面自行推断或复制该状态。
 
 因此:
 
@@ -323,6 +365,7 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
   - 将 GoRouter redirect 绑定到派生路由态
 - 定义项目内 session event model,由 Flutter 生命周期与用户交互适配器统一输入。
 - 将 idle timer 所有权下沉到会话真相源。
+- 将迁移发送、迁移接收与忘码恢复建模为 `UnlockedSession` 的显式活动,由会话真相源统一发布并管理 idle suppression。
 - `AuthCubit` 改为只投影会话状态,不直接拥有状态机规则。
 - GoRouter redirect 改为只消费会话真相源派生的路由态。
 - 高敏 use case / 操作入口以显式方式声明 `requiresMasterPassword`,交由会话真相源决定是否发起 step-up。
@@ -341,9 +384,12 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
   - 生物解锁会话访问高敏操作时触发主密码 challenge
   - challenge 成功后升级到 `master_password` 并保持到下一次锁定
   - challenge 失败不自动全局锁定
+  - challenge 验证挂起时锁定会立即作废,且 stale completion 不会升级新会话或覆盖新 challenge
 - suppression 测试:
-  - `migration_in_progress` / `password_recovery_in_progress` 抑制 idle timeout
+  - `migration_sending` / `migration_receiving` / `password_recovery` 抑制 idle timeout
   - 但不抑制 `appBackgrounded` 立即锁定
+  - 活动完成或中断后回到 `none`,stale completion 不得解除锁定或结束新 lease
+  - 锁定会关闭挂起的迁移传输,并阻止忘码恢复继续提交 MVK 重包裹
 - redirect / projection 测试:
   - `AuthCubit` 与 GoRouter 只消费会话真相源派生结果,不重复解释状态机
 
