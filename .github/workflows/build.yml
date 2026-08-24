@@ -7,6 +7,14 @@ on:
   pull_request:
     paths:
       - .github/workflows/build.yml
+      - .fvmrc
+      - pubspec.yaml
+      - pubspec.lock
+      - assets/**
+      - lib/**
+      - android/**
+      - ios/**
+      - scripts/**
   workflow_dispatch:
 
 permissions:
@@ -37,7 +45,7 @@ jobs:
         run: flutter pub get --enforce-lockfile
 
       - name: Build debug APK
-        run: flutter build apk --debug --no-pub
+        run: bash scripts/build_android.sh debug-apk
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -67,7 +75,7 @@ jobs:
         run: flutter pub get --enforce-lockfile
 
       - name: Build unsigned debug app
-        run: flutter build ios --debug --no-codesign --no-pub
+        run: bash scripts/build_ios.sh unsigned-debug
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -212,10 +212,13 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 | Workflow | 产物 | 留存 |
 |----------|------|------|
 | `build.yml` | debug APK(Android)、无签名 debug `.app`(iOS) | GitHub Actions artifact,90 天 |
-| `release.yml` | signed AAB/APK(Android)、signed IPA(iOS) | 绑定到 GitHub Release,长期 |
+| `release.yml` | 当前为 tag/version/CHANGELOG 与可重建 metadata preflight;签名 AAB/APK 与 IPA 为后续 lane | metadata artifact;签名产物目标为长期绑定 GitHub Release |
 
 - 产物命名含版本号 + commit short sha + 平台,可追溯到具体提交。
-- `release.yml` 产物上传后,在 GitHub Release 描述附 `CHANGELOG.md` 对应段落 + commit 范围链接。
+- `build.yml` 的平台构建通过 `scripts/build_android.sh debug-apk` 与
+  `scripts/build_ios.sh unsigned-debug` 执行;脚本显式校验产物,避免 workflow
+  命令与本地构建语义漂移。
+- 当前 `release.yml` 仅上传非敏感的可重建 metadata;签名构建、GitHub Release 汇总与 `CHANGELOG.md` 摘要将在签名 lane 接入后启用。
 
 ## 9. 依赖校验与安全
 
@@ -224,9 +227,13 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 - **定期审计**(`scheduled.yml`):`fvm dart pub outdated` + 安全公告扫描;发现高危依赖开 issue,按 `security:` 提交处理并优先发版([GIT_WORKFLOW.md §6.3](../GIT_WORKFLOW.md))。
 - CI 中禁用打印 secrets;workflow 不含任何硬编码凭据。
 
-## 10. 发版流水线(`release.yml`)
+## 10. 发版流水线(`release.yml`,目标设计)
 
 触发:`push` tag `v*.*.*`(annotated tag,[GIT_WORKFLOW.md §4.2](../GIT_WORKFLOW.md))。
+
+当前已落地 tag 格式、版本号、`CHANGELOG.md`、annotated tag、Flutter toolchain 与 lockfile checksum 的 preflight;缺失任一项即失败。
+
+目标签名发版流程为:
 
 1. 校验 tag 格式 + `CHANGELOG.md` 含对应版本段落(缺失则失败)。
 2. 并行构建:Android(`ubuntu-latest`)、iOS(`macos-latest`),各签名。
@@ -251,7 +258,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
 2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
-3. **首次发版前**:先落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight;再接入 `scripts/build_android.sh` / `scripts/build_ios.sh`、签名 secret 配置与 tag → Release 产物演练。
+3. **首次发版前**:已落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight 与平台构建脚本;仍需接入 iOS 签名 lane、签名 secret 配置与 tag → Release 产物演练。
 4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)与 Dependabot 周期更新(已完成)。
 
 ## 13. 待决(实现期)
