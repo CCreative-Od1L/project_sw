@@ -664,7 +664,14 @@ final class EncryptedVaultRepository
 
   /// Verifies the master password while preserving the current unlocked data.
   @override
-  Future<void> verifyMasterPassword(String masterPassword) async {
+  Future<void> verifyMasterPassword(String masterPassword) =>
+      _verifyMasterPassword(masterPassword);
+
+  Future<void> _verifyMasterPassword(
+    String masterPassword, {
+    SessionActivityGuard? activityGuard,
+  }) async {
+    activityGuard?.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -677,6 +684,7 @@ final class EncryptedVaultRepository
     VaultFileHeader? header;
     try {
       final String path = await vaultPathResolver();
+      activityGuard?.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       kek = await crypto.deriveKek(
@@ -686,6 +694,7 @@ final class EncryptedVaultRepository
         iterations: header.kdfParameters.iterations,
         parallelism: header.kdfParameters.parallelism,
       );
+      activityGuard?.ensureActive();
       final Uint8List kdfBytes = _encodeVaultKdfParameters(
         header.kdfParameters,
       );
@@ -714,9 +723,12 @@ final class EncryptedVaultRepository
       } on Object {
         throw const InvalidMasterPasswordException();
       }
+      activityGuard?.ensureActive();
       if (!_sameBytes(verifiedMasterVaultKey, masterVaultKey)) {
         throw const VaultCorruptedException();
       }
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -752,9 +764,19 @@ final class EncryptedVaultRepository
   Future<void> changeMasterPassword({
     required String currentMasterPassword,
     required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
   }) async {
-    await verifyMasterPassword(currentMasterPassword);
-    await _rewrapMasterVaultKey(newMasterPassword: newMasterPassword);
+    activityGuard.ensureActive();
+    await _verifyMasterPassword(
+      currentMasterPassword,
+      activityGuard: activityGuard,
+    );
+    activityGuard.ensureActive();
+    await _rewrapMasterVaultKey(
+      newMasterPassword: newMasterPassword,
+      activityGuard: activityGuard,
+    );
+    activityGuard.ensureActive();
   }
 
   /// Re-wraps the unlocked MVK after the domain recovery gates have passed.
@@ -764,14 +786,14 @@ final class EncryptedVaultRepository
     required SessionActivityLease activityLease,
   }) => _rewrapMasterVaultKey(
     newMasterPassword: newMasterPassword,
-    activityLease: activityLease,
+    activityGuard: activityLease,
   );
 
   Future<void> _rewrapMasterVaultKey({
     required String newMasterPassword,
-    SessionActivityLease? activityLease,
+    required SessionActivityGuard activityGuard,
   }) async {
-    activityLease?.ensureActive();
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -785,7 +807,7 @@ final class EncryptedVaultRepository
     VaultFileHeader? nextHeader;
     try {
       final String path = await vaultPathResolver();
-      activityLease?.ensureActive();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       newSalt = crypto.randomBytes(16);
@@ -799,7 +821,7 @@ final class EncryptedVaultRepository
         iterations: header.kdfParameters.iterations,
         parallelism: header.kdfParameters.parallelism,
       );
-      activityLease?.ensureActive();
+      activityGuard.ensureActive();
       final Uint8List newKdfBytes = _encodeVaultKdfParameters(
         header.kdfParameters,
       );
@@ -830,13 +852,13 @@ final class EncryptedVaultRepository
         kdfSalt: newSalt,
         wrappedMasterVaultKey: newWrappedMasterVaultKey,
       );
-      activityLease?.ensureActive();
+      activityGuard.ensureActive();
       vaultFileEngine.commitHeaderUpdate(
         path: path,
         opened: opened,
         header: nextHeader,
       );
-      activityLease?.ensureActive();
+      activityGuard.ensureActive();
     } on SessionActivityInterrupted {
       rethrow;
     } on VaultException {

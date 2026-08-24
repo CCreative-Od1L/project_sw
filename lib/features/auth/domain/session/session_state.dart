@@ -59,6 +59,9 @@ enum SessionActivity {
 
   /// Biometric-assisted master-password recovery is in progress.
   passwordRecovery,
+
+  /// Atomic master-password verification and re-wrap is in progress.
+  passwordChange,
 }
 
 /// Authentication strength held by an unlocked session.

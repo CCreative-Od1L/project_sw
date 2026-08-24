@@ -257,8 +257,9 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 - `migration_sending`
 - `migration_receiving`
 - `password_recovery`
+- `password_change`
 
-迁移协调器与忘码恢复入口必须通过会话真相源取得唯一 activity lease;页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 lease 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁或结束后续同类活动。
+迁移协调器、忘码恢复与主密码变更入口必须通过会话真相源取得唯一 guard;已满足主密码强度时使用 activity lease,生物会话的主密码变更复用 step-up challenge。页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 guard 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁、写入新 header 或结束后续同类活动。
 
 非 `none` 活动提供一个极窄的受控 `lockSuppression` 效果。
 
@@ -266,6 +267,7 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 
 - `migration_sending` / `migration_receiving`
 - `password_recovery`
+- `password_change`
 
 其效果只限于:
 
