@@ -267,6 +267,7 @@ void registerAppDependencies(
         AuthenticatedWipeVault(
           serviceLocator<VerifyMasterPassword>(),
           serviceLocator<WipeVault>(),
+          serviceLocator<SessionController>(),
         ),
       );
       serviceLocator.registerSingleton<AuthenticatedWipeCubit>(
