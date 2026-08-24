@@ -16,6 +16,10 @@
 
 ## 状态机 → 路由映射
 
+下表区分目标路由扩展与当前实现。当前 `SessionRouteState` 只发布
+`setup`、`unlock`、`home`;活动和擦除状态仍由会话真相源携带,不会被页面自行复制成
+独立路由。
+
 | 状态机状态 | 路由 | 说明 |
 |---|---|---|
 | S0 未建库 | `/setup` | 首次建库引导 |
@@ -27,8 +31,8 @@
 | S6 冷却期·忘码入口隐藏 | `/home` 或 `/unlock` | 取决于当前是否在解锁态 |
 | S7 冷却期外·忘码入口可浮现 | `/home`(改密码流程中) | 入口在改密码页面内浮现 |
 | S8 忘码恢复成功 | `/home` | 新密码生效 |
-| S9 迁移发送中 | `/migration/sender` | 迁移流程页 |
-| S10 迁移接收中 | `/migration/receiver` | 迁移流程页 |
-| S11 擦除中 | `/wiping` | 擦除进度页(不可返回) |
+| S9 迁移发送中 | `/home` (当前)；`/migration/sender` (未来可选) | 当前作为 `SessionActivity.migrationSending` 由主界面/协调器呈现 |
+| S10 迁移接收中 | `/home` (当前)；`/migration/receiver` (未来可选) | 当前作为 `SessionActivity.migrationReceiving` 由主界面/协调器呈现 |
+| S11 擦除中 | `/unlock` (当前)；`/wiping` (未来可选) | 当前作为 `Locked(reason: wipeStarted)` 阻断解锁；耐久擦除完成后回到 `/setup` |
 
-redirect 守卫不自行解释多份会话信号,而是只消费全局会话真相源派生出的单一路由态。`AuthCubit` 仍可作为 UI 投影层对外发布易渲染状态,但 redirect 不以其为运行时权威;迁移与擦除状态也应经会话真相源或等价协调器派生到路由态后再进入独立路由。
+redirect 守卫不自行解释多份会话信号,而是只消费全局会话真相源派生出的单一路由态。`AuthCubit` 仍可作为 UI 投影层对外发布易渲染状态,但 redirect 不以其为运行时权威;未来新增独立迁移/擦除路由时,必须先扩展会话真相源的派生路由态,不能由页面自行推断。

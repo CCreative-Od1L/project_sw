@@ -19,6 +19,15 @@ void main() {
       expect(controller.routeState, SessionRouteState.setup);
     });
 
+    test('rejects an unlocked bootstrap state without authentication', () {
+      expect(
+        () => SessionController(
+          initialState: const UnlockedSession(authStrength: AuthStrength.none),
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('moves created vaults into cold-start locked state', () {
       final SessionController controller = SessionController();
       addTearDown(controller.dispose);
@@ -613,6 +622,318 @@ void main() {
       addTearDown(controller.dispose);
 
       expect(controller.beginWipe, throwsStateError);
+    });
+
+    test(
+      'completes a wipe through a locked state before returning to setup',
+      () {
+        final RecordingCleaner cleaner = RecordingCleaner();
+        final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+        final SessionController controller = SessionController(
+          initialState: const UnlockedSession(
+            authStrength: AuthStrength.masterPassword,
+          ),
+          secretCleaner: cleaner,
+          timerFactory: (Duration duration, void Function() callback) {
+            final FakeSessionTimer timer = FakeSessionTimer(callback);
+            timers.add(timer);
+            return timer;
+          },
+        );
+        addTearDown(controller.dispose);
+
+        final SessionActivityLease lease = controller.beginActivity(
+          SessionActivity.authenticatedWipe,
+        );
+        var interruptionCount = 0;
+        lease.onInterrupted(() => interruptionCount++);
+
+        controller.beginWipe();
+
+        expect(controller.state, isA<LockedSession>());
+        expect(
+          (controller.state as LockedSession).reason,
+          LockReason.wipeStarted,
+        );
+        expect(controller.routeState, SessionRouteState.unlock);
+        expect(controller.hasActiveIdleTimer, isFalse);
+        expect(lease.isActive, isFalse);
+        expect(interruptionCount, 1);
+        expect(cleaner.clearCount, 1);
+        expect(
+          () => controller.unlock(AuthStrength.masterPassword),
+          throwsStateError,
+        );
+
+        controller.completeWipe();
+
+        expect(controller.state, isA<VaultNotCreatedSession>());
+        expect(controller.routeState, SessionRouteState.setup);
+        expect(controller.hasActiveIdleTimer, isFalse);
+        expect(() => controller.completeWipe(), throwsStateError);
+
+        controller.handle(SessionEvent.appBackgrounded);
+        expect(controller.state, isA<VaultNotCreatedSession>());
+        expect(
+          timers.where((FakeSessionTimer timer) => timer.isActive),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'tightens a normal lock into a wipe lock before allowing completion',
+      () {
+        final SessionController controller = SessionController(
+          initialState: const LockedSession(reason: LockReason.coldStart),
+        );
+        addTearDown(controller.dispose);
+
+        expect(() => controller.completeWipe(), throwsStateError);
+
+        controller.beginWipe();
+
+        expect(
+          (controller.state as LockedSession).reason,
+          LockReason.wipeStarted,
+        );
+        expect(
+          () => controller.unlock(AuthStrength.masterPassword),
+          throwsStateError,
+        );
+
+        controller.completeWipe();
+        expect(controller.state, isA<VaultNotCreatedSession>());
+      },
+    );
+
+    test(
+      'keeps lock reason capabilities consistent across all locked states',
+      () {
+        const List<LockReason> coveredReasons = <LockReason>[
+          LockReason.coldStart,
+          LockReason.backgroundOrTimeout,
+          LockReason.manualLock,
+          LockReason.biometricInvalidated,
+          LockReason.wipeStarted,
+        ];
+        const Map<LockReason, bool> biometricAllowed = <LockReason, bool>{
+          LockReason.coldStart: true,
+          LockReason.backgroundOrTimeout: true,
+          LockReason.manualLock: false,
+          LockReason.biometricInvalidated: false,
+          LockReason.wipeStarted: false,
+        };
+        const Map<LockReason, bool> masterPasswordAllowed = <LockReason, bool>{
+          LockReason.coldStart: true,
+          LockReason.backgroundOrTimeout: true,
+          LockReason.manualLock: true,
+          LockReason.biometricInvalidated: true,
+          LockReason.wipeStarted: false,
+        };
+
+        for (final LockReason reason in coveredReasons) {
+          final SessionController controller = SessionController(
+            initialState: LockedSession(reason: reason),
+          );
+          addTearDown(controller.dispose);
+
+          expect(controller.routeState, SessionRouteState.unlock);
+          expect(
+            (controller.state as LockedSession).canUseBiometric,
+            biometricAllowed[reason],
+          );
+
+          if (biometricAllowed[reason]!) {
+            controller.unlock(AuthStrength.biometric);
+            expect(
+              (controller.state as UnlockedSession).authStrength,
+              AuthStrength.biometric,
+            );
+            controller.lock(reason);
+          } else {
+            expect(
+              () => controller.unlock(AuthStrength.biometric),
+              throwsStateError,
+            );
+          }
+
+          if (masterPasswordAllowed[reason]!) {
+            if (controller.state is LockedSession) {
+              controller.unlock(AuthStrength.masterPassword);
+            }
+            expect(
+              (controller.state as UnlockedSession).authStrength,
+              AuthStrength.masterPassword,
+            );
+          } else {
+            expect(
+              () => controller.unlock(AuthStrength.masterPassword),
+              throwsStateError,
+            );
+          }
+        }
+      },
+    );
+
+    test(
+      'completes every concrete session activity and restores idle state',
+      () {
+        const List<SessionActivity> coveredActivities = <SessionActivity>[
+          SessionActivity.migrationSending,
+          SessionActivity.migrationReceiving,
+          SessionActivity.passwordRecovery,
+          SessionActivity.passwordChange,
+          SessionActivity.biometricConfiguration,
+          SessionActivity.authenticatedWipe,
+          SessionActivity.vaultAccess,
+        ];
+
+        for (final SessionActivity activity in coveredActivities) {
+          final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+          final SessionController controller = SessionController(
+            initialState: const UnlockedSession(
+              authStrength: AuthStrength.biometric,
+            ),
+            timerFactory: (Duration duration, void Function() callback) {
+              final FakeSessionTimer timer = FakeSessionTimer(callback);
+              timers.add(timer);
+              return timer;
+            },
+          );
+          addTearDown(controller.dispose);
+
+          final SessionActivityLease lease = controller.beginActivity(activity);
+          expect((controller.state as UnlockedSession).activity, activity);
+          expect(
+            (controller.state as UnlockedSession).authStrength,
+            AuthStrength.biometric,
+          );
+          expect(controller.isIdleTimeoutSuppressed, isTrue);
+          expect(controller.hasActiveIdleTimer, isFalse);
+
+          lease.complete();
+
+          expect(
+            (controller.state as UnlockedSession).activity,
+            SessionActivity.none,
+          );
+          expect(
+            (controller.state as UnlockedSession).authStrength,
+            AuthStrength.biometric,
+          );
+          expect(controller.isIdleTimeoutSuppressed, isFalse);
+          expect(controller.hasActiveIdleTimer, isTrue);
+          expect(timers, hasLength(2));
+        }
+      },
+    );
+
+    test('cancels every concrete session activity back to an idle session', () {
+      const List<SessionActivity> coveredActivities = <SessionActivity>[
+        SessionActivity.migrationSending,
+        SessionActivity.migrationReceiving,
+        SessionActivity.passwordRecovery,
+        SessionActivity.passwordChange,
+        SessionActivity.biometricConfiguration,
+        SessionActivity.authenticatedWipe,
+        SessionActivity.vaultAccess,
+      ];
+
+      for (final SessionActivity activity in coveredActivities) {
+        final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
+        final SessionController controller = SessionController(
+          initialState: const UnlockedSession(
+            authStrength: AuthStrength.masterPassword,
+          ),
+          timerFactory: (Duration duration, void Function() callback) {
+            final FakeSessionTimer timer = FakeSessionTimer(callback);
+            timers.add(timer);
+            return timer;
+          },
+        );
+        addTearDown(controller.dispose);
+
+        final SessionActivityLease lease = controller.beginActivity(activity);
+        var interruptionCount = 0;
+        lease.onInterrupted(() => interruptionCount++);
+        lease.cancel();
+
+        expect(lease.isActive, isFalse);
+        expect(interruptionCount, 1);
+        expect(
+          (controller.state as UnlockedSession).activity,
+          SessionActivity.none,
+        );
+        expect(
+          (controller.state as UnlockedSession).authStrength,
+          AuthStrength.masterPassword,
+        );
+        expect(controller.hasActiveIdleTimer, isTrue);
+        expect(timers, hasLength(2));
+      }
+    });
+
+    test('interrupts every concrete session activity when the vault locks', () {
+      const List<SessionActivity> coveredActivities = <SessionActivity>[
+        SessionActivity.migrationSending,
+        SessionActivity.migrationReceiving,
+        SessionActivity.passwordRecovery,
+        SessionActivity.passwordChange,
+        SessionActivity.biometricConfiguration,
+        SessionActivity.authenticatedWipe,
+        SessionActivity.vaultAccess,
+      ];
+
+      for (final SessionActivity activity in coveredActivities) {
+        final SessionController controller = SessionController(
+          initialState: const UnlockedSession(
+            authStrength: AuthStrength.masterPassword,
+          ),
+        );
+        addTearDown(controller.dispose);
+
+        final SessionActivityLease lease = controller.beginActivity(activity);
+        controller.lock(LockReason.manualLock);
+
+        expect(lease.isActive, isFalse);
+        expect(
+          () => lease.ensureActive(),
+          throwsA(
+            isA<SessionActivityInterrupted>().having(
+              (SessionActivityInterrupted error) => error.activity,
+              'activity',
+              activity,
+            ),
+          ),
+        );
+        expect(controller.state, isA<LockedSession>());
+      }
+    });
+
+    test('cancelling a step-up leaves the biometric session unchanged', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      addTearDown(controller.dispose);
+
+      final MasterPasswordStepUpChallenge challenge = controller
+          .beginMasterPasswordStepUp();
+      challenge.cancel();
+
+      expect(challenge.isActive, isFalse);
+      expect(controller.requiresMasterPasswordStepUp, isTrue);
+      expect(
+        (controller.state as UnlockedSession).authStrength,
+        AuthStrength.biometric,
+      );
+      expect(challenge.complete(), isFalse);
+      expect(
+        (controller.state as UnlockedSession).authStrength,
+        AuthStrength.biometric,
+      );
     });
   });
 }
