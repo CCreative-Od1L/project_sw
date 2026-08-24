@@ -29,7 +29,12 @@ final class SensitiveCopyButton extends StatelessWidget {
   );
 
   Future<void> _copy(BuildContext context) async {
-    await controller.copySensitive(value);
+    try {
+      await controller.copySensitive(value);
+    } on Object {
+      // Do not show a successful copy message when the platform rejects it.
+      return;
+    }
     if (!context.mounted) return;
     final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(
       context,

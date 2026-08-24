@@ -83,6 +83,44 @@ void main() {
       expect(find.text('Clipboard cleared'), findsNothing);
     },
   );
+
+  testWidgets('copy failure does not show a false confirmation', (
+    WidgetTester tester,
+  ) async {
+    final SensitiveClipboardController controller =
+        SensitiveClipboardController(FailingClipboard());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SensitiveCopyButton(
+            value: 'widget-only-secret',
+            controller: controller,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Copy sensitive value'));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Password copied to clipboard'), findsNothing);
+  });
+}
+
+final class FailingClipboard implements ClipboardPort {
+  @override
+  Future<void> writeText(String value) async => throw StateError('unavailable');
+
+  @override
+  Future<String?> readText() async => null;
+
+  @override
+  Future<void> clearText() async {}
 }
 
 final class FakeClipboard implements ClipboardPort {

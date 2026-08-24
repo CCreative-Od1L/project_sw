@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/app/project_sw_app.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/create_vault.dart';
@@ -18,6 +19,41 @@ import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart'
 import 'helpers/fake_crypto_service.dart';
 
 void main() {
+  testWidgets('background clears clipboard state even while already locked', (
+    WidgetTester tester,
+  ) async {
+    final SessionController sessionController = SessionController(
+      initialState: const LockedSession(reason: LockReason.coldStart),
+    );
+    final AuthCubit authCubit = AuthCubit(sessionController);
+    final _WidgetClipboard clipboard = _WidgetClipboard();
+    final SensitiveClipboardController clipboardController =
+        SensitiveClipboardController(clipboard);
+    addTearDown(clipboardController.dispose);
+    addTearDown(authCubit.close);
+    addTearDown(sessionController.dispose);
+
+    await tester.pumpWidget(
+      ProjectSwApp(
+        sessionController: sessionController,
+        authCubit: authCubit,
+        sensitiveClipboardController: clipboardController,
+      ),
+    );
+    await clipboardController.copySensitive('locked generator secret');
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+
+    expect(sessionController.state, isA<LockedSession>());
+    expect(clipboardController.state.status, SensitiveClipboardStatus.idle);
+    expect(clipboard.value, isEmpty);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  });
+
   testWidgets('session changes drive setup, unlock, and home routes', (
     WidgetTester tester,
   ) async {
@@ -194,4 +230,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(entriesCubit.state.summaries, isEmpty);
   });
+}
+
+final class _WidgetClipboard implements ClipboardPort {
+  String value = '';
+
+  @override
+  Future<void> writeText(String value) async => this.value = value;
+
+  @override
+  Future<String?> readText() async => value;
+
+  @override
+  Future<void> clearText() async => value = '';
 }

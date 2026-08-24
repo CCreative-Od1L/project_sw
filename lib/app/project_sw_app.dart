@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -92,6 +94,9 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     passwordRandomSource: widget.passwordRandomSource,
   );
 
+  SensitiveClipboardController get _clipboardController =>
+      widget.sensitiveClipboardController ?? _fallbackClipboardController;
+
   @override
   void dispose() {
     _router.dispose();
@@ -105,11 +110,10 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
       value: widget.authCubit,
       child: SessionLifecycleAdapter(
         sessionController: widget.sessionController,
-        onForegrounded: widget.sensitiveClipboardController?.onForegrounded,
+        onForegrounded: _refreshClipboardOnForegrounded,
+        onBackgrounded: _clearClipboardOnBackgrounded,
         child: SensitiveClipboardScope(
-          controller:
-              widget.sensitiveClipboardController ??
-              _fallbackClipboardController,
+          controller: _clipboardController,
           child: MaterialApp.router(
             title: 'Project SW',
             theme: AppTheme.light,
@@ -126,5 +130,21 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
         ),
       ),
     );
+  }
+
+  void _refreshClipboardOnForegrounded() {
+    unawaited(_runClipboardOperation(_clipboardController.onForegrounded));
+  }
+
+  void _clearClipboardOnBackgrounded() {
+    unawaited(_runClipboardOperation(_clipboardController.clearForSessionLock));
+  }
+
+  Future<void> _runClipboardOperation(Future<void> Function() operation) async {
+    try {
+      await operation();
+    } on Object {
+      // Platform clipboard failures cannot block app lifecycle handling.
+    }
   }
 }

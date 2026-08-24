@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:project_sw/app/app_dependencies.dart';
 import 'package:project_sw/core/config/app_config.dart';
+import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/observability/logger.dart';
 import 'package:project_sw/core/observability/redaction_filter.dart';
 import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
@@ -62,6 +64,30 @@ void main() {
     },
   );
 
+  test('session lock clears the shared sensitive clipboard state', () async {
+    final GetIt serviceLocator = GetIt.asNewInstance();
+    final _DependencyClipboard clipboard = _DependencyClipboard();
+    addTearDown(() => serviceLocator.reset(dispose: true));
+
+    registerAppDependencies(
+      serviceLocator,
+      config: const AppConfig(vaultExistsAtLaunch: true),
+      clipboardPort: clipboard,
+    );
+    final SessionController sessionController =
+        serviceLocator<SessionController>();
+    final SensitiveClipboardController clipboardController =
+        serviceLocator<SensitiveClipboardController>();
+    sessionController.unlock(AuthStrength.masterPassword);
+    await clipboardController.copySensitive('secret');
+
+    sessionController.lock(LockReason.manualLock);
+
+    expect(clipboardController.state.status, SensitiveClipboardStatus.idle);
+    await clipboard.clearCalled.future.timeout(const Duration(seconds: 1));
+    expect(clipboard.value, isEmpty);
+  });
+
   test('registers the complete biometric recovery graph together', () async {
     final GetIt serviceLocator = GetIt.asNewInstance();
     addTearDown(() => serviceLocator.reset(dispose: true));
@@ -110,6 +136,23 @@ void main() {
       isA<AuthenticatedWipeCubit>(),
     );
   });
+}
+
+final class _DependencyClipboard implements ClipboardPort {
+  String value = '';
+  final Completer<void> clearCalled = Completer<void>();
+
+  @override
+  Future<void> writeText(String value) async => this.value = value;
+
+  @override
+  Future<String?> readText() async => value;
+
+  @override
+  Future<void> clearText() async {
+    value = '';
+    if (!clearCalled.isCompleted) clearCalled.complete();
+  }
 }
 
 final class _DependencyBiometricKeyStore implements BiometricKeyStore {
