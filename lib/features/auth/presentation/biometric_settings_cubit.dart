@@ -3,6 +3,7 @@ import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.da
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/session/session_events.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
 
 /// UI state for enabling, disabling, and replacing biometric access.
 sealed class BiometricSettingsViewState {
@@ -82,22 +83,29 @@ final class BiometricSettingsCubit extends Cubit<BiometricSettingsViewState> {
   BiometricSettingsCubit(
     this._repository,
     this._keyStore, {
-    this._sessionController,
+    required this._sessionController,
   }) : super(const BiometricSettingsLoading());
 
   final BiometricVaultRepository _repository;
   final BiometricKeyStore _keyStore;
-  final SessionController? _sessionController;
+  final SessionController _sessionController;
   var _isConfigured = false;
   var _isAvailable = false;
+  var _requestGeneration = 0;
 
   /// Loads only safe configuration and platform capability metadata.
   Future<void> load() async {
+    if (isClosed) return;
+    final int generation = ++_requestGeneration;
+    final SessionState owner = _sessionController.state;
     emit(const BiometricSettingsLoading());
     try {
-      _isConfigured = await _repository.hasConfiguredBiometricUnlock();
-      _isAvailable =
+      final bool configured = await _repository.hasConfiguredBiometricUnlock();
+      final bool available =
           await _keyStore.availability == BiometricAvailability.available;
+      if (!_ownsRequest(generation, owner)) return;
+      _isConfigured = configured;
+      _isAvailable = available;
       emit(
         BiometricSettingsReady(
           isConfigured: _isConfigured,
@@ -105,6 +113,7 @@ final class BiometricSettingsCubit extends Cubit<BiometricSettingsViewState> {
         ),
       );
     } on Object {
+      if (!_ownsRequest(generation, owner)) return;
       emit(
         BiometricSettingsFault(isConfigured: _isConfigured, isAvailable: false),
       );
@@ -112,74 +121,103 @@ final class BiometricSettingsCubit extends Cubit<BiometricSettingsViewState> {
   }
 
   /// Creates or replaces the hardware-gated key and MVK envelope.
-  Future<void> enable() async {
-    if (!_isAvailable || state is BiometricSettingsWorking) return;
-    emit(
-      BiometricSettingsWorking(
-        isConfigured: _isConfigured,
-        isAvailable: _isAvailable,
-      ),
-    );
-    try {
-      await _repository.enableBiometricUnlock();
-      _isConfigured = true;
-      emit(
-        BiometricSettingsReady(
-          isConfigured: _isConfigured,
-          isAvailable: _isAvailable,
-        ),
-      );
-    } on BiometricInvalidatedException {
-      _sessionController?.handle(SessionEvent.biometricInvalidated);
-      emit(
-        BiometricSettingsInvalidated(
-          isConfigured: _isConfigured,
-          isAvailable: _isAvailable,
-        ),
-      );
-    } on Object {
+  Future<void> enable() => _configure(enable: true);
+
+  /// Removes the MVK envelope and platform key.
+  Future<void> disable() => _configure(enable: false);
+
+  Future<void> _configure({required bool enable}) async {
+    if ((enable && !_isAvailable) ||
+        (!enable && !_isConfigured) ||
+        state is BiometricSettingsWorking) {
+      return;
+    }
+    _requestGeneration++;
+    final SessionState session = _sessionController.state;
+    if (session is! UnlockedSession ||
+        session.authStrength != AuthStrength.masterPassword) {
       emit(
         BiometricSettingsFault(
           isConfigured: _isConfigured,
           isAvailable: _isAvailable,
         ),
       );
+      return;
+    }
+    SessionActivityLease? activityLease;
+    try {
+      activityLease = _sessionController.beginActivity(
+        SessionActivity.biometricConfiguration,
+      );
+    } on StateError {
+      emit(
+        BiometricSettingsFault(
+          isConfigured: _isConfigured,
+          isAvailable: _isAvailable,
+        ),
+      );
+      return;
+    }
+    try {
+      if (isClosed) return;
+      emit(
+        BiometricSettingsWorking(
+          isConfigured: _isConfigured,
+          isAvailable: _isAvailable,
+        ),
+      );
+      if (enable) {
+        await _repository.enableBiometricUnlock(activityGuard: activityLease);
+      } else {
+        await _repository.disableBiometricUnlock(activityGuard: activityLease);
+      }
+      activityLease.ensureActive();
+      _isConfigured = _repository.hasBiometricUnlock;
+      activityLease.complete();
+      activityLease = null;
+      if (!isClosed) {
+        emit(
+          BiometricSettingsReady(
+            isConfigured: _isConfigured,
+            isAvailable: _isAvailable,
+          ),
+        );
+      }
+    } on BiometricInvalidatedException {
+      _isConfigured = _repository.hasBiometricUnlock;
+      _sessionController.handle(SessionEvent.biometricInvalidated);
+      if (!isClosed) {
+        emit(
+          BiometricSettingsInvalidated(
+            isConfigured: _isConfigured,
+            isAvailable: _isAvailable,
+          ),
+        );
+      }
+    } on SessionActivityInterrupted {
+      _isConfigured = _repository.hasBiometricUnlock;
+      if (!isClosed) emit(const BiometricSettingsLoading());
+    } on Object {
+      _isConfigured = _repository.hasBiometricUnlock;
+      if (isClosed) {
+        return;
+      } else if (_sessionController.state is UnlockedSession) {
+        emit(
+          BiometricSettingsFault(
+            isConfigured: _isConfigured,
+            isAvailable: _isAvailable,
+          ),
+        );
+      } else {
+        emit(const BiometricSettingsLoading());
+      }
+    } finally {
+      activityLease?.complete();
     }
   }
 
-  /// Removes the MVK envelope and platform key.
-  Future<void> disable() async {
-    if (!_isConfigured || state is BiometricSettingsWorking) return;
-    emit(
-      BiometricSettingsWorking(
-        isConfigured: _isConfigured,
-        isAvailable: _isAvailable,
-      ),
-    );
-    try {
-      await _repository.disableBiometricUnlock();
-      _isConfigured = false;
-      emit(
-        BiometricSettingsReady(
-          isConfigured: _isConfigured,
-          isAvailable: _isAvailable,
-        ),
-      );
-    } on BiometricInvalidatedException {
-      _sessionController?.handle(SessionEvent.biometricInvalidated);
-      emit(
-        BiometricSettingsInvalidated(
-          isConfigured: _isConfigured,
-          isAvailable: _isAvailable,
-        ),
-      );
-    } on Object {
-      emit(
-        BiometricSettingsFault(
-          isConfigured: _isConfigured,
-          isAvailable: _isAvailable,
-        ),
-      );
-    }
-  }
+  bool _ownsRequest(int generation, SessionState owner) =>
+      !isClosed &&
+      generation == _requestGeneration &&
+      identical(_sessionController.state, owner);
 }

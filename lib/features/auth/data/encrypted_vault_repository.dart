@@ -92,7 +92,10 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> enableBiometricUnlock() async {
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -102,13 +105,40 @@ final class EncryptedVaultRepository
     Uint8List? aad;
     Uint8List? wrappedMvk;
     AeadCiphertext? encrypted;
-    VaultFileHeader? header;
-    VaultFileHeader? nextHeader;
+    VaultFileHeader? previousHeader;
+    VaultFileHeader? disabledHeader;
+    VaultFileHeader? currentHeader;
+    VaultFileHeader? enabledHeader;
+    var createdKey = false;
+    var committedKey = false;
     try {
       if (await store.availability != BiometricAvailability.available) {
         throw const BiometricUnavailableException();
       }
+      activityGuard.ensureActive();
+      final String previousPath = await vaultPathResolver();
+      activityGuard.ensureActive();
+      final OpenVaultFile previous = vaultFileEngine.openVaultFile(
+        previousPath,
+      );
+      previousHeader = previous.header;
+      _hasBiometricUnlock =
+          previousHeader.biometricWrappedMasterVaultKey != null;
+      if (_hasBiometricUnlock) {
+        disabledHeader = previousHeader.copyWithBiometric(null);
+        activityGuard.ensureActive();
+        vaultFileEngine.commitHeaderUpdate(
+          path: previousPath,
+          opened: previous,
+          header: disabledHeader,
+        );
+        _hasBiometricUnlock = false;
+        await store.deleteKey();
+        activityGuard.ensureActive();
+      }
       biometricKey = await store.createAndStoreKey();
+      createdKey = true;
+      activityGuard.ensureActive();
       _validateBiometricKey(biometricKey);
       aad = AadBuilder.forWrapBiometricMvk(
         magic: vaultMagic,
@@ -121,15 +151,23 @@ final class EncryptedVaultRepository
         throw const CryptoInitializationException();
       }
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
-      header = opened.header;
-      nextHeader = header.copyWithBiometric(wrappedMvk);
+      currentHeader = opened.header;
+      enabledHeader = currentHeader.copyWithBiometric(wrappedMvk);
+      activityGuard.ensureActive();
+      // From this point a thrown backup refresh can still mean that the
+      // primary header was durably replaced. Preserve the matching key.
+      committedKey = true;
       vaultFileEngine.commitHeaderUpdate(
         path: path,
         opened: opened,
-        header: nextHeader,
+        header: enabledHeader,
       );
       _hasBiometricUnlock = true;
+      activityGuard.ensureActive();
+    } on SessionActivityInterrupted {
+      rethrow;
     } on BiometricKeyStoreException {
       rethrow;
     } on VaultException {
@@ -141,11 +179,22 @@ final class EncryptedVaultRepository
     } on Object catch (error) {
       throw VaultIoException(cause: error);
     } finally {
-      if (header != null) {
-        _clearHeaderKeyMaterial(header);
+      if (createdKey && !committedKey) {
+        try {
+          await store.deleteKey();
+        } on Object {
+          // The vault header remains disabled; orphan cleanup is best-effort.
+        }
       }
-      if (nextHeader != null) {
-        _clearHeaderKeyMaterial(nextHeader);
+      for (final VaultFileHeader? header in <VaultFileHeader?>[
+        previousHeader,
+        disabledHeader,
+        currentHeader,
+        enabledHeader,
+      ]) {
+        if (header != null) {
+          _clearHeaderKeyMaterial(header);
+        }
       }
       if (encrypted != null) {
         clearSensitiveBytes(encrypted.nonce);
@@ -164,7 +213,10 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> disableBiometricUnlock() async {
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (_masterVaultKey == null) {
       throw const VaultLockedException();
     }
@@ -173,21 +225,23 @@ final class EncryptedVaultRepository
     VaultFileHeader? nextHeader;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
-      if (header.biometricWrappedMasterVaultKey == null) {
-        _hasBiometricUnlock = false;
-        await store.deleteKey();
-        return;
+      if (header.biometricWrappedMasterVaultKey != null) {
+        nextHeader = header.copyWithBiometric(null);
+        activityGuard.ensureActive();
+        vaultFileEngine.commitHeaderUpdate(
+          path: path,
+          opened: opened,
+          header: nextHeader,
+        );
       }
-      nextHeader = header.copyWithBiometric(null);
-      vaultFileEngine.commitHeaderUpdate(
-        path: path,
-        opened: opened,
-        header: nextHeader,
-      );
       _hasBiometricUnlock = false;
       await store.deleteKey();
+      activityGuard.ensureActive();
+    } on SessionActivityInterrupted {
+      rethrow;
     } on BiometricKeyStoreException {
       rethrow;
     } on VaultException {

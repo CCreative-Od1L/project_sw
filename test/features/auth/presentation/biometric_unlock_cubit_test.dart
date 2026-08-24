@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
 
@@ -95,10 +96,14 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   bool get hasBiometricUnlock => configured;
 
   @override
-  Future<void> disableBiometricUnlock() async => configured = false;
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async => configured = false;
 
   @override
-  Future<void> enableBiometricUnlock() async => configured = true;
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async => configured = true;
 
   @override
   Future<bool> hasConfiguredBiometricUnlock() async => configured;

@@ -8,6 +8,7 @@ import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.da
 import 'package:project_sw/features/auth/domain/biometric/biometric_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
@@ -61,11 +62,22 @@ void main() {
   testWidgets('renders the Material biometric settings card', (
     WidgetTester tester,
   ) async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      timerFactory: (Duration duration, void Function() callback) =>
+          FakeSessionTimer(),
+    );
     final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
       FakeBiometricVaultRepository(configured: false),
       FakeBiometricKeyStore(),
+      sessionController: sessionController,
     );
-    addTearDown(settingsCubit.close);
+    addTearDown(() {
+      settingsCubit.close();
+      sessionController.dispose();
+    });
 
     await tester.pumpWidget(
       _localizedApp(SettingsPage(biometricSettingsCubit: settingsCubit)),
@@ -94,6 +106,7 @@ void main() {
     final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
       repository,
       FakeBiometricKeyStore(),
+      sessionController: sessionController,
     );
     addTearDown(() {
       settingsCubit.close();
@@ -171,13 +184,19 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   bool get hasBiometricUnlock => configured;
 
   @override
-  Future<void> disableBiometricUnlock() async {
+  Future<void> disableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     disableCount++;
     configured = false;
   }
 
   @override
-  Future<void> enableBiometricUnlock() async {
+  Future<void> enableBiometricUnlock({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     enableCount++;
     configured = true;
   }
