@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/localization.dart';
+import 'package:project_sw/app/pages/session_secret_dialog.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard.dart';
 import 'package:project_sw/core/data_hygiene/sensitive_clipboard_feedback.dart';
@@ -419,31 +420,61 @@ final class _EntriesPanel extends StatelessWidget {
 
   Future<void> _showDetail(BuildContext context, EntrySummary summary) async {
     final VaultEntriesCubit cubit = context.read<VaultEntriesCubit>();
-    final EntryDetail detail = await cubit.detail(summary.entryId);
-    if (!context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext context) => _EntryDetailDialog(
-        cubit: cubit,
-        detail: detail,
-        sessionController: sessionController,
-        sensitiveClipboardController: SensitiveClipboardScope.maybeOf(context),
-      ),
-    );
+    final SessionState owner = sessionController.state;
+    if (owner is! UnlockedSession) return;
+    EntryDetail? detail = await cubit.detail(summary.entryId);
+    if (!context.mounted || !identical(sessionController.state, owner)) {
+      detail = null;
+      return;
+    }
+    final _EntryDetailHolder detailHolder = _EntryDetailHolder(detail);
+    detail = null;
+    sessionController.registerSecretCleaner(detailHolder);
+    try {
+      if (!identical(sessionController.state, owner)) return;
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => _EntryDetailDialog(
+          cubit: cubit,
+          detailHolder: detailHolder,
+          owner: owner,
+          sessionController: sessionController,
+          sensitiveClipboardController: SensitiveClipboardScope.maybeOf(
+            context,
+          ),
+        ),
+      );
+    } finally {
+      sessionController.unregisterSecretCleaner(detailHolder);
+      detailHolder.clear();
+    }
   }
+}
+
+final class _EntryDetailHolder implements SessionSecretCleaner {
+  _EntryDetailHolder(this.value);
+
+  EntryDetail? value;
+
+  void clear() => value = null;
+
+  @override
+  void clearUnlockedSession() => clear();
 }
 
 /// Owns detail plaintext and field controllers for exactly one modal route.
 final class _EntryDetailDialog extends StatefulWidget {
   const _EntryDetailDialog({
     required this.cubit,
-    required this.detail,
+    required this.detailHolder,
+    required this.owner,
     required this.sessionController,
     this.sensitiveClipboardController,
   });
 
   final VaultEntriesCubit cubit;
-  final EntryDetail detail;
+  final _EntryDetailHolder detailHolder;
+  final SessionState owner;
   final SessionController sessionController;
   final SensitiveClipboardController? sensitiveClipboardController;
 
@@ -452,33 +483,35 @@ final class _EntryDetailDialog extends StatefulWidget {
 }
 
 final class _EntryDetailDialogState extends State<_EntryDetailDialog>
-    implements SessionSecretCleaner {
-  late final TextEditingController _name = TextEditingController(
-    text: widget.detail.entry.name,
-  );
-  late final TextEditingController _url = TextEditingController(
-    text: widget.detail.entry.url,
-  );
-  late final TextEditingController _username = TextEditingController(
-    text: widget.detail.entry.username,
-  );
-  late final TextEditingController _password = TextEditingController(
-    text: widget.detail.entry.password,
-  );
-  late final TextEditingController _notes = TextEditingController(
-    text: widget.detail.entry.notes,
-  );
-  late var _favorite = widget.detail.entry.favorite;
+    with SessionSecretDialogState<_EntryDetailDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _url;
+  late final TextEditingController _username;
+  late final TextEditingController _password;
+  late final TextEditingController _notes;
+  late bool _favorite;
 
   @override
   void initState() {
+    final VaultEntry? entry = widget.detailHolder.value?.entry;
+    _name = TextEditingController(text: entry?.name ?? '');
+    _url = TextEditingController(text: entry?.url ?? '');
+    _username = TextEditingController(text: entry?.username ?? '');
+    _password = TextEditingController(text: entry?.password ?? '');
+    _notes = TextEditingController(text: entry?.notes ?? '');
+    _favorite = entry?.favorite ?? false;
     super.initState();
-    widget.sessionController.registerSecretCleaner(this);
+    if (entry == null || !identical(sessionController.state, widget.owner)) {
+      clearUnlockedSession();
+    }
   }
 
   @override
+  SessionController get sessionController => widget.sessionController;
+
+  @override
   void dispose() {
-    widget.sessionController.unregisterSecretCleaner(this);
+    widget.detailHolder.clear();
     _name.clear();
     _url.clear();
     _username.clear();
@@ -493,108 +526,120 @@ final class _EntryDetailDialogState extends State<_EntryDetailDialog>
   }
 
   @override
-  void clearUnlockedSession() {
+  void clearDialogSecrets() {
     _name.clear();
     _url.clear();
     _username.clear();
     _password.clear();
     _notes.clear();
+    widget.detailHolder.clear();
+    if (mounted) setState(() {});
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(context.l10n.entryDetail),
-    content: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          TextField(
-            controller: _name,
-            decoration: InputDecoration(labelText: context.l10n.name),
-          ),
-          TextField(
-            controller: _url,
-            decoration: InputDecoration(labelText: context.l10n.url),
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            enableSuggestions: false,
-          ),
-          TextField(
-            controller: _username,
-            decoration: InputDecoration(labelText: context.l10n.username),
-            autocorrect: false,
-            enableSuggestions: false,
-          ),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _password,
-                  decoration: InputDecoration(labelText: context.l10n.password),
-                  obscureText: true,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                ),
-              ),
-              if (widget.sensitiveClipboardController != null)
-                SensitiveCopyButton(
-                  value: widget.detail.entry.password,
-                  controller: widget.sensitiveClipboardController!,
-                  tooltip: context.l10n.copyPassword,
-                ),
-            ],
-          ),
-          for (final CustomField field in widget.detail.entry.customFields)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(field.label),
-              subtitle: Text(field.secret ? '••••••••' : field.value),
-              trailing:
-                  field.secret && widget.sensitiveClipboardController != null
-                  ? SensitiveCopyButton(
-                      value: field.value,
-                      controller: widget.sensitiveClipboardController!,
-                      tooltip: context.l10n.copySecretField,
-                    )
-                  : null,
+  Widget build(BuildContext context) {
+    final EntryDetail? detail = widget.detailHolder.value;
+    if (detail == null) return const SizedBox.shrink();
+    return AlertDialog(
+      title: Text(context.l10n.entryDetail),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: _name,
+              decoration: InputDecoration(labelText: context.l10n.name),
             ),
-          TextField(
-            controller: _notes,
-            decoration: InputDecoration(labelText: context.l10n.notes),
-            minLines: 1,
-            maxLines: 3,
-            autocorrect: false,
-            enableSuggestions: false,
-          ),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _favorite,
-            onChanged: (bool? value) {
-              setState(() => _favorite = value ?? false);
-            },
-            title: Text(context.l10n.favorite),
-          ),
-        ],
+            TextField(
+              controller: _url,
+              decoration: InputDecoration(labelText: context.l10n.url),
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              enableSuggestions: false,
+            ),
+            TextField(
+              controller: _username,
+              decoration: InputDecoration(labelText: context.l10n.username),
+              autocorrect: false,
+              enableSuggestions: false,
+            ),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: TextField(
+                    controller: _password,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.password,
+                    ),
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                  ),
+                ),
+                if (widget.sensitiveClipboardController != null)
+                  SensitiveCopyButton(
+                    value: detail.entry.password,
+                    controller: widget.sensitiveClipboardController!,
+                    tooltip: context.l10n.copyPassword,
+                  ),
+              ],
+            ),
+            for (final CustomField field in detail.entry.customFields)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(field.label),
+                subtitle: Text(field.secret ? '••••••••' : field.value),
+                trailing:
+                    field.secret && widget.sensitiveClipboardController != null
+                    ? SensitiveCopyButton(
+                        value: field.value,
+                        controller: widget.sensitiveClipboardController!,
+                        tooltip: context.l10n.copySecretField,
+                      )
+                    : null,
+              ),
+            TextField(
+              controller: _notes,
+              decoration: InputDecoration(labelText: context.l10n.notes),
+              minLines: 1,
+              maxLines: 3,
+              autocorrect: false,
+              enableSuggestions: false,
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _favorite,
+              onChanged: (bool? value) {
+                setState(() => _favorite = value ?? false);
+              },
+              title: Text(context.l10n.favorite),
+            ),
+          ],
+        ),
       ),
-    ),
-    actions: <Widget>[
-      TextButton(onPressed: _delete, child: Text(context.l10n.delete)),
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(context.l10n.close),
-      ),
-      FilledButton(onPressed: _save, child: Text(context.l10n.save)),
-    ],
-  );
+      actions: <Widget>[
+        TextButton(onPressed: _delete, child: Text(context.l10n.delete)),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.l10n.close),
+        ),
+        FilledButton(onPressed: _save, child: Text(context.l10n.save)),
+      ],
+    );
+  }
 
   Future<void> _delete() async {
-    await widget.cubit.delete(widget.detail.entry.entryId);
+    final EntryDetail? detail = widget.detailHolder.value;
+    if (detail == null) return;
+    await widget.cubit.delete(detail.entry.entryId);
     if (mounted) Navigator.pop(context);
   }
 
   Future<void> _save() async {
+    final EntryDetail? detail = widget.detailHolder.value;
+    if (detail == null) return;
     await widget.cubit.update(
-      widget.detail.entry.copyWith(
+      detail.entry.copyWith(
         name: _name.text,
         url: _url.text,
         username: _username.text,

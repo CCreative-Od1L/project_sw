@@ -155,6 +155,53 @@ void main() {
       AuthStrength.masterPassword,
     );
   });
+
+  testWidgets('lock dismisses an open biometric step-up password dialog', (
+    WidgetTester tester,
+  ) async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+      timerFactory: (Duration _, void Function() _) => FakeSessionTimer(),
+    );
+    final StepUpCubit stepUpCubit = StepUpCubit(
+      VerifyMasterPassword(FakeMasterPasswordVerifier()),
+      sessionController,
+    );
+    final BiometricSettingsCubit settingsCubit = BiometricSettingsCubit(
+      FakeBiometricVaultRepository(configured: false),
+      FakeBiometricKeyStore(),
+      sessionController: sessionController,
+    );
+    addTearDown(settingsCubit.close);
+    addTearDown(stepUpCubit.close);
+    addTearDown(sessionController.dispose);
+
+    await tester.pumpWidget(
+      _localizedApp(
+        SettingsPage(
+          sessionController: sessionController,
+          biometricSettingsCubit: settingsCubit,
+          stepUpCubit: stepUpCubit,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FilledButton).first);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Enable biometric unlock').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'step-up residual secret');
+
+    sessionController.lock(LockReason.manualLock);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Master password required'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+  });
 }
 
 final class FakeSessionTimer implements SessionTimer {

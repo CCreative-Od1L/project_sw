@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
+import 'package:project_sw/app/pages/session_secret_dialog.dart';
 import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/features/auth/domain/master_password_strength.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
@@ -17,6 +19,7 @@ final class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     this.config = const AppConfig(),
+    this.sessionController,
     this.vaultRepository,
     this.biometricSettingsCubit,
     this.stepUpCubit,
@@ -26,6 +29,9 @@ final class SettingsPage extends StatefulWidget {
 
   /// Fixed process policy used by the session and clipboard services.
   final AppConfig config;
+
+  /// Global session source used to clear dialog-owned plaintext on lock.
+  final SessionController? sessionController;
 
   /// Repository projection used to read the active non-secret KDF profile.
   final VaultRepository? vaultRepository;
@@ -59,6 +65,7 @@ final class _SettingsPageState extends State<SettingsPage> {
     if (cubit == null) {
       return _SettingsContent(
         config: widget.config,
+        sessionController: widget.sessionController,
         vaultRepository: widget.vaultRepository,
         stepUpCubit: widget.stepUpCubit,
         masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
@@ -71,6 +78,7 @@ final class _SettingsPageState extends State<SettingsPage> {
         builder: (BuildContext context, BiometricSettingsViewState state) {
           return _SettingsContent(
             config: widget.config,
+            sessionController: widget.sessionController,
             vaultRepository: widget.vaultRepository,
             biometricSettingsCubit: cubit,
             biometricState: state,
@@ -87,6 +95,7 @@ final class _SettingsPageState extends State<SettingsPage> {
 final class _SettingsContent extends StatelessWidget {
   const _SettingsContent({
     required this.config,
+    required this.sessionController,
     required this.vaultRepository,
     this.biometricSettingsCubit,
     this.biometricState,
@@ -96,6 +105,7 @@ final class _SettingsContent extends StatelessWidget {
   });
 
   final AppConfig config;
+  final SessionController? sessionController;
   final VaultRepository? vaultRepository;
   final BiometricSettingsCubit? biometricSettingsCubit;
   final BiometricSettingsViewState? biometricState;
@@ -114,7 +124,9 @@ final class _SettingsContent extends StatelessWidget {
       builder: (BuildContext context) =>
           BlocProvider<MasterPasswordChangeCubit>.value(
             value: cubit,
-            child: const _MasterPasswordChangeDialog(),
+            child: _MasterPasswordChangeDialog(
+              sessionController: sessionController,
+            ),
           ),
     );
   }
@@ -129,7 +141,9 @@ final class _SettingsContent extends StatelessWidget {
       builder: (BuildContext context) =>
           BlocProvider<AuthenticatedWipeCubit>.value(
             value: cubit,
-            child: const _AuthenticatedWipeDialog(),
+            child: _AuthenticatedWipeDialog(
+              sessionController: sessionController,
+            ),
           ),
     );
   }
@@ -182,7 +196,10 @@ final class _SettingsContent extends StatelessWidget {
       context: context,
       builder: (BuildContext context) => BlocProvider<StepUpCubit>.value(
         value: cubit,
-        child: _StepUpDialog(stepUpCubit: cubit),
+        child: _StepUpDialog(
+          stepUpCubit: cubit,
+          sessionController: sessionController,
+        ),
       ),
     );
     return verified == true;
@@ -440,7 +457,9 @@ final class _BiometricSettingsCard extends StatelessWidget {
 }
 
 final class _MasterPasswordChangeDialog extends StatefulWidget {
-  const _MasterPasswordChangeDialog();
+  const _MasterPasswordChangeDialog({required this.sessionController});
+
+  final SessionController? sessionController;
 
   @override
   State<_MasterPasswordChangeDialog> createState() =>
@@ -448,7 +467,8 @@ final class _MasterPasswordChangeDialog extends StatefulWidget {
 }
 
 final class _MasterPasswordChangeDialogState
-    extends State<_MasterPasswordChangeDialog> {
+    extends State<_MasterPasswordChangeDialog>
+    with SessionSecretDialogState<_MasterPasswordChangeDialog> {
   final TextEditingController _currentController = TextEditingController();
   final TextEditingController _newController = TextEditingController();
   final TextEditingController _confirmationController = TextEditingController();
@@ -456,6 +476,18 @@ final class _MasterPasswordChangeDialogState
       const MasterPasswordStrengthEvaluator();
   var _recoveryMode = false;
   MasterPasswordStrengthAssessment? _strengthAssessment;
+
+  @override
+  SessionController? get sessionController => widget.sessionController;
+
+  @override
+  void clearDialogSecrets() {
+    _currentController.clear();
+    _newController.clear();
+    _confirmationController.clear();
+    _recoveryMode = false;
+    _strengthAssessment = null;
+  }
 
   @override
   void dispose() {
@@ -723,7 +755,9 @@ final class _MasterPasswordChangeDialogState
 }
 
 final class _AuthenticatedWipeDialog extends StatefulWidget {
-  const _AuthenticatedWipeDialog();
+  const _AuthenticatedWipeDialog({required this.sessionController});
+
+  final SessionController? sessionController;
 
   @override
   State<_AuthenticatedWipeDialog> createState() =>
@@ -731,8 +765,15 @@ final class _AuthenticatedWipeDialog extends StatefulWidget {
 }
 
 final class _AuthenticatedWipeDialogState
-    extends State<_AuthenticatedWipeDialog> {
+    extends State<_AuthenticatedWipeDialog>
+    with SessionSecretDialogState<_AuthenticatedWipeDialog> {
   final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  SessionController? get sessionController => widget.sessionController;
+
+  @override
+  void clearDialogSecrets() => _passwordController.clear();
 
   @override
   void dispose() {
@@ -828,16 +869,27 @@ final class _AuthenticatedWipeDialogState
 }
 
 final class _StepUpDialog extends StatefulWidget {
-  const _StepUpDialog({required this.stepUpCubit});
+  const _StepUpDialog({
+    required this.stepUpCubit,
+    required this.sessionController,
+  });
 
   final StepUpCubit stepUpCubit;
+  final SessionController? sessionController;
 
   @override
   State<_StepUpDialog> createState() => _StepUpDialogState();
 }
 
-final class _StepUpDialogState extends State<_StepUpDialog> {
+final class _StepUpDialogState extends State<_StepUpDialog>
+    with SessionSecretDialogState<_StepUpDialog> {
   final TextEditingController _controller = TextEditingController();
+
+  @override
+  SessionController? get sessionController => widget.sessionController;
+
+  @override
+  void clearDialogSecrets() => _controller.clear();
 
   @override
   void dispose() {
