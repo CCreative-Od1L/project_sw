@@ -734,6 +734,57 @@ void main() {
   });
 
   test(
+    'does not restore the MVK after a password unlock is interrupted',
+    () async {
+      final Completer<void> deriveStarted = Completer<void>();
+      final Completer<void> releaseDerive = Completer<void>();
+      var deriveCount = 0;
+      final FakeCryptoService crypto = FakeCryptoService(
+        beforeDeriveKek: (String password) async {
+          deriveCount++;
+          if (deriveCount == 2) {
+            deriveStarted.complete();
+            await releaseDerive.future;
+          }
+        },
+      );
+      final String path = '${temporaryDirectory.path}/interrupted-unlock.psw';
+      final EncryptedVaultRepository repository = EncryptedVaultRepository(
+        crypto: crypto,
+        vaultFileEngine: VaultFileEngine(),
+        vaultPathResolver: () async => path,
+      );
+      await repository.createEmptyVault(
+        masterPassword: 'correct password',
+        kdfParameters: const Argon2idParameters(
+          memoryKiB: 64 * 1024,
+          iterations: 3,
+        ),
+      );
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+        secretCleaner: repository,
+      );
+      addTearDown(controller.dispose);
+
+      final SessionUnlockAttempt attempt = controller.beginUnlockAttempt();
+      final Future<void> unlock = repository.unlockWithMasterPassword(
+        'correct password',
+        activityGuard: attempt,
+      );
+      await deriveStarted.future;
+
+      controller.handle(SessionEvent.appBackgrounded);
+      releaseDerive.complete();
+
+      await expectLater(unlock, throwsA(isA<SessionUnlockInterrupted>()));
+      expect(repository.hasUnlockedSession, isFalse);
+      expect(repository.entrySummaries, isEmpty);
+      expect(repository.activeKdfParameters, isNull);
+    },
+  );
+
+  test(
     'persists an encrypted entry and retains only its summary after unlock',
     () async {
       final FakeCryptoService crypto = FakeCryptoService();

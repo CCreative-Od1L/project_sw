@@ -52,6 +52,7 @@ final class EncryptedVaultRepository
   Uint8List? _masterVaultKey;
   List<EntrySummary> _entrySummaries = const <EntrySummary>[];
   Argon2idParameters? _activeKdfParameters;
+  Object? _activeUnlockOperation;
   var _hasBiometricUnlock = false;
 
   @override
@@ -263,16 +264,21 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> unlockWithBiometric() async {
-    clearUnlockedSession();
-    final BiometricKeyStore store = _requireBiometricKeyStore();
+  Future<void> unlockWithBiometric({
+    SessionActivityGuard? activityGuard,
+  }) async {
+    final Object operation = _beginUnlockOperation(activityGuard);
+    late final BiometricKeyStore store;
     Uint8List? biometricKey;
     Uint8List? aad;
     Uint8List? nonce;
     Uint8List? ciphertext;
     VaultFileHeader? header;
+    var committed = false;
     try {
+      store = _requireBiometricKeyStore();
       final String path = await vaultPathResolver();
+      _ensureUnlockOperationActive(activityGuard, operation);
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       final Uint8List? wrappedMvk = header.biometricWrappedMasterVaultKey;
@@ -280,6 +286,7 @@ final class EncryptedVaultRepository
         throw const BiometricUnavailableException();
       }
       biometricKey = await store.loadKey();
+      _ensureUnlockOperationActive(activityGuard, operation);
       _validateBiometricKey(biometricKey);
       aad = AadBuilder.forWrapBiometricMvk(
         magic: vaultMagic,
@@ -298,6 +305,7 @@ final class EncryptedVaultRepository
       } on Object catch (error) {
         throw VaultCorruptedException(cause: error);
       }
+      _ensureUnlockOperationActive(activityGuard, operation);
       try {
         _entrySummaries = _loadEntrySummaries(
           path: path,
@@ -311,6 +319,8 @@ final class EncryptedVaultRepository
           parallelism: header.kdfParameters.parallelism,
         );
         _hasBiometricUnlock = true;
+        _ensureUnlockOperationActive(activityGuard, operation);
+        committed = true;
       } on VaultException {
         clearUnlockedSession();
         rethrow;
@@ -318,6 +328,10 @@ final class EncryptedVaultRepository
         clearUnlockedSession();
         throw VaultCorruptedException(cause: error);
       }
+    } on SessionUnlockInterrupted {
+      rethrow;
+    } on SessionActivityInterrupted {
+      rethrow;
     } on BiometricKeyStoreException {
       rethrow;
     } on VaultException {
@@ -329,6 +343,10 @@ final class EncryptedVaultRepository
     } on Object catch (error) {
       throw VaultIoException(cause: error);
     } finally {
+      if (!committed) {
+        _clearUnlockSessionIfOwned(operation);
+      }
+      _finishUnlockOperation(operation);
       if (header != null) {
         _clearHeaderKeyMaterial(header);
       }
@@ -628,15 +646,20 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> unlockWithMasterPassword(String masterPassword) async {
+  Future<void> unlockWithMasterPassword(
+    String masterPassword, {
+    SessionActivityGuard? activityGuard,
+  }) async {
+    final Object operation = _beginUnlockOperation(activityGuard);
     Uint8List? kek;
     Uint8List? aad;
     Uint8List? nonce;
     Uint8List? ciphertext;
     VaultFileHeader? header;
-    clearUnlockedSession();
+    var committed = false;
     try {
       final String path = await vaultPathResolver();
+      _ensureUnlockOperationActive(activityGuard, operation);
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       _hasBiometricUnlock = header.biometricWrappedMasterVaultKey != null;
@@ -647,6 +670,7 @@ final class EncryptedVaultRepository
         iterations: header.kdfParameters.iterations,
         parallelism: header.kdfParameters.parallelism,
       );
+      _ensureUnlockOperationActive(activityGuard, operation);
       final Uint8List kdfBytes = _encodeVaultKdfParameters(
         header.kdfParameters,
       );
@@ -670,6 +694,7 @@ final class EncryptedVaultRepository
       } on Object {
         throw const InvalidMasterPasswordException();
       }
+      _ensureUnlockOperationActive(activityGuard, operation);
       try {
         _entrySummaries = _loadEntrySummaries(
           path: path,
@@ -682,6 +707,8 @@ final class EncryptedVaultRepository
           iterations: header.kdfParameters.iterations,
           parallelism: header.kdfParameters.parallelism,
         );
+        _ensureUnlockOperationActive(activityGuard, operation);
+        committed = true;
       } on VaultException {
         clearUnlockedSession();
         rethrow;
@@ -689,6 +716,10 @@ final class EncryptedVaultRepository
         clearUnlockedSession();
         throw VaultCorruptedException(cause: error);
       }
+    } on SessionUnlockInterrupted {
+      rethrow;
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -698,6 +729,10 @@ final class EncryptedVaultRepository
     } on Object catch (error) {
       throw VaultIoException(cause: error);
     } finally {
+      if (!committed) {
+        _clearUnlockSessionIfOwned(operation);
+      }
+      _finishUnlockOperation(operation);
       if (ciphertext != null) {
         clearSensitiveBytes(ciphertext);
       }
@@ -1273,6 +1308,7 @@ final class EncryptedVaultRepository
 
   @override
   void clearUnlockedSession() {
+    _activeUnlockOperation = null;
     final Uint8List? masterVaultKey = _masterVaultKey;
     _masterVaultKey = null;
     if (masterVaultKey != null) {
@@ -1579,6 +1615,39 @@ final class EncryptedVaultRepository
       ..setUint32(4, parameters.iterations, Endian.big)
       ..setUint32(8, parameters.parallelism, Endian.big);
     return data.buffer.asUint8List();
+  }
+
+  Object _beginUnlockOperation(SessionActivityGuard? activityGuard) {
+    activityGuard?.ensureActive();
+    clearUnlockedSession();
+    final Object operation = Object();
+    _activeUnlockOperation = operation;
+    return operation;
+  }
+
+  void _ensureUnlockOperationActive(
+    SessionActivityGuard? activityGuard,
+    Object operation,
+  ) {
+    if (activityGuard == null) {
+      return;
+    }
+    activityGuard.ensureActive();
+    if (!identical(_activeUnlockOperation, operation)) {
+      throw const SessionUnlockInterrupted();
+    }
+  }
+
+  void _clearUnlockSessionIfOwned(Object operation) {
+    if (identical(_activeUnlockOperation, operation)) {
+      clearUnlockedSession();
+    }
+  }
+
+  void _finishUnlockOperation(Object operation) {
+    if (identical(_activeUnlockOperation, operation)) {
+      _activeUnlockOperation = null;
+    }
   }
 
   BiometricKeyStore _requireBiometricKeyStore() {

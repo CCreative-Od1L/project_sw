@@ -14,7 +14,13 @@ abstract interface class VaultRepository implements SessionSecretCleaner {
   });
 
   /// Opens the vault with its master password and retains only its MVK.
-  Future<void> unlockWithMasterPassword(String masterPassword);
+  ///
+  /// When [activityGuard] is supplied, every asynchronous boundary and the
+  /// final sensitive projection commit must still belong to that guard.
+  Future<void> unlockWithMasterPassword(
+    String masterPassword, {
+    SessionActivityGuard? activityGuard,
+  });
 
   /// Whether this repository currently holds unlocked vault key material.
   bool get hasUnlockedSession;

@@ -173,6 +173,36 @@ void main() {
     expect(controller.state, isA<LockedSession>());
   });
 
+  test(
+    'does not restore the MVK after biometric unlock is interrupted',
+    () async {
+      await repository.enableBiometricUnlock(
+        activityGuard: const _AlwaysActiveGuard(),
+      );
+      repository.clearUnlockedSession();
+      keyStore.blockNextLoad();
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+        secretCleaner: repository,
+      );
+      addTearDown(controller.dispose);
+
+      final SessionUnlockAttempt attempt = controller.beginUnlockAttempt();
+      final Future<void> unlock = repository.unlockWithBiometric(
+        activityGuard: attempt,
+      );
+      await keyStore.loadStarted.future;
+
+      controller.handle(SessionEvent.appBackgrounded);
+      keyStore.completeLoad();
+
+      await expectLater(unlock, throwsA(isA<SessionUnlockInterrupted>()));
+      expect(repository.hasUnlockedSession, isFalse);
+      expect(repository.entrySummaries, isEmpty);
+      expect(repository.activeKdfParameters, isNull);
+    },
+  );
+
   test('an interrupted reset fails safe with biometrics disabled', () async {
     await repository.enableBiometricUnlock(
       activityGuard: const _AlwaysActiveGuard(),
@@ -251,8 +281,10 @@ final class FakeBiometricKeyStore implements BiometricKeyStore {
   var deleteCount = 0;
   final Completer<void> createStarted = Completer<void>();
   final Completer<void> deleteStarted = Completer<void>();
+  final Completer<void> loadStarted = Completer<void>();
   Completer<void>? _createCompletion;
   Completer<void>? _deleteCompletion;
+  Completer<void>? _loadCompletion;
   Uint8List? _key;
 
   bool get hasKey => _key != null;
@@ -264,6 +296,10 @@ final class FakeBiometricKeyStore implements BiometricKeyStore {
   void blockNextDelete() => _deleteCompletion = Completer<void>();
 
   void completeDelete() => _deleteCompletion?.complete();
+
+  void blockNextLoad() => _loadCompletion = Completer<void>();
+
+  void completeLoad() => _loadCompletion?.complete();
 
   @override
   Future<BiometricAvailability> get availability async =>
@@ -291,6 +327,11 @@ final class FakeBiometricKeyStore implements BiometricKeyStore {
     final Uint8List? key = _key;
     if (key == null) {
       throw const BiometricUnavailableException();
+    }
+    final Completer<void>? pending = _loadCompletion;
+    if (pending != null) {
+      if (!loadStarted.isCompleted) loadStarted.complete();
+      await pending.future;
     }
     loadedKeys.add(Uint8List.fromList(key));
     return Uint8List.fromList(key);

@@ -138,6 +138,10 @@ _Avoid_: re-login, forced relock, one-shot token
 会话真相源在 `UnlockedSession` 中发布的前台流程状态,当前区分 `none`、迁移发送、迁移接收、忘码恢复、主密码变更、生物配置、认证擦除与页面条目访问。每次活动由唯一 lease 标识,旧异步回调不能结束后续同类活动。主密码变更在生物会话中复用 step-up challenge 作为同等 guard;认证擦除只允许当前密码验证结果在同一 lease 内进入不可逆销毁;条目读取和 CRUD 必须在异步边界及原子提交前持有 `vaultAccess` lease。非 `none` 活动只抑制 idle timeout;切后台、手动锁、生物失效和擦除仍立即锁定并中断外部 I/O 或敏感提交。
 _Avoid_: page-owned workflow flag, no-lock mode, background unlock bypass
 
+**Session Unlock Attempt**:
+当前 `LockedSession` 为一次密码或生物解锁签发的单次归属令牌。它同时是解锁 repository 的 `SessionActivityGuard`,锁定、直接开始新会话或 Cubit 销毁都会使其失效;失效后的异步结果不得发布 `UnlockedSession`、恢复 MVK/摘要或触发后续会话的副作用。
+_Avoid_: unowned unlock callback, background unlock bypass, reusable unlock token
+
 **Session Route State**:
 由会话真相源派生出的单一路由可访问状态,供 GoRouter redirect 消费。redirect 不自己拼多份会话信号,只读取这份派生结果。
 _Avoid_: router-owned auth logic, redirect inference

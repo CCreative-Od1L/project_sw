@@ -207,6 +207,20 @@ step-up 成功后,当前会话的 `authStrength` 升级为 `master_password`,并
 
 状态变化按顺序发布。锁定开始后到 `Locked(...)` 发布完成前,会话真相源拒绝重入解锁、step-up challenge 或新 activity。每个敏感数据清理器独立按 best-effort 执行:单个清理器异常不得跳过后续清理,也不得阻止最终锁定;会话真相源在解锁态被销毁时同样触发清理。
 
+### 6.1 异步解锁结果的会话归属
+
+密码解锁与生物解锁都必须先从当前 `Locked(...)` 状态取得唯一的
+`SessionUnlockAttempt`。该 attempt 同时作为只读 `SessionActivityGuard` 传入
+repository,因此 repository 必须在每个异步边界、敏感内存投影提交前检查它仍然有效。
+
+- 任一锁定事件、直接开始新的解锁会话或 Cubit 销毁都会使 attempt 失效;
+- 失效后到达的密码/KDF/生物结果不得发布 `Unlocked(...)`,不得调用 `onUnlocked`,也不得
+  触发生物失效事件去锁定后续会话;
+- 即使会话已经处于 `Locked(...)`,只要仍有挂起的 unlock attempt,锁定入口仍必须清除
+  repository 的 MVK、摘要与 KDF 投影;
+- repository 的异步解锁操作必须以自己的操作所有权提交敏感投影,旧操作的失败清理不得
+  清除后续新解锁操作已经建立的会话。
+
 ### 7. 生命周期事件先适配为项目内领域事件
 
 业务层不直接依赖 Flutter `AppLifecycleState` 作为会话状态机输入。

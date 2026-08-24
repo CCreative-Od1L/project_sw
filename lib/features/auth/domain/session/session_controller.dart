@@ -19,6 +19,15 @@ final class SessionActivityInterrupted implements Exception {
   String toString() => 'SessionActivityInterrupted: $activity';
 }
 
+/// Error raised when an asynchronous unlock no longer owns the locked state.
+final class SessionUnlockInterrupted implements Exception {
+  /// Creates an unlock interruption error.
+  const SessionUnlockInterrupted();
+
+  @override
+  String toString() => 'SessionUnlockInterrupted';
+}
+
 /// Unique ownership token for one unlocked foreground workflow.
 final class SessionActivityLease implements SessionActivityGuard {
   SessionActivityLease._(this._owner, this.activity);
@@ -86,6 +95,44 @@ final class SessionActivityLease implements SessionActivityGuard {
         // Locking must remain fail-closed even when cancellation cleanup fails.
       }
     }
+  }
+}
+
+/// One asynchronous authentication attempt owned by the current locked state.
+///
+/// The attempt is invalidated by any subsequent lock event or direct unlock,
+/// so a late password/KDF or biometric result cannot open a newer session.
+final class SessionUnlockAttempt implements SessionActivityGuard {
+  SessionUnlockAttempt._(this._owner);
+
+  final SessionController _owner;
+  var _ended = false;
+
+  /// Whether this attempt still owns the current locked session.
+  bool get isActive => !_ended && _owner._ownsUnlockAttempt(this);
+
+  /// Throws when a lock or newer unlock has invalidated this attempt.
+  @override
+  void ensureActive() {
+    if (!isActive) {
+      throw const SessionUnlockInterrupted();
+    }
+  }
+
+  /// Publishes an unlocked session only while this attempt remains current.
+  bool complete(AuthStrength authStrength) =>
+      _owner._completeUnlockAttempt(this, authStrength);
+
+  /// Releases this attempt without changing the locked session.
+  void cancel() => _owner._cancelUnlockAttempt(this);
+
+  void _markCompleted() {
+    _ended = true;
+  }
+
+  void _markInvalidated() {
+    if (_ended) return;
+    _ended = true;
   }
 }
 
@@ -178,6 +225,7 @@ final class SessionController extends ChangeNotifier {
   SessionState _state;
   SessionTimer? _idleTimer;
   SessionActivityLease? _activityLease;
+  SessionUnlockAttempt? _unlockAttempt;
   MasterPasswordStepUpChallenge? _stepUpChallenge;
   final List<SessionState> _pendingStateTransitions = <SessionState>[];
   var _isPublishingState = false;
@@ -260,8 +308,37 @@ final class SessionController extends ChangeNotifier {
     _transition(const LockedSession(reason: LockReason.coldStart));
   }
 
+  /// Starts one authentication attempt bound to the current locked state.
+  SessionUnlockAttempt beginUnlockAttempt() {
+    if (_isLocking) {
+      throw StateError('An unlock attempt cannot start while locking.');
+    }
+    final SessionState current = _state;
+    if (current is! LockedSession) {
+      throw StateError('Only a locked vault can start an unlock attempt.');
+    }
+    if (current.reason == LockReason.wipeStarted) {
+      throw StateError('A vault cannot unlock while a wipe is in progress.');
+    }
+    if (_unlockAttempt != null) {
+      throw StateError('Another unlock attempt is already active.');
+    }
+    final SessionUnlockAttempt attempt = SessionUnlockAttempt._(this);
+    _unlockAttempt = attempt;
+    return attempt;
+  }
+
   /// Records a successful authentication without reinterpreting its strength.
   void unlock(AuthStrength authStrength) {
+    final bool hadUnlockAttempt = _unlockAttempt != null;
+    _invalidateUnlockAttempt();
+    if (hadUnlockAttempt) {
+      _clearSessionSecrets();
+    }
+    _unlock(authStrength);
+  }
+
+  void _unlock(AuthStrength authStrength) {
     if (_isLocking) {
       throw StateError('A session cannot unlock while locking.');
     }
@@ -343,8 +420,13 @@ final class SessionController extends ChangeNotifier {
     if (_state is VaultNotCreatedSession) {
       return;
     }
+    final bool hadUnlockAttempt = _unlockAttempt != null;
+    _invalidateUnlockAttempt();
     if (_state is LockedSession) {
       final LockedSession current = _state as LockedSession;
+      if (hadUnlockAttempt) {
+        _clearSessionSecrets();
+      }
       if (current.reason == LockReason.wipeStarted ||
           (current.reason == LockReason.biometricInvalidated &&
               reason != LockReason.wipeStarted) ||
@@ -411,10 +493,12 @@ final class SessionController extends ChangeNotifier {
   /// Releases stream resources owned by this controller.
   @override
   void dispose() {
+    final bool hadUnlockAttempt = _unlockAttempt != null;
+    _invalidateUnlockAttempt();
     _invalidateStepUpChallenge();
     _interruptActivity();
     _cancelIdleTimer();
-    if (_state is UnlockedSession) {
+    if (_state is UnlockedSession || hadUnlockAttempt) {
       _clearSessionSecrets();
     }
     _events.close();
@@ -462,6 +546,39 @@ final class SessionController extends ChangeNotifier {
     return identical(_activityLease, lease) &&
         current is UnlockedSession &&
         current.activity == lease.activity;
+  }
+
+  bool _ownsUnlockAttempt(SessionUnlockAttempt attempt) {
+    return identical(_unlockAttempt, attempt) && _state is LockedSession;
+  }
+
+  bool _completeUnlockAttempt(
+    SessionUnlockAttempt attempt,
+    AuthStrength authStrength,
+  ) {
+    if (!_ownsUnlockAttempt(attempt)) {
+      attempt._markInvalidated();
+      return false;
+    }
+    _unlockAttempt = null;
+    attempt._markCompleted();
+    _unlock(authStrength);
+    return true;
+  }
+
+  void _cancelUnlockAttempt(SessionUnlockAttempt attempt) {
+    if (!identical(_unlockAttempt, attempt)) {
+      attempt._markInvalidated();
+      return;
+    }
+    _unlockAttempt = null;
+    attempt._markCompleted();
+  }
+
+  void _invalidateUnlockAttempt() {
+    final SessionUnlockAttempt? attempt = _unlockAttempt;
+    _unlockAttempt = null;
+    attempt?._markInvalidated();
   }
 
   void _completeActivity(SessionActivityLease lease) {

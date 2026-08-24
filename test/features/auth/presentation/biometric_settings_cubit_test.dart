@@ -189,7 +189,9 @@ final class FakeBiometricVaultRepository implements BiometricVaultRepository {
   Future<bool> hasConfiguredBiometricUnlock() async => configured;
 
   @override
-  Future<void> unlockWithBiometric() async {}
+  Future<void> unlockWithBiometric({
+    SessionActivityGuard? activityGuard,
+  }) async {}
 }
 
 final class FakeBiometricKeyStore implements BiometricKeyStore {
