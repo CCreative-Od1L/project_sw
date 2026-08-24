@@ -1,4 +1,4 @@
-name: Release metadata preflight
+name: Release preflight and Android signed build
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-preflight-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -37,3 +37,52 @@ jobs:
           path: release-metadata/release-metadata.txt
           if-no-files-found: error
           retention-days: 90
+
+  android:
+    name: Build signed Android AAB
+    needs: metadata
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 40
+    steps:
+      - name: Check out the complete tag history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up pinned Flutter SDK
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+          pub-cache: true
+
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Prepare Android signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/project-sw-release.keystore
+        run: bash scripts/prepare_android_signing.sh
+
+      - name: Build signed Android AAB
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/project-sw-release.keystore
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash scripts/build_android.sh release-aab
+
+      - name: Upload signed Android AAB
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: project-sw-android-release-${{ github.ref_name }}-${{ github.sha }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove Android signing keystore
+        if: ${{ always() }}
+        run: rm -f -- "${RUNNER_TEMP}/project-sw-release.keystore"
