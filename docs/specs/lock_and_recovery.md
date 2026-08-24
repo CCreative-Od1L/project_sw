@@ -150,6 +150,39 @@ stateDiagram-v2
 
 > **图例**:■ 标记的转换为死锁擦除逃生口。冷启动 S1 → 已配置生物时允许生物,否则走主密码 S3;超时锁 S2 → 允许生物;迁移期间 S9/S10 抑制 idle timeout 但不抑制切后台立即锁。`S4 -> S3` 表示已解锁会话内的 step-up success,不是重新锁定再解锁。该图保留的是粗粒度路由/流程视图;实际运行时会话状态还会额外携带更细的 lock reason 与 auth strength,由全局会话真相源统一驱动,`AuthCubit` 与 GoRouter 仅消费其派生结果。
 
+### 5.1 运行时会话状态契约
+
+上图用于表达产品流程;以下矩阵约束 `SessionController` 的实际状态与转移。
+`SessionController` 不会发布或接受 `UnlockedSession(authStrength: none)`;
+`AuthStrength.none` 只用于无认证会话的 UI 投影默认值。
+
+| 运行时状态 | 附加维度 | 派生路由 | 关键语义 |
+| --- | --- | --- | --- |
+| `VaultNotCreated` | `startReason` | `/setup` | 不持有会话密钥;锁定事件忽略。建库完成进入 `Locked(coldStart)`;擦除完成只能从 `Locked(wipeStarted)` 回到这里。 |
+| `Locked(reason)` | `coldStart` / `backgroundOrTimeout` / `manualLock` / `biometricInvalidated` / `wipeStarted` | `/unlock` | 仅冷启动和后台/超时锁允许生物解锁;擦除锁不允许任何解锁。正常锁定原因不被较弱的后续锁定降级。 |
+| `Unlocked(authStrength, activity)` | `authStrength = biometric / masterPassword`; `activity` 为 `none` 或一个具体活动 | `/home` | 只允许已认证会话;具体活动由唯一 lease 持有。非 `none` 活动暂停 idle timeout,但不暂停切后台、手动锁定、生物失效或擦除。 |
+
+锁定从任一 `Unlocked` 状态发生时,会话真相源按固定顺序作废 step-up challenge、
+中断活动 lease、取消 idle timer、清理敏感工作集,然后发布 `Locked`。锁定原因
+按 `wipeStarted > biometricInvalidated > 已有普通锁定原因` 收紧;已锁定会话不会被
+普通的后台、超时或手动锁定重复降级。
+
+`SessionActivity` 的具体值为 `migrationSending`、`migrationReceiving`、
+`passwordRecovery`、`passwordChange`、`biometricConfiguration`、
+`authenticatedWipe` 和 `vaultAccess`。开始活动会暂停 idle timer;完成或主动取消
+回到 `activity = none` 并开启新的完整空闲窗口;锁定会使 lease 失效,旧异步完成不得
+改变新会话。
+
+step-up challenge 是 `Unlocked` 内的一次性 lease,不是额外的路由状态。取消或验证
+失败保持当前认证强度;锁定会使 challenge 失效,stale 结果不得升级后续会话。
+
+擦除流程固定为 `Unlocked/Locked(normal) -> Locked(wipeStarted) ->
+VaultNotCreated`。`WipeVault` 等协调器必须等待耐久擦除成功返回后才调用
+`completeWipe()`;若擦除失败,会话保持 `Locked(wipeStarted)`。控制器本身只校验
+当前仍处于擦除锁,不伪造存储层的完成证明。当前实现没有独立 `/wiping` 路由,因此
+擦除进行中仍派生 `/unlock`;擦除页面若需显示进度必须消费 `LockReason.wipeStarted`
+或擦除协调器状态,不能自行复制会话状态机。
+
 ### UI 告知义务
 
 建库、设置生物解锁、高敏强制主密码时,均须如实告知忘密码的真实边界(生物兜底 vs 密码学锁死),不得简单宣称"忘密码就丢数据"。忘码恢复入口浮现时须强告知接管风险。

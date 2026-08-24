@@ -131,13 +131,16 @@
 - `background_or_timeout`
 - `manual_lock`
 - `biometric_invalidated`
-- 未来可扩展恢复/擦除等其他状态原因
+- `wipe_started`
 
 #### 当前认证强度
 
 - `none`
 - `biometric`
 - `master_password`
+
+`none` 只表示没有已认证的会话(例如 UI 投影的默认值);`SessionController` 不会
+发布或接受 `Unlocked(authStrength: none)`。
 
 因此推荐的最小状态形状为:
 
@@ -259,6 +262,8 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 - `password_recovery`
 - `password_change`
 - `biometric_configuration`
+- `authenticated_wipe`
+- `vault_access`
 
 迁移协调器、忘码恢复、主密码变更、生物配置、认证擦除与条目页面访问入口必须通过会话真相源取得唯一 guard;已满足主密码强度时使用 activity lease,生物会话的主密码变更复用 step-up challenge。认证擦除在验证当前主密码前取得 lease,并在开始不可逆销毁前再次检查;锁定后的旧验证结果不得启动擦除。条目读取、新增、更新和删除在路径解析等异步边界及原子提交前复核 `vaultAccess` lease。页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 guard 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁、写入新 header 或结束后续同类活动。
 
@@ -270,6 +275,8 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 - `password_recovery`
 - `password_change`
 - `biometric_configuration`
+- `authenticated_wipe`
+- `vault_access`
 
 其效果只限于:
 
@@ -313,9 +320,14 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
 - `/home`
 - `/migration/sender`
 - `/migration/receiver`
-- `/wiping`
+- `/wiping` (若未来引入独立擦除进度路由)
 
 或等价的 `SessionRouteState` 抽象。
+
+当前实现将 `wipe_started` 建模为 `Locked(reason: wipeStarted)`,并由
+`SessionRouteState.unlock` 派生 `/unlock`;它没有独立的 `/wiping` 路由。若未来
+需要独立擦除进度页面,必须同时扩展 `SessionRouteState` 及锁定/擦除状态矩阵,不能由
+页面自行推断或复制该状态。
 
 因此:
 

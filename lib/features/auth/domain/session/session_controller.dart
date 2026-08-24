@@ -193,13 +193,21 @@ final class SessionController extends ChangeNotifier {
   final SessionTimerFactory timerFactory;
 
   static SessionState _validateInitialState(SessionState initialState) {
-    if (initialState is UnlockedSession &&
-        initialState.activity != SessionActivity.none) {
-      throw ArgumentError.value(
-        initialState,
-        'initialState',
-        'An active session must be established through beginActivity.',
-      );
+    if (initialState is UnlockedSession) {
+      if (initialState.authStrength == AuthStrength.none) {
+        throw ArgumentError.value(
+          initialState,
+          'initialState',
+          'An unlocked session requires successful authentication.',
+        );
+      }
+      if (initialState.activity != SessionActivity.none) {
+        throw ArgumentError.value(
+          initialState,
+          'initialState',
+          'An active session must be established through beginActivity.',
+        );
+      }
     }
     return initialState;
   }
