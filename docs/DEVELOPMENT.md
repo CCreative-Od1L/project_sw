@@ -110,13 +110,13 @@ linter:
   - `scripts/build_android.sh` —— `debug-apk` / `release-aab`,签名配置经环境变量注入,禁止入库密钥库。
   - `scripts/build_ios.sh` —— `unsigned-debug` / `unsigned-release`;正式签名仍经后续 macOS signing lane 接入。
 - 两个脚本会先定位仓库根目录,因此可从任意当前目录调用;测试或封装环境可通过 `REPO_ROOT` 显式指定根目录。
-- Android release signing 已接入 Gradle 的显式凭据校验;缺少签名环境变量时安全失败,不会使用 debug key。iOS 无签名 release 与正式签名仍按 #53 后续切片推进。
+- Android release signing 已接入 Gradle 的显式凭据校验;tag workflow 从 `ANDROID_KEYSTORE_BASE64` 解码到 runner 临时目录,再注入四个签名环境变量;缺少任一项时安全失败,不会使用 debug key。iOS 无签名 release 与正式签名仍按 #53 后续切片推进。
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
 ### 8.2 CI(GitHub Actions,示意)
 - **PR 检查**:`fvm dart analyze` + `fvm dart format --set-exit-if-changed` + `fvm flutter test` + 集成测试(模拟器)。
 - **主分支**:同上 + 构建 Android debug APK 与 iOS 无签名 debug `.app`,并上传为 artifact;签名 release 由后续发版 lane 负责。
-- **发布**:打 tag 触发 release 流水线,构建各平台分发包并发布。
+- **发布**:打 tag 触发 release preflight 与 Android signed AAB 构建;签名 iOS、GitHub Release 汇总与分发仍待后续 lane。
 - 安全:CI 中禁用打印 secrets;依赖固定版本与 hash 校验。
 
 ### 8.3 CD / 分发
@@ -143,6 +143,6 @@ linter:
 - [ ] `pubspec.yaml` 依赖清单(含 dev 依赖)
 - [ ] `analysis_options.yaml` 最终 lint 规则集
 - [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 按其 §12 分阶段落地)
-- [x] release metadata preflight——tag、`pubspec.yaml` 版本、`CHANGELOG.md` 和 Flutter/lockfile 可重建元数据校验已落地;签名构建与 GitHub Release 仍待完成
+- [x] release metadata preflight 与 Android signed AAB——tag、`pubspec.yaml` 版本、`CHANGELOG.md`、Flutter/lockfile 可重建元数据及 Android 签名构建已落地;iOS 签名与 GitHub Release 仍待完成
 - [ ] CI workflow 文件(.github/workflows/)与打包脚本——按 [specs/ci_cd.md §12](./specs/ci_cd.md) 里程碑分阶段落
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)
