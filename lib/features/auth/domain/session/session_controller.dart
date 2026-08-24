@@ -61,6 +61,9 @@ final class SessionActivityLease implements SessionActivityGuard {
   /// Completes only this workflow; stale leases cannot affect newer activity.
   void complete() => _owner._completeActivity(this);
 
+  /// Cancels this workflow without allowing it to restart the idle timer.
+  void cancel() => _owner._cancelActivity(this);
+
   void _markCompleted() {
     _ended = true;
     _interruptionListeners.clear();
@@ -341,6 +344,7 @@ final class SessionController extends ChangeNotifier {
               reason != LockReason.biometricInvalidated)) {
         return;
       }
+      _isLocking = true;
       _cancelIdleTimer();
       _transition(LockedSession(reason: reason));
       return;
@@ -464,6 +468,18 @@ final class SessionController extends ChangeNotifier {
     _startIdleTimer();
   }
 
+  void _cancelActivity(SessionActivityLease lease) {
+    if (!_owns(lease)) {
+      lease._markInterrupted();
+      return;
+    }
+    final UnlockedSession current = _state as UnlockedSession;
+    _activityLease = null;
+    lease._markInterrupted();
+    _transition(UnlockedSession(authStrength: current.authStrength));
+    _startIdleTimer();
+  }
+
   void _interruptActivity() {
     final SessionActivityLease? lease = _activityLease;
     _activityLease = null;
@@ -522,17 +538,14 @@ final class SessionController extends ChangeNotifier {
       while (_pendingStateTransitions.isNotEmpty) {
         final SessionState pending = _pendingStateTransitions.removeAt(0);
         _state = pending;
-        try {
-          _states.add(pending);
-          notifyListeners();
-        } finally {
-          if (pending is LockedSession) {
-            _isLocking = false;
-          }
-        }
+        _states.add(pending);
+        notifyListeners();
       }
     } finally {
       _isPublishingState = false;
+      if (_state is LockedSession && _pendingStateTransitions.isEmpty) {
+        _isLocking = false;
+      }
     }
   }
 }
