@@ -78,6 +78,9 @@ final class SessionController extends ChangeNotifier {
 
   /// Records that a vault was created and requires a cold-start unlock.
   void markVaultCreated() {
+    if (_state is! VaultNotCreatedSession) {
+      throw StateError('A vault can only be created from first-run setup.');
+    }
     _cancelIdleTimer();
     _transition(const LockedSession(reason: LockReason.coldStart));
   }
@@ -90,6 +93,14 @@ final class SessionController extends ChangeNotifier {
         'authStrength',
         'An unlocked session requires successful authentication.',
       );
+    }
+    final SessionState current = _state;
+    if (current is! LockedSession) {
+      throw StateError('Only an existing locked vault can be unlocked.');
+    }
+    if (current.reason == LockReason.wipeStarted ||
+        (authStrength == AuthStrength.biometric && !current.canUseBiometric)) {
+      throw StateError('The current lock reason does not permit this unlock.');
     }
     _cancelIdleTimer();
     _lockSuppressionReason = null;
@@ -121,9 +132,16 @@ final class SessionController extends ChangeNotifier {
   /// Locks the current vault session for [reason].
   void lock(LockReason reason) {
     _lockSuppressionReason = null;
+    if (_state is VaultNotCreatedSession) {
+      return;
+    }
     if (_state is LockedSession) {
       final LockedSession current = _state as LockedSession;
-      if (current.reason == reason) {
+      if (current.reason == LockReason.wipeStarted ||
+          (current.reason == LockReason.biometricInvalidated &&
+              reason != LockReason.wipeStarted) ||
+          (reason != LockReason.wipeStarted &&
+              reason != LockReason.biometricInvalidated)) {
         return;
       }
       _cancelIdleTimer();
@@ -139,6 +157,9 @@ final class SessionController extends ChangeNotifier {
 
   /// Clears unlocked state and blocks every route while a wipe is in progress.
   void beginWipe() {
+    if (_state is VaultNotCreatedSession) {
+      throw StateError('A vault must exist before a wipe can begin.');
+    }
     lock(LockReason.wipeStarted);
   }
 
