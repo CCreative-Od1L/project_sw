@@ -4,6 +4,8 @@ import 'package:project_sw/features/auth/domain/recovery/master_password_recover
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/shared/result.dart';
 import 'package:test/test.dart';
 
@@ -27,7 +29,7 @@ void main() {
     );
 
     final Result<RecoveredMasterPassword, RecoverMasterPasswordFailure> result =
-        await recoverMasterPassword(newMasterPassword: 'new password');
+        await _runRecovery(recoverMasterPassword, 'new password');
 
     expect(
       result,
@@ -49,7 +51,7 @@ void main() {
     );
 
     final Result<RecoveredMasterPassword, RecoverMasterPasswordFailure> result =
-        await recoverMasterPassword(newMasterPassword: 'new password');
+        await _runRecovery(recoverMasterPassword, 'new password');
 
     expect(
       result,
@@ -83,7 +85,7 @@ void main() {
     );
 
     final Result<RecoveredMasterPassword, RecoverMasterPasswordFailure> result =
-        await recoverMasterPassword(newMasterPassword: 'short');
+        await _runRecovery(recoverMasterPassword, 'short');
 
     expect(
       result,
@@ -118,7 +120,7 @@ void main() {
     );
 
     final Result<RecoveredMasterPassword, RecoverMasterPasswordFailure> result =
-        await recoverMasterPassword(newMasterPassword: 'new password');
+        await _runRecovery(recoverMasterPassword, 'new password');
 
     expect(
       result,
@@ -152,7 +154,7 @@ void main() {
     );
 
     await expectLater(
-      recoverMasterPassword(newMasterPassword: 'new password'),
+      _runRecovery(recoverMasterPassword, 'new password'),
       throwsStateError,
     );
 
@@ -162,6 +164,25 @@ void main() {
       isA<MasterPasswordRecoveryAvailable>(),
     );
   });
+}
+
+Future<Result<RecoveredMasterPassword, RecoverMasterPasswordFailure>>
+_runRecovery(RecoverMasterPassword useCase, String newMasterPassword) async {
+  final SessionController sessionController = SessionController(
+    initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+  );
+  final SessionActivityLease lease = sessionController.beginActivity(
+    SessionActivity.passwordRecovery,
+  );
+  try {
+    return await useCase(
+      newMasterPassword: newMasterPassword,
+      activityLease: lease,
+    );
+  } finally {
+    lease.complete();
+    sessionController.dispose();
+  }
 }
 
 final class _RecoveryStore implements MasterPasswordRecoveryStore {
@@ -209,7 +230,9 @@ final class _RecoveryRepository implements MasterPasswordRecoveryRepository {
   @override
   Future<void> recoverMasterPassword({
     required String newMasterPassword,
+    required SessionActivityLease activityLease,
   }) async {
+    activityLease.ensureActive();
     passwords.add(newMasterPassword);
     final Object? failure = error;
     if (failure != null) {

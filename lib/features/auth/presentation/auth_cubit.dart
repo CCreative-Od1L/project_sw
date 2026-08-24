@@ -12,6 +12,7 @@ final class AuthViewState {
     required this.isLocked,
     required this.canUseBiometric,
     required this.authStrength,
+    required this.activity,
     this.lockReason,
   });
 
@@ -23,6 +24,7 @@ final class AuthViewState {
         isLocked: true,
         canUseBiometric: false,
         authStrength: AuthStrength.none,
+        activity: SessionActivity.none,
       ),
       LockedSession(:final LockReason reason, :final bool canUseBiometric) =>
         AuthViewState(
@@ -30,14 +32,20 @@ final class AuthViewState {
           isLocked: true,
           canUseBiometric: canUseBiometric,
           authStrength: AuthStrength.none,
+          activity: SessionActivity.none,
           lockReason: reason,
         ),
-      UnlockedSession(:final AuthStrength authStrength) => AuthViewState(
-        routeState: SessionRouteState.home,
-        isLocked: false,
-        canUseBiometric: false,
-        authStrength: authStrength,
-      ),
+      UnlockedSession(
+        :final AuthStrength authStrength,
+        :final SessionActivity activity,
+      ) =>
+        AuthViewState(
+          routeState: SessionRouteState.home,
+          isLocked: false,
+          canUseBiometric: false,
+          authStrength: authStrength,
+          activity: activity,
+        ),
     };
   }
 
@@ -52,6 +60,9 @@ final class AuthViewState {
 
   /// The already-established authentication strength.
   final AuthStrength authStrength;
+
+  /// The foreground workflow published by the session source of truth.
+  final SessionActivity activity;
 
   /// The lock cause when [isLocked] is true for an existing vault.
   final LockReason? lockReason;

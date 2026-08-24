@@ -246,14 +246,23 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 - 收到 `appBackgrounded` / `manual_lock` / `biometric_invalidated` / `wipe_started` 时,清理 timer;
 - 锁定态不运行 idle timer。
 
-### 10. 受控的 lock suppression 白名单
+### 10. 显式 Session Activity 与受控 lock suppression
 
-会话真相源支持一个极窄的受控机制: `lockSuppression`
+会话真相源在 `Unlocked(...)` 中显式发布 `SessionActivity`,而不是另存一份页面不可见的 timer 标志。当前活动至少包括:
+
+- `none`
+- `migration_sending`
+- `migration_receiving`
+- `password_recovery`
+
+迁移协调器与忘码恢复入口必须通过会话真相源取得唯一 activity lease;页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 lease 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁或结束后续同类活动。
+
+非 `none` 活动提供一个极窄的受控 `lockSuppression` 效果。
 
 首批仅允许以下流程申请:
 
-- `migration_in_progress`
-- `password_recovery_in_progress`
+- `migration_sending` / `migration_receiving`
+- `password_recovery`
 
 其效果只限于:
 
@@ -323,6 +332,7 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
   - 将 GoRouter redirect 绑定到派生路由态
 - 定义项目内 session event model,由 Flutter 生命周期与用户交互适配器统一输入。
 - 将 idle timer 所有权下沉到会话真相源。
+- 将迁移发送、迁移接收与忘码恢复建模为 `UnlockedSession` 的显式活动,由会话真相源统一发布并管理 idle suppression。
 - `AuthCubit` 改为只投影会话状态,不直接拥有状态机规则。
 - GoRouter redirect 改为只消费会话真相源派生的路由态。
 - 高敏 use case / 操作入口以显式方式声明 `requiresMasterPassword`,交由会话真相源决定是否发起 step-up。
@@ -342,8 +352,10 @@ GoRouter redirect 只读取会话真相源提供的单一派生路由态,例如:
   - challenge 成功后升级到 `master_password` 并保持到下一次锁定
   - challenge 失败不自动全局锁定
 - suppression 测试:
-  - `migration_in_progress` / `password_recovery_in_progress` 抑制 idle timeout
+  - `migration_sending` / `migration_receiving` / `password_recovery` 抑制 idle timeout
   - 但不抑制 `appBackgrounded` 立即锁定
+  - 活动完成或中断后回到 `none`,stale completion 不得解除锁定或结束新 lease
+  - 锁定会关闭挂起的迁移传输,并阻止忘码恢复继续提交 MVK 重包裹
 - redirect / projection 测试:
   - `AuthCubit` 与 GoRouter 只消费会话真相源派生结果,不重复解释状态机
 

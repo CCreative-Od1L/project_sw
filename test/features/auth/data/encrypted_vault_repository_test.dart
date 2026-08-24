@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/migration/domain/migration_transfer.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -284,7 +286,20 @@ void main() {
       );
       final Uint8List beforeBytes = File(path).readAsBytesSync();
 
-      await repository.recoverMasterPassword(newMasterPassword: 'new password');
+      final SessionController sessionController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      final SessionActivityLease activityLease = sessionController
+          .beginActivity(SessionActivity.passwordRecovery);
+      addTearDown(sessionController.dispose);
+
+      await repository.recoverMasterPassword(
+        newMasterPassword: 'new password',
+        activityLease: activityLease,
+      );
+      activityLease.complete();
 
       final OpenVaultFile recovered = engine.openVaultFile(path);
       final Uint8List afterBytes = File(path).readAsBytesSync();
@@ -307,6 +322,116 @@ void main() {
       );
     },
   );
+
+  test('does not commit a recovery re-wrap after the session locks', () async {
+    final String path = '${temporaryDirectory.path}/interrupted-rewrap.psw';
+    final Completer<void> resolverStarted = Completer<void>();
+    Completer<String>? blockedPath;
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () {
+        final Completer<String>? pending = blockedPath;
+        if (pending == null) {
+          return Future<String>.value(path);
+        }
+        if (!resolverStarted.isCompleted) {
+          resolverStarted.complete();
+        }
+        return pending.future;
+      },
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'current password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('current password');
+    final Uint8List before = File(path).readAsBytesSync();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
+      secretCleaner: repository,
+    );
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.passwordRecovery,
+    );
+    addTearDown(sessionController.dispose);
+    blockedPath = Completer<String>();
+
+    final Future<void> recovery = repository.recoverMasterPassword(
+      newMasterPassword: 'new password',
+      activityLease: activityLease,
+    );
+    await resolverStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    blockedPath.complete(path);
+
+    await expectLater(recovery, throwsA(isA<SessionActivityInterrupted>()));
+    expect(File(path).readAsBytesSync(), orderedEquals(before));
+  });
+
+  test('does not commit a migration import after the session locks', () async {
+    final String path = '${temporaryDirectory.path}/interrupted-import.psw';
+    final Completer<void> resolverStarted = Completer<void>();
+    Completer<String>? blockedPath;
+    final EncryptedVaultRepository repository = EncryptedVaultRepository(
+      crypto: FakeCryptoService(),
+      vaultFileEngine: VaultFileEngine(),
+      vaultPathResolver: () {
+        final Completer<String>? pending = blockedPath;
+        if (pending == null) {
+          return Future<String>.value(path);
+        }
+        if (!resolverStarted.isCompleted) {
+          resolverStarted.complete();
+        }
+        return pending.future;
+      },
+    );
+    await repository.createEmptyVault(
+      masterPassword: 'current password',
+      kdfParameters: const Argon2idParameters(
+        memoryKiB: 64 * 1024,
+        iterations: 3,
+      ),
+    );
+    await repository.unlockWithMasterPassword('current password');
+    final Uint8List before = File(path).readAsBytesSync();
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+      secretCleaner: repository,
+    );
+    final SessionActivityLease activityLease = sessionController.beginActivity(
+      SessionActivity.migrationReceiving,
+    );
+    addTearDown(sessionController.dispose);
+    final MigrationEntryPayload payload = MigrationEntryPayload(
+      entryId: Uint8List(16),
+      sequence: 1,
+      plaintextFormatId: 1,
+      entryCiphertext: Uint8List(40),
+      dek: Uint8List(32),
+    );
+    addTearDown(payload.dispose);
+    blockedPath = Completer<String>();
+
+    final Future<void> import = repository.importMigrationEntries(
+      <MigrationEntryPayload>[payload],
+      activityGuard: activityLease,
+    );
+    await resolverStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    blockedPath.complete(path);
+
+    await expectLater(import, throwsA(isA<SessionActivityInterrupted>()));
+    expect(File(path).readAsBytesSync(), orderedEquals(before));
+  });
 
   test('normalizes a storage location failure as VaultIoException', () async {
     final File blocker = File('${temporaryDirectory.path}/blocker')
@@ -512,13 +637,22 @@ void main() {
     final EntrySummary source = await sender.addEntry(
       const NewVaultEntry(name: 'Migrated', password: 'secret'),
     );
+    final SessionActivityLease senderActivity = _activityLease(
+      SessionActivity.migrationSending,
+    );
+    final SessionActivityLease receiverActivity = _activityLease(
+      SessionActivity.migrationReceiving,
+    );
     final List<MigrationEntryPayload> payloads = await sender
-        .exportMigrationEntries();
+        .exportMigrationEntries(activityGuard: senderActivity);
     final Uint8List sourceCiphertext = Uint8List.fromList(
       payloads.single.entryCiphertext,
     );
     try {
-      await receiver.importMigrationEntries(payloads);
+      await receiver.importMigrationEntries(
+        payloads,
+        activityGuard: receiverActivity,
+      );
       expect(receiver.entrySummaries.single.entryId, source.entryId);
       final EntryDetail imported = await receiver.getEntryDetail(
         source.entryId,
@@ -571,9 +705,18 @@ void main() {
       final EntrySummary source = await sender.addEntry(
         const NewVaultEntry(name: 'Before', password: 'secret'),
       );
+      final SessionActivityLease senderActivity = _activityLease(
+        SessionActivity.migrationSending,
+      );
+      final SessionActivityLease receiverActivity = _activityLease(
+        SessionActivity.migrationReceiving,
+      );
       final List<MigrationEntryPayload> first = await sender
-          .exportMigrationEntries();
-      await receiver.importMigrationEntries(first);
+          .exportMigrationEntries(activityGuard: senderActivity);
+      await receiver.importMigrationEntries(
+        first,
+        activityGuard: receiverActivity,
+      );
       for (final MigrationEntryPayload payload in first) {
         payload.dispose();
       }
@@ -584,11 +727,17 @@ void main() {
       );
       await sender.updateEntry(sourceDetail.entry.copyWith(name: 'After'));
       final List<MigrationEntryPayload> newer = await sender
-          .exportMigrationEntries();
+          .exportMigrationEntries(activityGuard: senderActivity);
       try {
-        await receiver.importMigrationEntries(newer);
+        await receiver.importMigrationEntries(
+          newer,
+          activityGuard: receiverActivity,
+        );
         expect(receiver.entrySummaries.single.name, 'After');
-        await receiver.importMigrationEntries(newer);
+        await receiver.importMigrationEntries(
+          newer,
+          activityGuard: receiverActivity,
+        );
         expect(receiver.entrySummaries.single.name, 'After');
       } finally {
         for (final MigrationEntryPayload payload in newer) {
@@ -622,8 +771,14 @@ void main() {
     await receiver.unlockWithMasterPassword('receiver password');
     await sender.addEntry(const NewVaultEntry(name: 'First'));
     await sender.addEntry(const NewVaultEntry(name: 'Second'));
+    final SessionActivityLease senderActivity = _activityLease(
+      SessionActivity.migrationSending,
+    );
+    final SessionActivityLease receiverActivity = _activityLease(
+      SessionActivity.migrationReceiving,
+    );
     final List<MigrationEntryPayload> sourcePayloads = await sender
-        .exportMigrationEntries();
+        .exportMigrationEntries(activityGuard: senderActivity);
     final MigrationEntryPayload invalid = MigrationEntryPayload(
       entryId: sourcePayloads.last.entryId,
       sequence: sourcePayloads.last.sequence,
@@ -636,7 +791,7 @@ void main() {
         receiver.importMigrationEntries(<MigrationEntryPayload>[
           sourcePayloads.first,
           invalid,
-        ]),
+        ], activityGuard: receiverActivity),
         throwsA(isA<VaultCorruptedException>()),
       );
       expect(receiver.entrySummaries, isEmpty);
@@ -757,6 +912,20 @@ EncryptedVaultRepository _repository(String path, FakeCryptoService crypto) =>
       vaultFileEngine: VaultFileEngine(),
       vaultPathResolver: () async => path,
     );
+
+SessionActivityLease _activityLease(SessionActivity activity) {
+  final SessionController controller = SessionController(
+    initialState: const UnlockedSession(
+      authStrength: AuthStrength.masterPassword,
+    ),
+  );
+  final SessionActivityLease lease = controller.beginActivity(activity);
+  addTearDown(() {
+    lease.complete();
+    controller.dispose();
+  });
+  return lease;
+}
 
 bool _isCleared(List<int> bytes) => bytes.every((int byte) => byte == 0);
 

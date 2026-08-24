@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
+
 /// One session-encrypted entry payload exchanged between migration endpoints.
 ///
 /// The DEK is only held in memory while the receiver re-wraps it with its own
@@ -50,8 +52,13 @@ final class MigrationEntryPayload {
 /// Repository boundary used by the future network migration coordinator.
 abstract interface class MigrationVaultPort {
   /// Exports opaque encrypted entry payloads from an unlocked vault.
-  Future<List<MigrationEntryPayload>> exportMigrationEntries();
+  Future<List<MigrationEntryPayload>> exportMigrationEntries({
+    required SessionActivityGuard activityGuard,
+  });
 
   /// Imports payloads into an unlocked vault in one atomic storage operation.
-  Future<void> importMigrationEntries(List<MigrationEntryPayload> entries);
+  Future<void> importMigrationEntries(
+    List<MigrationEntryPayload> entries, {
+    required SessionActivityGuard activityGuard,
+  });
 }

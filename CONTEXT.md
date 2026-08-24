@@ -134,9 +134,9 @@ _Avoid_: 登录态强度, unlock level
 已解锁会话内为高敏操作补充主密码验证的一次强认证升级。它不是重新锁定,成功后会把当前会话的 `authStrength` 升级为 `master_password` 直到下一次锁定。
 _Avoid_: re-login, forced relock, one-shot token
 
-**Lock Suppression**:
-会话真相源对白名单流程提供的窄范围 idle timeout 抑制机制。首批仅用于迁移中与忘码恢复中,且不抑制切后台立即锁、手动锁或生物失效。
-_Avoid_: no-lock mode, background unlock bypass
+**Session Activity**:
+会话真相源在 `UnlockedSession` 中发布的前台流程状态,当前区分 `none`、迁移发送、迁移接收与忘码恢复。每次活动由唯一 lease 标识,旧异步回调不能结束后续同类活动。非 `none` 活动只抑制 idle timeout;切后台、手动锁、生物失效和擦除仍立即锁定并中断外部 I/O 或敏感提交。
+_Avoid_: page-owned workflow flag, no-lock mode, background unlock bypass
 
 **Session Route State**:
 由会话真相源派生出的单一路由可访问状态,供 GoRouter redirect 消费。redirect 不自己拼多份会话信号,只读取这份派生结果。

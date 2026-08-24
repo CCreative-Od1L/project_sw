@@ -128,8 +128,8 @@ void main() {
     expect(find.textContaining('session was not changed'), findsOneWidget);
     expect(repository.enableCount, 0);
     expect(
-      sessionController.state,
-      const UnlockedSession(authStrength: AuthStrength.biometric),
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.biometric,
     );
 
     await tester.enterText(find.byType(TextField), 'correct password');
@@ -138,8 +138,8 @@ void main() {
 
     expect(repository.enableCount, 1);
     expect(
-      sessionController.state,
-      const UnlockedSession(authStrength: AuthStrength.masterPassword),
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.masterPassword,
     );
   });
 }

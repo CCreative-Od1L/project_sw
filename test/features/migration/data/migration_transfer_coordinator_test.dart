@@ -1,5 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
+import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/migration/data/migration_socket_transport.dart';
 import 'package:project_sw/features/migration/data/migration_transfer_coordinator.dart';
 import 'package:project_sw/features/migration/domain/migration_exception.dart';
@@ -29,16 +34,38 @@ void main() {
       );
       final RecordingVault receiverVault = RecordingVault();
       final MigrationCapabilities capabilities = _capabilities();
+      final SessionController senderController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      final SessionController receiverController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      final List<SessionActivity> senderActivities = <SessionActivity>[];
+      final List<SessionActivity> receiverActivities = <SessionActivity>[];
+      final senderSubscription = senderController.states.listen(
+        (SessionState state) =>
+            senderActivities.add((state as UnlockedSession).activity),
+      );
+      final receiverSubscription = receiverController.states.listen(
+        (SessionState state) =>
+            receiverActivities.add((state as UnlockedSession).activity),
+      );
 
       try {
         await Future.wait<void>(<Future<void>>[
           MigrationTransferCoordinator.receive(
+            sessionController: receiverController,
             transport: receiverTransport,
             session: sessions.receiver,
             capabilities: capabilities,
             vault: receiverVault,
           ),
           MigrationTransferCoordinator.send(
+            sessionController: senderController,
             transport: senderTransport,
             session: sessions.sender,
             capabilities: capabilities,
@@ -47,7 +74,19 @@ void main() {
         ]);
 
         expect(receiverVault.importedCount, 1);
+        expect(senderActivities, <SessionActivity>[
+          SessionActivity.migrationSending,
+          SessionActivity.none,
+        ]);
+        expect(receiverActivities, <SessionActivity>[
+          SessionActivity.migrationReceiving,
+          SessionActivity.none,
+        ]);
       } finally {
+        await senderSubscription.cancel();
+        await receiverSubscription.cancel();
+        senderController.dispose();
+        receiverController.dispose();
         senderVault.disposeSource();
         sessions.sender.dispose();
         sessions.receiver.dispose();
@@ -77,17 +116,29 @@ void main() {
       );
       final RecordingVault receiverVault = RecordingVault();
       final MigrationCapabilities capabilities = _capabilities();
+      final SessionController senderController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      final SessionController receiverController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
 
       try {
         await expectLater(
           Future.wait<void>(<Future<void>>[
             MigrationTransferCoordinator.receive(
+              sessionController: receiverController,
               transport: receiverTransport,
               session: sessions.receiver,
               capabilities: capabilities,
               vault: receiverVault,
             ),
             MigrationTransferCoordinator.send(
+              sessionController: senderController,
               transport: senderTransport,
               session: sessions.sender,
               capabilities: capabilities,
@@ -97,7 +148,17 @@ void main() {
           throwsA(isA<MigrationProtocolException>()),
         );
         expect(receiverVault.importedCount, 0);
+        expect(
+          (senderController.state as UnlockedSession).activity,
+          SessionActivity.none,
+        );
+        expect(
+          (receiverController.state as UnlockedSession).activity,
+          SessionActivity.none,
+        );
       } finally {
+        senderController.dispose();
+        receiverController.dispose();
         senderVault.disposeSource();
         sessions.sender.dispose();
         sessions.receiver.dispose();
@@ -107,6 +168,73 @@ void main() {
       }
     },
   );
+
+  test('closes pending migration transport when the session locks', () async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    final BlockingReceiveTransport transport = BlockingReceiveTransport();
+    final MigrationSession session = _sessions().sender;
+    final RecordingVault vault = RecordingVault(
+      source: <MigrationEntryPayload>[_payload(9)],
+    );
+    final Future<void> transfer = MigrationTransferCoordinator.send(
+      sessionController: sessionController,
+      transport: transport,
+      session: session,
+      capabilities: _capabilities(),
+      vault: vault,
+    );
+    final Future<void> observedTransfer = transfer.catchError((Object _) {});
+    addTearDown(() async {
+      await transport.close();
+      await observedTransfer;
+      vault.disposeSource();
+      session.dispose();
+      sessionController.dispose();
+    });
+
+    await transport.receiveStarted.future;
+    sessionController.handle(SessionEvent.appBackgrounded);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(transport.closeCount, 1);
+  });
+
+  test('clears exported payloads returned after the session locks', () async {
+    final SessionController sessionController = SessionController(
+      initialState: const UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+      ),
+    );
+    final DelayedExportVault vault = DelayedExportVault();
+    final RecordingCloseTransport transport = RecordingCloseTransport();
+    final MigrationSession session = _sessions().sender;
+    final MigrationEntryPayload payload = _payload(10);
+    addTearDown(() {
+      payload.dispose();
+      session.dispose();
+      sessionController.dispose();
+    });
+
+    final Future<void> transfer = MigrationTransferCoordinator.send(
+      sessionController: sessionController,
+      transport: transport,
+      session: session,
+      capabilities: _capabilities(),
+      vault: vault,
+    );
+    await vault.exportStarted.future;
+
+    sessionController.handle(SessionEvent.appBackgrounded);
+    vault.complete(<MigrationEntryPayload>[payload]);
+
+    await expectLater(transfer, throwsA(isA<SessionActivityInterrupted>()));
+    expect(payload.dek, everyElement(0));
+    expect(payload.entryCiphertext, everyElement(0));
+  });
 }
 
 MigrationCapabilities _capabilities() => MigrationCapabilities(
@@ -151,13 +279,15 @@ final class RecordingVault implements MigrationVaultPort {
   var importedCount = 0;
 
   @override
-  Future<List<MigrationEntryPayload>> exportMigrationEntries() async =>
-      _source.map(_copyPayload).toList(growable: false);
+  Future<List<MigrationEntryPayload>> exportMigrationEntries({
+    required SessionActivityGuard activityGuard,
+  }) async => _source.map(_copyPayload).toList(growable: false);
 
   @override
   Future<void> importMigrationEntries(
-    List<MigrationEntryPayload> entries,
-  ) async {
+    List<MigrationEntryPayload> entries, {
+    required SessionActivityGuard activityGuard,
+  }) async {
     importedCount += entries.length;
   }
 
@@ -212,4 +342,68 @@ final class TamperingTransport implements MigrationFrameTransport {
 
   @override
   Future<void> close() => _delegate.close();
+}
+
+final class BlockingReceiveTransport implements MigrationFrameTransport {
+  final Completer<void> receiveStarted = Completer<void>();
+  final Completer<MigrationSessionFrame> _pendingReceive =
+      Completer<MigrationSessionFrame>();
+  var closeCount = 0;
+
+  @override
+  Future<void> send(MigrationSessionFrame frame) async {}
+
+  @override
+  Future<MigrationSessionFrame> receive() {
+    if (!receiveStarted.isCompleted) {
+      receiveStarted.complete();
+    }
+    return _pendingReceive.future;
+  }
+
+  @override
+  Future<void> close() async {
+    closeCount++;
+    if (!_pendingReceive.isCompleted) {
+      _pendingReceive.completeError(
+        const MigrationTransportException('Session interrupted migration.'),
+      );
+    }
+  }
+}
+
+final class DelayedExportVault implements MigrationVaultPort {
+  final Completer<void> exportStarted = Completer<void>();
+  final Completer<List<MigrationEntryPayload>> _export =
+      Completer<List<MigrationEntryPayload>>();
+
+  void complete(List<MigrationEntryPayload> entries) =>
+      _export.complete(entries);
+
+  @override
+  Future<List<MigrationEntryPayload>> exportMigrationEntries({
+    required SessionActivityGuard activityGuard,
+  }) {
+    exportStarted.complete();
+    return _export.future;
+  }
+
+  @override
+  Future<void> importMigrationEntries(
+    List<MigrationEntryPayload> entries, {
+    required SessionActivityGuard activityGuard,
+  }) async {}
+}
+
+final class RecordingCloseTransport implements MigrationFrameTransport {
+  var closeCount = 0;
+
+  @override
+  Future<void> close() async => closeCount++;
+
+  @override
+  Future<MigrationSessionFrame> receive() => throw StateError('Not reached.');
+
+  @override
+  Future<void> send(MigrationSessionFrame frame) async {}
 }

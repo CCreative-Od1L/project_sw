@@ -354,7 +354,9 @@ final class _SettingsRecoveryRepository
   @override
   Future<void> recoverMasterPassword({
     required String newMasterPassword,
+    required SessionActivityLease activityLease,
   }) async {
+    activityLease.ensureActive();
     passwords.add(newMasterPassword);
   }
 }

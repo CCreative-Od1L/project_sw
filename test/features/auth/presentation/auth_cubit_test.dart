@@ -27,11 +27,13 @@ void main() {
       expect(cubit.state.lockReason, LockReason.backgroundOrTimeout);
 
       controller.unlock(AuthStrength.biometric);
+      controller.beginActivity(SessionActivity.migrationReceiving);
       await Future<void>.delayed(Duration.zero);
 
       expect(cubit.state.routeState, SessionRouteState.home);
       expect(cubit.state.isLocked, isFalse);
       expect(cubit.state.authStrength, AuthStrength.biometric);
+      expect(cubit.state.activity, SessionActivity.migrationReceiving);
     },
   );
 }

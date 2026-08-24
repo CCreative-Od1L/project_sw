@@ -249,15 +249,15 @@ final class MasterPasswordChangeCubit
     }
 
     emit(const MasterPasswordRecoveryWorking());
-    var suppressionStarted = false;
+    SessionActivityLease? activityLease;
     try {
-      _sessionController.beginIdleTimeoutSuppression(
-        LockSuppressionReason.passwordRecoveryInProgress,
+      activityLease = _sessionController.beginActivity(
+        SessionActivity.passwordRecovery,
       );
-      suppressionStarted = true;
       final Result<RecoveredMasterPassword, RecoverMasterPasswordFailure>
       result = await recoverMasterPassword(
         newMasterPassword: newMasterPassword,
+        activityLease: activityLease,
       );
       emit(switch (result) {
         Success<RecoveredMasterPassword, RecoverMasterPasswordFailure>() =>
@@ -281,11 +281,7 @@ final class MasterPasswordChangeCubit
     } on Object {
       emit(const MasterPasswordRecoveryFault());
     } finally {
-      if (suppressionStarted) {
-        _sessionController.endIdleTimeoutSuppression(
-          LockSuppressionReason.passwordRecoveryInProgress,
-        );
-      }
+      activityLease?.complete();
     }
   }
 

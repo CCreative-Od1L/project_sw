@@ -64,14 +64,14 @@ void main() {
 
       expect(controller.requiresMasterPasswordStepUp, isTrue);
 
+      controller.beginActivity(SessionActivity.passwordRecovery);
       controller.completeMasterPasswordStepUp();
 
-      expect(
-        controller.state,
-        const UnlockedSession(authStrength: AuthStrength.masterPassword),
-      );
+      final UnlockedSession steppedUp = controller.state as UnlockedSession;
+      expect(steppedUp.authStrength, AuthStrength.masterPassword);
+      expect(steppedUp.activity, SessionActivity.passwordRecovery);
       expect(controller.requiresMasterPasswordStepUp, isFalse);
-      expect(controller.hasActiveIdleTimer, isTrue);
+      expect(controller.hasActiveIdleTimer, isFalse);
     });
 
     test('records biometric invalidation even when already locked', () {
@@ -161,7 +161,7 @@ void main() {
       expect(controller.hasActiveIdleTimer, isFalse);
     });
 
-    test('suppresses idle timeout while allowing background lock', () {
+    test('publishes migration activity and suspends the idle timer', () {
       final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
       final SessionController controller = SessionController(
         timerFactory: (Duration duration, void Function() callback) {
@@ -174,22 +174,54 @@ void main() {
 
       controller.markVaultCreated();
       controller.unlock(AuthStrength.masterPassword);
-      controller.beginIdleTimeoutSuppression(
-        LockSuppressionReason.migrationInProgress,
-      );
+      controller.beginActivity(SessionActivity.migrationSending);
+
+      final UnlockedSession active = controller.state as UnlockedSession;
+      expect(active.activity, SessionActivity.migrationSending);
       expect(controller.isIdleTimeoutSuppressed, isTrue);
       expect(controller.hasActiveIdleTimer, isFalse);
 
-      controller.handle(SessionEvent.idleTimeoutElapsed);
-      expect(controller.state, isA<UnlockedSession>());
-      expect(controller.hasActiveIdleTimer, isTrue);
+      controller.handle(SessionEvent.userInteractionObserved);
 
-      controller.handle(SessionEvent.appBackgrounded);
-      expect(controller.state, isA<LockedSession>());
-      expect(controller.isIdleTimeoutSuppressed, isFalse);
+      expect(controller.hasActiveIdleTimer, isFalse);
     });
 
-    test('restarts a fresh idle window when suppression ends', () {
+    test(
+      'activity ignores idle timeout but not an immediate background lock',
+      () {
+        final SessionController controller = SessionController(
+          initialState: const UnlockedSession(
+            authStrength: AuthStrength.masterPassword,
+          ),
+          timerFactory: (Duration duration, void Function() callback) =>
+              FakeSessionTimer(callback),
+        );
+        addTearDown(controller.dispose);
+
+        final SessionActivityLease lease = controller.beginActivity(
+          SessionActivity.migrationSending,
+        );
+        var interruptionCount = 0;
+        lease.onInterrupted(() => interruptionCount++);
+        controller.handle(SessionEvent.idleTimeoutElapsed);
+
+        expect(controller.state, isA<UnlockedSession>());
+        expect(
+          (controller.state as UnlockedSession).activity,
+          SessionActivity.migrationSending,
+        );
+        expect(controller.hasActiveIdleTimer, isFalse);
+
+        controller.handle(SessionEvent.appBackgrounded);
+        lease.complete();
+
+        expect(controller.state, isA<LockedSession>());
+        expect(controller.isIdleTimeoutSuppressed, isFalse);
+        expect(interruptionCount, 1);
+      },
+    );
+
+    test('returns to idle activity with a fresh timeout window', () {
       final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
       final SessionController controller = SessionController(
         timerFactory: (Duration duration, void Function() callback) {
@@ -202,16 +234,85 @@ void main() {
 
       controller.markVaultCreated();
       controller.unlock(AuthStrength.masterPassword);
-      controller.beginIdleTimeoutSuppression(
-        LockSuppressionReason.migrationInProgress,
+      final SessionActivityLease lease = controller.beginActivity(
+        SessionActivity.migrationReceiving,
       );
-      controller.endIdleTimeoutSuppression(
-        LockSuppressionReason.migrationInProgress,
-      );
+      lease.complete();
 
+      final UnlockedSession idle = controller.state as UnlockedSession;
+      expect(idle.activity, SessionActivity.none);
       expect(controller.isIdleTimeoutSuppressed, isFalse);
       expect(controller.hasActiveIdleTimer, isTrue);
       expect(timers, hasLength(2));
+    });
+
+    test('rejects illegal or overlapping activity transitions', () {
+      expect(
+        () => SessionController(
+          initialState: const UnlockedSession(
+            authStrength: AuthStrength.masterPassword,
+            activity: SessionActivity.migrationSending,
+          ),
+        ),
+        throwsArgumentError,
+      );
+      final SessionController locked = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      final SessionController active = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      addTearDown(locked.dispose);
+      addTearDown(active.dispose);
+
+      expect(
+        () => active.beginActivity(SessionActivity.none),
+        throwsArgumentError,
+      );
+      expect(
+        () => locked.beginActivity(SessionActivity.migrationSending),
+        throwsStateError,
+      );
+
+      active.beginActivity(SessionActivity.migrationSending);
+
+      expect(
+        () => active.beginActivity(SessionActivity.migrationReceiving),
+        throwsStateError,
+      );
+      expect(
+        () => active.beginActivity(SessionActivity.passwordRecovery),
+        throwsStateError,
+      );
+    });
+
+    test('a stale activity lease cannot complete a newer activity', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      addTearDown(controller.dispose);
+
+      final SessionActivityLease stale = controller.beginActivity(
+        SessionActivity.migrationSending,
+      );
+      controller.handle(SessionEvent.appBackgrounded);
+      controller.unlock(AuthStrength.masterPassword);
+      final SessionActivityLease current = controller.beginActivity(
+        SessionActivity.migrationSending,
+      );
+
+      stale.complete();
+
+      expect(stale.isActive, isFalse);
+      expect(current.isActive, isTrue);
+      expect(
+        (controller.state as UnlockedSession).activity,
+        SessionActivity.migrationSending,
+      );
     });
 
     test('ignores lock events before a vault exists', () {
