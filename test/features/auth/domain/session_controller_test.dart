@@ -106,6 +106,42 @@ void main() {
       expect(() => controller.unlock(AuthStrength.none), throwsArgumentError);
     });
 
+    test('binds an unlock attempt to the current locked session', () {
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      addTearDown(controller.dispose);
+
+      final SessionUnlockAttempt attempt = controller.beginUnlockAttempt();
+      expect(attempt.isActive, isTrue);
+      expect(() => controller.beginUnlockAttempt(), throwsStateError);
+
+      controller.handle(SessionEvent.appBackgrounded);
+
+      expect(attempt.isActive, isFalse);
+      expect(attempt.ensureActive, throwsA(isA<SessionUnlockInterrupted>()));
+      expect(attempt.complete(AuthStrength.masterPassword), isFalse);
+      expect(controller.state, isA<LockedSession>());
+    });
+
+    test('publishes an unlocked state only when the attempt still owns it', () {
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(reason: LockReason.coldStart),
+      );
+      addTearDown(controller.dispose);
+
+      final SessionUnlockAttempt attempt = controller.beginUnlockAttempt();
+
+      expect(attempt.complete(AuthStrength.masterPassword), isTrue);
+      expect(controller.state, isA<UnlockedSession>());
+      expect(
+        (controller.state as UnlockedSession).authStrength,
+        AuthStrength.masterPassword,
+      );
+      expect(attempt.isActive, isFalse);
+      expect(attempt.complete(AuthStrength.masterPassword), isFalse);
+    });
+
     test('owns and resets a controllable idle timer while unlocked', () {
       final List<FakeSessionTimer> timers = <FakeSessionTimer>[];
       final SessionController controller = SessionController(

@@ -1,4 +1,5 @@
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:project_sw/shared/result.dart';
 
@@ -23,15 +24,20 @@ final class UnlockVault {
 
   /// Attempts master-password authentication without absorbing system faults.
   Future<Result<UnlockedVault, UnlockFailure>> call(
-    String masterPassword,
-  ) async {
+    String masterPassword, {
+    SessionActivityGuard? activityGuard,
+  }) async {
+    activityGuard?.ensureActive();
     if (masterPassword.isEmpty) {
       return const Failure<UnlockedVault, UnlockFailure>(
         UnlockFailure.invalidMasterPassword,
       );
     }
     try {
-      await _repository.unlockWithMasterPassword(masterPassword);
+      await _repository.unlockWithMasterPassword(
+        masterPassword,
+        activityGuard: activityGuard,
+      );
       return const Success<UnlockedVault, UnlockFailure>(UnlockedVault());
     } on InvalidMasterPasswordException {
       return const Failure<UnlockedVault, UnlockFailure>(

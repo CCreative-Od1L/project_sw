@@ -124,8 +124,10 @@ final class InMemoryVaultRepository implements VaultRepository {
   }) async => throw UnimplementedError();
 
   @override
-  Future<void> unlockWithMasterPassword(String masterPassword) async =>
-      throw UnimplementedError();
+  Future<void> unlockWithMasterPassword(
+    String masterPassword, {
+    SessionActivityGuard? activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
   bool get hasUnlockedSession => true;
