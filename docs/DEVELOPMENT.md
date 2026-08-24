@@ -109,6 +109,7 @@ linter:
 - 统一打包脚本(`scripts/`),参数化平台与环境(dev/staging/release):
   - `scripts/build_android.sh` —— APK/AAB,签名配置经环境变量注入,禁止入库密钥库。
   - `scripts/build_ios.sh` —— IPA,经 fastlane gym,签名经 match/ci。
+- Android release signing 已接入 Gradle 的显式凭据校验;缺少签名环境变量时安全失败,不会使用 debug key。iOS 无签名 release 与正式签名仍按 #53 后续切片推进。
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
 ### 8.2 CI(GitHub Actions,示意)
@@ -140,6 +141,7 @@ linter:
 
 - [ ] `pubspec.yaml` 依赖清单(含 dev 依赖)
 - [ ] `analysis_options.yaml` 最终 lint 规则集
-- [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 待代码就绪后按其 §12 落地)
+- [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 按其 §12 分阶段落地)
+- [x] release metadata preflight——tag、`pubspec.yaml` 版本、`CHANGELOG.md` 和 Flutter/lockfile 可重建元数据校验已落地;签名构建与 GitHub Release 仍待完成
 - [ ] CI workflow 文件(.github/workflows/)与打包脚本——按 [specs/ci_cd.md §12](./specs/ci_cd.md) 里程碑分阶段落
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)
