@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:get_it/get_it.dart';
@@ -81,6 +82,12 @@ void registerAppDependencies(
     ),
     dispose: (SensitiveClipboardController controller) => controller.dispose(),
   );
+  final List<SessionSecretCleaner> sessionSecretCleaners =
+      <SessionSecretCleaner>[
+        _SensitiveClipboardSessionCleaner(
+          serviceLocator<SensitiveClipboardController>(),
+        ),
+      ];
 
   if (cryptoService != null && vaultPathResolver != null) {
     if (biometricKeyStore != null) {
@@ -123,12 +130,10 @@ void registerAppDependencies(
       ),
       dispose: (VaultEntriesCubit cubit) => cubit.close(),
     );
-    serviceLocator.registerSingleton<SessionSecretCleaner>(
-      SessionSecretCleaners(<SessionSecretCleaner>[
-        serviceLocator<EncryptedVaultRepository>(),
-        serviceLocator<VaultEntriesCubit>(),
-      ]),
-    );
+    sessionSecretCleaners.addAll(<SessionSecretCleaner>[
+      serviceLocator<EncryptedVaultRepository>(),
+      serviceLocator<VaultEntriesCubit>(),
+    ]);
   }
 
   if (cryptoService != null) {
@@ -143,6 +148,9 @@ void registerAppDependencies(
   final SessionState initialState = config.vaultExistsAtLaunch
       ? const LockedSession(reason: LockReason.coldStart)
       : const VaultNotCreatedSession();
+  serviceLocator.registerSingleton<SessionSecretCleaner>(
+    SessionSecretCleaners(sessionSecretCleaners),
+  );
   serviceLocator.registerSingleton<SessionController>(
     SessionController(
       initialState: initialState,
@@ -298,6 +306,25 @@ void registerAppDependencies(
         ),
         dispose: (BiometricUnlockCubit cubit) => cubit.close(),
       );
+    }
+  }
+}
+
+final class _SensitiveClipboardSessionCleaner implements SessionSecretCleaner {
+  const _SensitiveClipboardSessionCleaner(this._controller);
+
+  final SensitiveClipboardController _controller;
+
+  @override
+  void clearUnlockedSession() {
+    unawaited(_clearBestEffort());
+  }
+
+  Future<void> _clearBestEffort() async {
+    try {
+      await _controller.clearForSessionLock();
+    } on Object {
+      // Platform clipboard cleanup cannot block fail-closed session locking.
     }
   }
 }
