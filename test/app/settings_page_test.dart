@@ -15,6 +15,7 @@ import 'package:project_sw/features/auth/domain/recovery/master_password_recover
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
 import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
@@ -317,7 +318,9 @@ final class _SettingsPasswordChangeRepository
   Future<void> changeMasterPassword({
     required String currentMasterPassword,
     required String newMasterPassword,
+    required SessionActivityGuard activityGuard,
   }) async {
+    activityGuard.ensureActive();
     calls.add((currentMasterPassword, newMasterPassword));
     final Object? failure = error;
     if (failure != null) throw failure;

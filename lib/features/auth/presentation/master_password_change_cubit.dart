@@ -3,6 +3,7 @@ import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
 import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/shared/result.dart';
 
@@ -191,51 +192,86 @@ final class MasterPasswordChangeCubit
       return;
     }
     MasterPasswordStepUpChallenge? challenge;
-    if (_sessionController.requiresMasterPasswordStepUp) {
-      try {
+    SessionActivityLease? activityLease;
+    final SessionActivityGuard activityGuard;
+    try {
+      if (_sessionController.requiresMasterPasswordStepUp) {
         challenge = _sessionController.beginMasterPasswordStepUp();
-      } on StateError {
-        emit(const MasterPasswordChangeFault());
-        return;
+        activityGuard = challenge;
+      } else {
+        activityLease = _sessionController.beginActivity(
+          SessionActivity.passwordChange,
+        );
+        activityGuard = activityLease;
       }
+    } on StateError {
+      emit(const MasterPasswordChangeFault());
+      return;
     }
+    void abandonAuthorization() {
+      challenge?.cancel();
+      challenge = null;
+      activityLease?.complete();
+      activityLease = null;
+    }
+
+    bool completeAuthorization() {
+      final MasterPasswordStepUpChallenge? currentChallenge = challenge;
+      challenge = null;
+      if (currentChallenge != null && !currentChallenge.complete()) {
+        return false;
+      }
+      activityLease?.complete();
+      activityLease = null;
+      return _sessionController.state is UnlockedSession;
+    }
+
     emit(const MasterPasswordChangeWorking());
     try {
       final Result<ChangedMasterPassword, ChangeMasterPasswordFailure> result =
           await _changeMasterPassword(
             currentMasterPassword: currentMasterPassword,
             newMasterPassword: newMasterPassword,
+            activityGuard: activityGuard,
           );
       switch (result) {
         case Success<ChangedMasterPassword, ChangeMasterPasswordFailure>():
-          final SessionState session = _sessionController.state;
-          if (session is! UnlockedSession) {
-            emit(const MasterPasswordChangeFault());
-            return;
-          }
-          if (challenge != null && !challenge.complete()) {
-            emit(const MasterPasswordChangeFault());
-            return;
-          }
           await _recoveryGate?.recordChangePasswordSuccess();
+          activityGuard.ensureActive();
+          if (!completeAuthorization()) {
+            emit(const MasterPasswordChangeFault());
+            return;
+          }
           emit(const MasterPasswordChangeCompleted());
         case Failure<ChangedMasterPassword, ChangeMasterPasswordFailure>(
           :final ChangeMasterPasswordFailure failure,
         ):
-          challenge?.cancel();
           if (failure ==
               ChangeMasterPasswordFailure.invalidCurrentMasterPassword) {
+            final bool recoveryAvailable = await _recordRecoveryFailure();
+            activityGuard.ensureActive();
+            abandonAuthorization();
+            if (_sessionController.state is! UnlockedSession) {
+              emit(const MasterPasswordChangeFault());
+              return;
+            }
             emit(
               MasterPasswordChangeInvalidCurrent(
-                recoveryAvailable: await _recordRecoveryFailure(),
+                recoveryAvailable: recoveryAvailable,
               ),
             );
           } else {
+            activityGuard.ensureActive();
+            abandonAuthorization();
+            if (_sessionController.state is! UnlockedSession) {
+              emit(const MasterPasswordChangeFault());
+              return;
+            }
             emit(const MasterPasswordChangeInvalidNew());
           }
       }
     } on Object {
-      challenge?.cancel();
+      abandonAuthorization();
       emit(const MasterPasswordChangeFault());
     }
   }
