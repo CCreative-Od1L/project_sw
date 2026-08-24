@@ -20,7 +20,7 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let channel = FlutterMethodChannel(
       name: channelName,
-      binaryMessenger: engineBridge.binaryMessenger
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handle(call: call, result: result)
@@ -50,7 +50,7 @@ import UIKit
 
   private func createKey(result: @escaping FlutterResult) {
     guard isBiometricAvailable() else {
-      result("unavailable", nil, nil)
+      result(flutterError("unavailable"))
       return
     }
     deleteKeychainItem()
@@ -58,7 +58,7 @@ import UIKit
     let byteCount = bytes.count
     defer { bytes = [UInt8](repeating: 0, count: byteCount) }
     guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
-      result("authentication_failed", nil, nil)
+      result(flutterError("authentication_failed"))
       return
     }
     let data = Data(bytes)
@@ -68,7 +68,7 @@ import UIKit
       .biometryCurrentSet,
       nil
     ) else {
-      result("authentication_failed", nil, nil)
+      result(flutterError("authentication_failed"))
       return
     }
     let query: [CFString: Any] = [
@@ -82,7 +82,7 @@ import UIKit
     if status == errSecSuccess {
       result(FlutterStandardTypedData(bytes: data))
     } else {
-      result(normalizedError(status))
+      result(flutterError(normalizedError(status)))
     }
   }
 
@@ -100,7 +100,7 @@ import UIKit
     var item: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &item)
     guard status == errSecSuccess, let data = item as? Data, data.count == 32 else {
-      result(normalizedError(status))
+      result(flutterError(normalizedError(status)))
       return
     }
     result(FlutterStandardTypedData(bytes: data))
@@ -108,10 +108,12 @@ import UIKit
 
   private func deleteKey(result: @escaping FlutterResult) {
     let status = deleteKeychainItem()
-    if status == errSecSuccess || status == errSecItemNotFound {
+    let verification = keychainItemStatus()
+    let deletionSucceeded = status == errSecSuccess || status == errSecItemNotFound
+    if deletionSucceeded && verification == errSecItemNotFound {
       result(nil)
     } else {
-      result("authentication_failed", nil, nil)
+      result(flutterError("authentication_failed"))
     }
   }
 
@@ -123,6 +125,16 @@ import UIKit
       kSecAttrAccount: keychainAccount,
     ]
     return SecItemDelete(query as CFDictionary)
+  }
+
+  private func keychainItemStatus() -> OSStatus {
+    let query: [CFString: Any] = [
+      kSecClass: kSecClassGenericPassword,
+      kSecAttrService: keychainService,
+      kSecAttrAccount: keychainAccount,
+      kSecMatchLimit: kSecMatchLimitOne,
+    ]
+    return SecItemCopyMatching(query as CFDictionary, nil)
   }
 
   private func isBiometricAvailable() -> Bool {
@@ -145,5 +157,9 @@ import UIKit
     default:
       return "authentication_failed"
     }
+  }
+
+  private func flutterError(_ code: String) -> FlutterError {
+    FlutterError(code: code, message: nil, details: nil)
   }
 }

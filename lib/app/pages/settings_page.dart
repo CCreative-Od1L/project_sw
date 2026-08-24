@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/localization.dart';
 import 'package:project_sw/app/pages/session_page_scaffold.dart';
+import 'package:project_sw/app/pages/session_secret_dialog.dart';
 import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
+import 'package:project_sw/features/auth/domain/master_password_strength.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 
 /// Security policy, active KDF metadata, and optional biometric settings.
@@ -14,13 +19,19 @@ final class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     this.config = const AppConfig(),
+    this.sessionController,
     this.vaultRepository,
     this.biometricSettingsCubit,
     this.stepUpCubit,
+    this.masterPasswordChangeCubit,
+    this.authenticatedWipeCubit,
   });
 
   /// Fixed process policy used by the session and clipboard services.
   final AppConfig config;
+
+  /// Global session source used to clear dialog-owned plaintext on lock.
+  final SessionController? sessionController;
 
   /// Repository projection used to read the active non-secret KDF profile.
   final VaultRepository? vaultRepository;
@@ -30,6 +41,12 @@ final class SettingsPage extends StatefulWidget {
 
   /// Optional high-sensitivity master-password challenge coordinator.
   final StepUpCubit? stepUpCubit;
+
+  /// Optional coordinator for the master-password change dialog.
+  final MasterPasswordChangeCubit? masterPasswordChangeCubit;
+
+  /// Optional coordinator for current-password-authenticated vault deletion.
+  final AuthenticatedWipeCubit? authenticatedWipeCubit;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -48,8 +65,11 @@ final class _SettingsPageState extends State<SettingsPage> {
     if (cubit == null) {
       return _SettingsContent(
         config: widget.config,
+        sessionController: widget.sessionController,
         vaultRepository: widget.vaultRepository,
         stepUpCubit: widget.stepUpCubit,
+        masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
+        authenticatedWipeCubit: widget.authenticatedWipeCubit,
       );
     }
     return BlocProvider<BiometricSettingsCubit>.value(
@@ -58,10 +78,13 @@ final class _SettingsPageState extends State<SettingsPage> {
         builder: (BuildContext context, BiometricSettingsViewState state) {
           return _SettingsContent(
             config: widget.config,
+            sessionController: widget.sessionController,
             vaultRepository: widget.vaultRepository,
             biometricSettingsCubit: cubit,
             biometricState: state,
             stepUpCubit: widget.stepUpCubit,
+            masterPasswordChangeCubit: widget.masterPasswordChangeCubit,
+            authenticatedWipeCubit: widget.authenticatedWipeCubit,
           );
         },
       ),
@@ -72,17 +95,58 @@ final class _SettingsPageState extends State<SettingsPage> {
 final class _SettingsContent extends StatelessWidget {
   const _SettingsContent({
     required this.config,
+    required this.sessionController,
     required this.vaultRepository,
     this.biometricSettingsCubit,
     this.biometricState,
     this.stepUpCubit,
+    this.masterPasswordChangeCubit,
+    this.authenticatedWipeCubit,
   });
 
   final AppConfig config;
+  final SessionController? sessionController;
   final VaultRepository? vaultRepository;
   final BiometricSettingsCubit? biometricSettingsCubit;
   final BiometricSettingsViewState? biometricState;
   final StepUpCubit? stepUpCubit;
+  final MasterPasswordChangeCubit? masterPasswordChangeCubit;
+  final AuthenticatedWipeCubit? authenticatedWipeCubit;
+
+  Future<void> _showMasterPasswordChange(BuildContext context) async {
+    final MasterPasswordChangeCubit? cubit = masterPasswordChangeCubit;
+    if (cubit == null) return;
+    await cubit.reset();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) =>
+          BlocProvider<MasterPasswordChangeCubit>.value(
+            value: cubit,
+            child: _MasterPasswordChangeDialog(
+              sessionController: sessionController,
+            ),
+          ),
+    );
+  }
+
+  Future<void> _showAuthenticatedWipe(BuildContext context) async {
+    final AuthenticatedWipeCubit? cubit = authenticatedWipeCubit;
+    if (cubit == null) return;
+    cubit.reset();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) =>
+          BlocProvider<AuthenticatedWipeCubit>.value(
+            value: cubit,
+            child: _AuthenticatedWipeDialog(
+              sessionController: sessionController,
+            ),
+          ),
+    );
+  }
 
   Future<void> _confirmAndRun(
     BuildContext context, {
@@ -132,7 +196,10 @@ final class _SettingsContent extends StatelessWidget {
       context: context,
       builder: (BuildContext context) => BlocProvider<StepUpCubit>.value(
         value: cubit,
-        child: _StepUpDialog(stepUpCubit: cubit),
+        child: _StepUpDialog(
+          stepUpCubit: cubit,
+          sessionController: sessionController,
+        ),
       ),
     );
     return verified == true;
@@ -184,11 +251,97 @@ final class _SettingsContent extends StatelessWidget {
               ),
             ),
           ),
+          if (masterPasswordChangeCubit != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        const Icon(Icons.password_outlined),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            context.l10n.masterPasswordSettings,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(context.l10n.masterPasswordChangeDescription),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton.tonal(
+                        onPressed: () => _showMasterPasswordChange(context),
+                        child: Text(context.l10n.changeMasterPassword),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (biometricSettingsCubit != null && biometricState != null)
             _BiometricSettingsCard(
               state: biometricState!,
               onEnable: () => _confirmAndRun(context, enable: true),
               onDisable: () => _confirmAndRun(context, enable: false),
+            ),
+          if (authenticatedWipeCubit != null)
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.delete_forever_outlined,
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            context.l10n.deleteVaultSettings,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      context.l10n.deleteVaultDescription,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton(
+                        onPressed: () => _showAuthenticatedWipe(context),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onError,
+                        ),
+                        child: Text(context.l10n.deleteVaultAction),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           const SizedBox(height: 8),
           Text(
@@ -303,17 +456,440 @@ final class _BiometricSettingsCard extends StatelessWidget {
   }
 }
 
+final class _MasterPasswordChangeDialog extends StatefulWidget {
+  const _MasterPasswordChangeDialog({required this.sessionController});
+
+  final SessionController? sessionController;
+
+  @override
+  State<_MasterPasswordChangeDialog> createState() =>
+      _MasterPasswordChangeDialogState();
+}
+
+final class _MasterPasswordChangeDialogState
+    extends State<_MasterPasswordChangeDialog>
+    with SessionSecretDialogState<_MasterPasswordChangeDialog> {
+  final TextEditingController _currentController = TextEditingController();
+  final TextEditingController _newController = TextEditingController();
+  final TextEditingController _confirmationController = TextEditingController();
+  final MasterPasswordStrengthEvaluator _strengthEvaluator =
+      const MasterPasswordStrengthEvaluator();
+  var _recoveryMode = false;
+  MasterPasswordStrengthAssessment? _strengthAssessment;
+
+  @override
+  SessionController? get sessionController => widget.sessionController;
+
+  @override
+  void clearDialogSecrets() {
+    _currentController.clear();
+    _newController.clear();
+    _confirmationController.clear();
+    _recoveryMode = false;
+    _strengthAssessment = null;
+  }
+
+  @override
+  void dispose() {
+    _currentController
+      ..clear()
+      ..dispose();
+    _newController
+      ..clear()
+      ..dispose();
+    _confirmationController
+      ..clear()
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<
+      MasterPasswordChangeCubit,
+      MasterPasswordChangeViewState
+    >(
+      listener: (BuildContext context, MasterPasswordChangeViewState state) {
+        if (state is MasterPasswordChangeCompleted ||
+            state is MasterPasswordRecoveryCompleted) {
+          final ScaffoldMessengerState messenger = ScaffoldMessenger.of(
+            context,
+          );
+          Navigator.of(context).pop();
+          messenger.showSnackBar(
+            SnackBar(
+              content: state is MasterPasswordRecoveryCompleted
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(context.l10n.masterPasswordRecovered),
+                        Text(context.l10n.syncRecoveryBackup),
+                      ],
+                    )
+                  : Text(context.l10n.masterPasswordChanged),
+            ),
+          );
+        }
+      },
+      builder: (BuildContext context, MasterPasswordChangeViewState state) {
+        final bool working =
+            state is MasterPasswordChangeWorking ||
+            state is MasterPasswordRecoveryWorking;
+        final String? errorText = switch (state) {
+          MasterPasswordChangeInvalidCurrent() =>
+            context.l10n.currentMasterPasswordInvalid,
+          MasterPasswordChangeInvalidNew() =>
+            context.l10n.newMasterPasswordRequired,
+          MasterPasswordChangeConfirmationMismatch() =>
+            context.l10n.newMasterPasswordsDoNotMatch,
+          MasterPasswordChangeFault() =>
+            context.l10n.masterPasswordChangeFailed,
+          MasterPasswordRecoveryInvalidNew() =>
+            context.l10n.newMasterPasswordRequired,
+          MasterPasswordRecoveryWeakNew() =>
+            context.l10n.newMasterPasswordTooWeak,
+          MasterPasswordRecoveryConfirmationMismatch() =>
+            context.l10n.newMasterPasswordsDoNotMatch,
+          MasterPasswordRecoveryUnavailable() =>
+            context.l10n.masterPasswordRecoveryUnavailable,
+          MasterPasswordRecoveryBiometricCancelled() =>
+            context.l10n.masterPasswordRecoveryCancelled,
+          MasterPasswordRecoveryBiometricUnavailable() =>
+            context.l10n.masterPasswordRecoveryBiometricUnavailable,
+          MasterPasswordRecoveryFault() =>
+            context.l10n.masterPasswordRecoveryFailed,
+          _ => null,
+        };
+        final bool recoveryAvailable = switch (state) {
+          MasterPasswordChangeReady(:final bool recoveryAvailable) =>
+            recoveryAvailable,
+          MasterPasswordChangeInvalidCurrent(:final bool recoveryAvailable) =>
+            recoveryAvailable,
+          _ => false,
+        };
+        return AlertDialog(
+          title: Text(
+            _recoveryMode
+                ? context.l10n.recoverMasterPasswordTitle
+                : context.l10n.changeMasterPasswordTitle,
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (_recoveryMode)
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              context.l10n.masterPasswordRecoveryWarning,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Text(context.l10n.masterPasswordChangeWarning),
+                const SizedBox(height: 16),
+                if (!_recoveryMode) ...<Widget>[
+                  TextField(
+                    key: const ValueKey<String>('current-master-password'),
+                    controller: _currentController,
+                    autofocus: true,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    enabled: !working,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.currentMasterPassword,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  key: const ValueKey<String>('new-master-password'),
+                  controller: _newController,
+                  autofocus: _recoveryMode,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  enabled: !working,
+                  textInputAction: TextInputAction.next,
+                  onChanged: _recoveryMode
+                      ? (String value) {
+                          setState(() {
+                            _strengthAssessment = _strengthEvaluator.evaluate(
+                              value,
+                            );
+                          });
+                        }
+                      : null,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.newMasterPassword,
+                  ),
+                ),
+                if (_recoveryMode && _strengthAssessment != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(
+                    context.l10n.masterPasswordStrengthLabel(
+                      _strengthLabel(context, _strengthAssessment!.strength),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  key: const ValueKey<String>('confirm-new-master-password'),
+                  controller: _confirmationController,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  enabled: !working,
+                  onSubmitted: working
+                      ? null
+                      : (_) => _recoveryMode
+                            ? _recover(context)
+                            : _submit(context),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.confirmNewMasterPassword,
+                    errorText: errorText,
+                  ),
+                ),
+                if (!_recoveryMode && recoveryAvailable) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: working ? null : _enterRecoveryMode,
+                      icon: const Icon(Icons.fingerprint),
+                      label: Text(context.l10n.recoverWithBiometrics),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: working ? null : () => Navigator.of(context).pop(),
+              child: Text(context.l10n.close),
+            ),
+            FilledButton(
+              onPressed: working
+                  ? null
+                  : () => _recoveryMode ? _recover(context) : _submit(context),
+              child: working
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      _recoveryMode
+                          ? context.l10n.recoverPassword
+                          : context.l10n.changePassword,
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _submit(BuildContext context) {
+    context.read<MasterPasswordChangeCubit>().submit(
+      currentMasterPassword: _currentController.text,
+      newMasterPassword: _newController.text,
+      confirmation: _confirmationController.text,
+    );
+  }
+
+  void _enterRecoveryMode() {
+    _currentController.clear();
+    _newController.clear();
+    _confirmationController.clear();
+    setState(() {
+      _recoveryMode = true;
+      _strengthAssessment = null;
+    });
+  }
+
+  void _recover(BuildContext context) {
+    context.read<MasterPasswordChangeCubit>().recover(
+      newMasterPassword: _newController.text,
+      confirmation: _confirmationController.text,
+    );
+  }
+
+  String _strengthLabel(
+    BuildContext context,
+    MasterPasswordStrength strength,
+  ) => switch (strength) {
+    MasterPasswordStrength.weak => context.l10n.strengthWeak,
+    MasterPasswordStrength.medium => context.l10n.strengthMedium,
+    MasterPasswordStrength.strong => context.l10n.strengthStrong,
+    MasterPasswordStrength.veryStrong => context.l10n.strengthVeryStrong,
+  };
+}
+
+final class _AuthenticatedWipeDialog extends StatefulWidget {
+  const _AuthenticatedWipeDialog({required this.sessionController});
+
+  final SessionController? sessionController;
+
+  @override
+  State<_AuthenticatedWipeDialog> createState() =>
+      _AuthenticatedWipeDialogState();
+}
+
+final class _AuthenticatedWipeDialogState
+    extends State<_AuthenticatedWipeDialog>
+    with SessionSecretDialogState<_AuthenticatedWipeDialog> {
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  SessionController? get sessionController => widget.sessionController;
+
+  @override
+  void clearDialogSecrets() => _passwordController.clear();
+
+  @override
+  void dispose() {
+    _passwordController
+      ..clear()
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<AuthenticatedWipeCubit, AuthenticatedWipeViewState>(
+      listener: (BuildContext context, AuthenticatedWipeViewState state) {
+        if (state is AuthenticatedWipeCompleted) {
+          final ScaffoldMessengerState messenger = ScaffoldMessenger.of(
+            context,
+          );
+          Navigator.of(context).pop();
+          messenger.showSnackBar(
+            SnackBar(content: Text(context.l10n.vaultDeleted)),
+          );
+        }
+      },
+      builder: (BuildContext context, AuthenticatedWipeViewState state) {
+        final bool working = state is AuthenticatedWipeWorking;
+        final String? errorText = switch (state) {
+          AuthenticatedWipeInvalidPassword() =>
+            context.l10n.deleteVaultInvalidPassword,
+          AuthenticatedWipeFault() => context.l10n.deleteVaultFailed,
+          _ => null,
+        };
+        return AlertDialog(
+          icon: Icon(
+            Icons.delete_forever_outlined,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: Text(context.l10n.deleteVaultSettings),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                context.l10n.deleteVaultWarning,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                key: const ValueKey<String>('authenticated-wipe-password'),
+                controller: _passwordController,
+                autofocus: true,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                enabled: !working,
+                onSubmitted: working ? null : (_) => _submit(context),
+                decoration: InputDecoration(
+                  labelText: context.l10n.currentMasterPassword,
+                  errorText: errorText,
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: working ? null : () => Navigator.of(context).pop(),
+              child: Text(context.l10n.close),
+            ),
+            FilledButton(
+              onPressed: working ? null : () => _submit(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              child: working
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.l10n.deleteVaultAction),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _submit(BuildContext context) {
+    context.read<AuthenticatedWipeCubit>().submit(_passwordController.text);
+  }
+}
+
 final class _StepUpDialog extends StatefulWidget {
-  const _StepUpDialog({required this.stepUpCubit});
+  const _StepUpDialog({
+    required this.stepUpCubit,
+    required this.sessionController,
+  });
 
   final StepUpCubit stepUpCubit;
+  final SessionController? sessionController;
 
   @override
   State<_StepUpDialog> createState() => _StepUpDialogState();
 }
 
-final class _StepUpDialogState extends State<_StepUpDialog> {
+final class _StepUpDialogState extends State<_StepUpDialog>
+    with SessionSecretDialogState<_StepUpDialog> {
   final TextEditingController _controller = TextEditingController();
+
+  @override
+  SessionController? get sessionController => widget.sessionController;
+
+  @override
+  void clearDialogSecrets() => _controller.clear();
 
   @override
   void dispose() {
