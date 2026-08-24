@@ -46,26 +46,59 @@ final class UnlockCubit extends Cubit<UnlockViewState> {
   /// Invoked after the repository has rebuilt its unlocked safe projections.
   final void Function()? onUnlocked;
 
+  SessionUnlockAttempt? _activeUnlockAttempt;
+
   /// Submits a master password and updates the session only after success.
   Future<void> submit(String masterPassword) async {
     if (state is Unlocking) {
       return;
     }
+    final SessionUnlockAttempt attempt;
+    try {
+      attempt = _sessionController.beginUnlockAttempt();
+    } on StateError {
+      return;
+    }
+    _activeUnlockAttempt = attempt;
     emit(const Unlocking());
     try {
       final Result<UnlockedVault, UnlockFailure> result = await _unlockVault(
         masterPassword,
+        activityGuard: attempt,
       );
       switch (result) {
         case Success<UnlockedVault, UnlockFailure>():
-          _sessionController.unlock(AuthStrength.masterPassword);
+          if (!attempt.complete(AuthStrength.masterPassword)) {
+            if (!isClosed) {
+              emit(const UnlockReady());
+            }
+            return;
+          }
           onUnlocked?.call();
-          emit(const UnlockReady());
+          if (!isClosed) {
+            emit(const UnlockReady());
+          }
         case Failure<UnlockedVault, UnlockFailure>():
-          emit(const UnlockInvalidPassword());
+          final bool stillActive = attempt.isActive;
+          attempt.cancel();
+          if (!isClosed) {
+            emit(
+              stillActive ? const UnlockInvalidPassword() : const UnlockReady(),
+            );
+          }
       }
     } on Object {
-      emit(const UnlockFault());
+      final bool stillActive = attempt.isActive;
+      attempt.cancel();
+      if (!isClosed) {
+        emit(stillActive ? const UnlockFault() : const UnlockReady());
+      }
     }
+  }
+
+  @override
+  Future<void> close() {
+    _activeUnlockAttempt?.cancel();
+    return super.close();
   }
 }

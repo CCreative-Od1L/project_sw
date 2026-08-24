@@ -1,7 +1,9 @@
 # CI/CD 设计规格 · PROJECT_SW
 
 > 概述见 [DEVELOPMENT.md §8](../DEVELOPMENT.md);触发点与分支保护见 [GIT_WORKFLOW.md](../GIT_WORKFLOW.md)。
-> 本规格为 CI/CD 的**设计依据**,代码就绪后据此落地 `.github/workflows/` 与 `scripts/`。当前项目处于设计阶段(无 `pubspec.yaml` / `.github/` / `scripts/`),本规格不假设任何已存在代码。
+> 本规格为 CI/CD 的**设计依据**。PR/主干质量门禁已开始落地到
+> `.github/workflows/ci.yml`;移动端集成测试由 `integration.yml` 的 Android
+> 模拟器承载。构建与定期维护工作流也已落地,签名发布继续按 §12 分批实现。
 
 ## 1. 目标与定位
 
@@ -17,9 +19,9 @@
 | Workflow | 触发器 | 职责 | 失败后果 |
 |----------|--------|------|----------|
 | **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 集成测试 | 阻止 PR 合并(分支保护要求状态检查通过) |
-| **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug/release 产物并上传 artifact | 不阻断主干,但 artifact 缺失可被发版流程检出 |
+| **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug 产物并上传 artifact;签名 release 产物由 `release.yml` 负责 | 不阻断主干,但 artifact 缺失可被发版流程检出 |
 | **`release.yml`(发版)** | `push` tag `v*.*.*` | 构建各平台 release 分发包、签名、创建 GitHub Release | 发版失败,不打 tag 不发版 |
-| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查(`fvm dart pub outdated`)、安全审计、SDK 上限漂移检测 | 仅报告,开 issue 跟踪 |
+| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查、pub 安全公告解析、锁定 SDK 工具链记录 | 生成报告 artifact,由 Dependabot PR 跟踪可用更新 |
 
 > 触发器与 [GIT_WORKFLOW.md §1.1/§4.2](../GIT_WORKFLOW.md) 对齐:PR 必过 `ci.yml`,tag 触发 `release.yml`。
 
@@ -38,15 +40,16 @@
 
 按"快失败在前"排序,任一失败即终止后续:
 
-1. **checkout + setup**(安装 FVM,执行 `fvm install` 读取入库 `.fvmrc`)
+1. **checkout + setup**(GitHub Action 直接读取入库 `.fvmrc`,安装其中锁定的 Flutter SDK)
 2. **依赖缓存**(`pub-cache` 缓存,见 §5)
 3. **`fvm flutter pub get`**(基于入库的 `pubspec.lock`,可重放)
 4. **`fvm dart format --set-exit-if-changed .`**(格式化把关)
 5. **`fvm dart analyze`**(静态分析,严格档 [DEVELOPMENT.md §4](../DEVELOPMENT.md))
 6. **`fvm flutter test`**(单元 + widget)
-7. **`fvm flutter test integration_test/`**(集成测试)
+7. **`fvm flutter test integration_test/`**(由独立 Android 模拟器 job 执行)
 
-> 顺序与 [GIT_WORKFLOW.md §3.3](../GIT_WORKFLOW.md) 提交前本地检查一致,CI 是同一套的强制重放。
+> 顺序与 [GIT_WORKFLOW.md §3.3](../GIT_WORKFLOW.md) 提交前本地检查一致。CI
+> 直接调用由 `.fvmrc` 锁定并安装的 SDK;本地仍通过 FVM 调用同一版本。
 
 ## 5. 缓存策略
 
@@ -207,7 +210,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 | Workflow | 产物 | 留存 |
 |----------|------|------|
-| `build.yml` | debug APK(Android)、debug IPA(iOS,若有签名) | GitHub Actions artifact,90 天 |
+| `build.yml` | debug APK(Android)、无签名 debug `.app`(iOS) | GitHub Actions artifact,90 天 |
 | `release.yml` | signed AAB/APK(Android)、signed IPA(iOS) | 绑定到 GitHub Release,长期 |
 
 - 产物命名含版本号 + commit short sha + 平台,可追溯到具体提交。
@@ -247,8 +250,8 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
 2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
-3. **首次发版前**:落 `release.yml` + `scripts/build_android.sh` / `scripts/build_ios.sh` + 签名 secret 配置;跑通一次 tag → Release。
-4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)。
+3. **首次发版前**:先落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight;再接入 `scripts/build_android.sh` / `scripts/build_ios.sh`、签名 secret 配置与 tag → Release 产物演练。
+4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)与 Dependabot 周期更新(已完成)。
 
 ## 13. 待决(实现期)
 

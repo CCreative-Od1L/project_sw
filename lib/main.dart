@@ -6,8 +6,11 @@ import 'package:project_sw/core/config/app_config.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
+import 'package:project_sw/features/auth/presentation/authenticated_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_settings_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
+import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/step_up_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
@@ -31,6 +34,9 @@ Future<void> main() async {
           appServiceLocator.isRegistered<BiometricUnlockCubit>()
           ? appServiceLocator<BiometricUnlockCubit>()
           : null,
+      deadlockWipeCubit: appServiceLocator.isRegistered<DeadlockWipeCubit>()
+          ? appServiceLocator<DeadlockWipeCubit>()
+          : null,
       vaultEntriesCubit: appServiceLocator<VaultEntriesCubit>(),
       sensitiveClipboardController:
           appServiceLocator<SensitiveClipboardController>(),
@@ -45,8 +51,15 @@ Future<void> main() async {
       ),
       settingsPageBuilder: (_) => SettingsPage(
         config: appServiceLocator<AppConfig>(),
+        sessionController: appServiceLocator<SessionController>(),
         vaultRepository: appServiceLocator<VaultRepository>(),
         stepUpCubit: appServiceLocator<StepUpCubit>(),
+        masterPasswordChangeCubit:
+            appServiceLocator<MasterPasswordChangeCubit>(),
+        authenticatedWipeCubit:
+            appServiceLocator.isRegistered<AuthenticatedWipeCubit>()
+            ? appServiceLocator<AuthenticatedWipeCubit>()
+            : null,
         biometricSettingsCubit:
             appServiceLocator.isRegistered<BiometricSettingsCubit>()
             ? appServiceLocator<BiometricSettingsCubit>()

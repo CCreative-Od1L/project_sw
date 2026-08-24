@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:project_sw/core/crypto/argon2id_benchmark.dart';
 import 'package:project_sw/core/vault_file/vault_file.dart';
 import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
 import 'package:project_sw/shared/result.dart';
@@ -44,7 +45,7 @@ void main() {
     () async {
       final Result<UnlockedVault, UnlockFailure> result = await UnlockVault(
         repository,
-      )('correct password');
+      )('correct password', activityGuard: const _AlwaysActiveGuard());
 
       expect(result, isA<Success<UnlockedVault, UnlockFailure>>());
       expect(repository.hasUnlockedSession, isTrue);
@@ -54,7 +55,7 @@ void main() {
   test('maps only a wrong password to invalidMasterPassword', () async {
     final Result<UnlockedVault, UnlockFailure> result = await UnlockVault(
       repository,
-    )('wrong password');
+    )('wrong password', activityGuard: const _AlwaysActiveGuard());
 
     expect(result, isA<Failure<UnlockedVault, UnlockFailure>>());
     expect(
@@ -72,8 +73,18 @@ void main() {
     File('${vault.path}.bak').deleteSync();
 
     expect(
-      UnlockVault(repository)('correct password'),
+      UnlockVault(repository)(
+        'correct password',
+        activityGuard: const _AlwaysActiveGuard(),
+      ),
       throwsA(isA<VaultCorruptedException>()),
     );
   });
+}
+
+final class _AlwaysActiveGuard implements SessionActivityGuard {
+  const _AlwaysActiveGuard();
+
+  @override
+  void ensureActive() {}
 }
