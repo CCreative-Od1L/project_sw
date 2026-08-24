@@ -46,13 +46,19 @@ enum LockReason {
   wipeStarted,
 }
 
-/// Operation that temporarily suppresses only the foreground idle timeout.
-enum LockSuppressionReason {
-  /// An unlocked receiver or sender is actively migrating vault data.
-  migrationInProgress,
+/// Foreground workflow currently owned by an unlocked session.
+enum SessionActivity {
+  /// No workflow is suppressing the normal foreground idle timer.
+  none,
 
-  /// A biometric-assisted master-password recovery is in progress.
-  passwordRecoveryInProgress,
+  /// The device is sending vault data to a paired device.
+  migrationSending,
+
+  /// The device is receiving vault data from a paired device.
+  migrationReceiving,
+
+  /// Biometric-assisted master-password recovery is in progress.
+  passwordRecovery,
 }
 
 /// Authentication strength held by an unlocked session.
@@ -110,10 +116,16 @@ final class LockedSession extends SessionState {
 /// Unlocked state carrying the session's authentication strength.
 final class UnlockedSession extends SessionState {
   /// Creates an unlocked session with the established [authStrength].
-  const UnlockedSession({required this.authStrength});
+  const UnlockedSession({
+    required this.authStrength,
+    this.activity = SessionActivity.none,
+  });
 
   /// The strongest successful authentication in this unlocked session.
   final AuthStrength authStrength;
+
+  /// The foreground workflow whose lifecycle is owned by the session.
+  final SessionActivity activity;
 
   @override
   SessionRouteState get routeState => SessionRouteState.home;

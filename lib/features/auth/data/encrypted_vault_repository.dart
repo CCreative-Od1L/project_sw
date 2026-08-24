@@ -10,6 +10,8 @@ import 'package:project_sw/features/auth/domain/biometric/biometric_vault_reposi
 import 'package:project_sw/features/auth/domain/master_password_verifier.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/vault/data/vault_entry_json_codec.dart';
 import 'package:project_sw/features/vault/domain/vault_entry.dart';
@@ -388,7 +390,10 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<List<MigrationEntryPayload>> exportMigrationEntries() async {
+  Future<List<MigrationEntryPayload>> exportMigrationEntries({
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -397,6 +402,7 @@ final class EncryptedVaultRepository
     VaultFileHeader? header;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       for (final VaultEntryRecord record in opened.directory.records) {
@@ -409,7 +415,13 @@ final class EncryptedVaultRepository
           ),
         );
       }
+      activityGuard.ensureActive();
       return List<MigrationEntryPayload>.unmodifiable(exported);
+    } on SessionActivityInterrupted {
+      for (final MigrationEntryPayload payload in exported) {
+        payload.dispose();
+      }
+      rethrow;
     } on VaultException {
       for (final MigrationEntryPayload payload in exported) {
         payload.dispose();
@@ -439,8 +451,10 @@ final class EncryptedVaultRepository
 
   @override
   Future<void> importMigrationEntries(
-    List<MigrationEntryPayload> entries,
-  ) async {
+    List<MigrationEntryPayload> entries, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -453,6 +467,7 @@ final class EncryptedVaultRepository
     final List<EntrySummary> projected = <EntrySummary>[..._entrySummaries];
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       for (final MigrationEntryPayload payload in entries) {
@@ -529,13 +544,17 @@ final class EncryptedVaultRepository
         }
       }
       if (buffered.isNotEmpty) {
+        activityGuard.ensureActive();
         vaultFileEngine.commitMigration(
           path: path,
           opened: opened,
           entries: buffered,
         );
+        activityGuard.ensureActive();
         _entrySummaries = List<EntrySummary>.unmodifiable(projected);
       }
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -735,14 +754,24 @@ final class EncryptedVaultRepository
     required String newMasterPassword,
   }) async {
     await verifyMasterPassword(currentMasterPassword);
-    await recoverMasterPassword(newMasterPassword: newMasterPassword);
+    await _rewrapMasterVaultKey(newMasterPassword: newMasterPassword);
   }
 
   /// Re-wraps the unlocked MVK after the domain recovery gates have passed.
   @override
   Future<void> recoverMasterPassword({
     required String newMasterPassword,
+    required SessionActivityLease activityLease,
+  }) => _rewrapMasterVaultKey(
+    newMasterPassword: newMasterPassword,
+    activityLease: activityLease,
+  );
+
+  Future<void> _rewrapMasterVaultKey({
+    required String newMasterPassword,
+    SessionActivityLease? activityLease,
   }) async {
+    activityLease?.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) {
       throw const VaultLockedException();
@@ -756,6 +785,7 @@ final class EncryptedVaultRepository
     VaultFileHeader? nextHeader;
     try {
       final String path = await vaultPathResolver();
+      activityLease?.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       newSalt = crypto.randomBytes(16);
@@ -769,6 +799,7 @@ final class EncryptedVaultRepository
         iterations: header.kdfParameters.iterations,
         parallelism: header.kdfParameters.parallelism,
       );
+      activityLease?.ensureActive();
       final Uint8List newKdfBytes = _encodeVaultKdfParameters(
         header.kdfParameters,
       );
@@ -799,11 +830,15 @@ final class EncryptedVaultRepository
         kdfSalt: newSalt,
         wrappedMasterVaultKey: newWrappedMasterVaultKey,
       );
+      activityLease?.ensureActive();
       vaultFileEngine.commitHeaderUpdate(
         path: path,
         opened: opened,
         header: nextHeader,
       );
+      activityLease?.ensureActive();
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {

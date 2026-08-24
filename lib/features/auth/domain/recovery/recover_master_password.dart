@@ -3,6 +3,7 @@ import 'package:project_sw/features/auth/domain/master_password_strength.dart';
 import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_gate.dart';
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_repository.dart';
+import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/shared/result.dart';
 
 /// Expected business failures for biometric-assisted password recovery.
@@ -54,7 +55,9 @@ final class RecoverMasterPassword {
   /// Confirms recovery eligibility, biometrics, re-wrap, and cooldown.
   Future<Result<RecoveredMasterPassword, RecoverMasterPasswordFailure>> call({
     required String newMasterPassword,
+    required SessionActivityLease activityLease,
   }) async {
+    activityLease.ensureActive();
     if (newMasterPassword.isEmpty) {
       return const Failure<
         RecoveredMasterPassword,
@@ -71,6 +74,7 @@ final class RecoverMasterPassword {
     final MasterPasswordRecoveryState state = await gate.currentState(
       biometricConfigured: true,
     );
+    activityLease.ensureActive();
     if (state is! MasterPasswordRecoveryAvailable) {
       return const Failure<
         RecoveredMasterPassword,
@@ -79,6 +83,7 @@ final class RecoverMasterPassword {
     }
     try {
       await biometricConfirmer.confirm();
+      activityLease.ensureActive();
     } on BiometricCancelledException {
       return const Failure<
         RecoveredMasterPassword,
@@ -98,9 +103,12 @@ final class RecoverMasterPassword {
 
     await gate.reserveRecoveryCooldown();
     try {
+      activityLease.ensureActive();
       await repository.recoverMasterPassword(
         newMasterPassword: newMasterPassword,
+        activityLease: activityLease,
       );
+      activityLease.ensureActive();
     } on Object {
       await gate.cancelRecoveryCooldown();
       rethrow;
