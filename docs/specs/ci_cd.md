@@ -250,7 +250,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 
 1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
 2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
-3. **首次发版前**:落 `release.yml` + `scripts/build_android.sh` / `scripts/build_ios.sh` + 签名 secret 配置;跑通一次 tag → Release。
+3. **首次发版前**:先落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight;再接入 `scripts/build_android.sh` / `scripts/build_ios.sh`、签名 secret 配置与 tag → Release 产物演练。
 4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)与 Dependabot 周期更新(已完成)。
 
 ## 13. 待决(实现期)

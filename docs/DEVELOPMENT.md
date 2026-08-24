@@ -140,6 +140,7 @@ linter:
 
 - [ ] `pubspec.yaml` 依赖清单(含 dev 依赖)
 - [ ] `analysis_options.yaml` 最终 lint 规则集
-- [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 待代码就绪后按其 §12 落地)
+- [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 按其 §12 分阶段落地)
+- [x] release metadata preflight——tag、`pubspec.yaml` 版本、`CHANGELOG.md` 和 Flutter/lockfile 可重建元数据校验已落地;签名构建与 GitHub Release 仍待完成
 - [ ] CI workflow 文件(.github/workflows/)与打包脚本——按 [specs/ci_cd.md §12](./specs/ci_cd.md) 里程碑分阶段落
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)

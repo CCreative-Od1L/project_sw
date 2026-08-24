@@ -1,0 +1,39 @@
+name: Release metadata preflight
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metadata:
+    name: Validate release metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the complete tag history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag, version, and changelog
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REQUIRE_ANNOTATED_TAG: '1'
+          OUTPUT_FILE: release-metadata/release-metadata.txt
+        run: bash scripts/verify_release_metadata.sh
+
+      - name: Upload reproducibility metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-metadata-${{ github.ref_name }}-${{ github.sha }}
+          path: release-metadata/release-metadata.txt
+          if-no-files-found: error
+          retention-days: 90
