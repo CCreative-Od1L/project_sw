@@ -1,10 +1,90 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:project_sw/features/auth/domain/session/session_activity_guard.dart';
 import 'package:project_sw/features/auth/domain/session/session_secret_cleaner.dart';
 import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/session/session_timer.dart';
+
+/// Error raised when a locked session interrupts an in-flight activity.
+final class SessionActivityInterrupted implements Exception {
+  /// Creates a session activity interruption error.
+  const SessionActivityInterrupted(this.activity);
+
+  /// Activity that no longer owns the unlocked session.
+  final SessionActivity activity;
+
+  @override
+  String toString() => 'SessionActivityInterrupted: $activity';
+}
+
+/// Unique ownership token for one unlocked foreground workflow.
+final class SessionActivityLease implements SessionActivityGuard {
+  SessionActivityLease._(this._owner, this.activity);
+
+  final SessionController _owner;
+  final List<void Function()> _interruptionListeners = <void Function()>[];
+
+  /// Workflow represented by this lease.
+  final SessionActivity activity;
+
+  var _ended = false;
+  var _interrupted = false;
+
+  /// Whether this exact workflow still owns the current unlocked session.
+  bool get isActive => !_ended && _owner._owns(this);
+
+  /// Throws when lock or replacement has invalidated this workflow.
+  @override
+  void ensureActive() {
+    if (!isActive) {
+      throw SessionActivityInterrupted(activity);
+    }
+  }
+
+  /// Registers synchronous notification used to cancel pending external I/O.
+  void onInterrupted(void Function() listener) {
+    if (_ended) {
+      if (_interrupted) {
+        try {
+          listener();
+        } on Object {
+          // Locking must remain fail-closed when cancellation cleanup fails.
+        }
+      }
+      return;
+    }
+    _interruptionListeners.add(listener);
+  }
+
+  /// Completes only this workflow; stale leases cannot affect newer activity.
+  void complete() => _owner._completeActivity(this);
+
+  void _markCompleted() {
+    _ended = true;
+    _interruptionListeners.clear();
+  }
+
+  void _markInterrupted() {
+    if (_ended) {
+      return;
+    }
+    _ended = true;
+    _interrupted = true;
+    final List<void Function()> listeners = List<void Function()>.of(
+      _interruptionListeners,
+    );
+    _interruptionListeners.clear();
+    for (final void Function() listener in listeners) {
+      try {
+        listener();
+      } on Object {
+        // Locking must remain fail-closed even when cancellation cleanup fails.
+      }
+    }
+  }
+}
 
 /// Global session source of truth for route access and authentication state.
 final class SessionController extends ChangeNotifier {
@@ -14,7 +94,7 @@ final class SessionController extends ChangeNotifier {
     this.secretCleaner,
     this.idleTimeout = const Duration(minutes: 5),
     this.timerFactory = createDartSessionTimer,
-  }) : _state = initialState,
+  }) : _state = _validateInitialState(initialState),
        _secretCleaners = <SessionSecretCleaner>[?secretCleaner] {
     if (_state is UnlockedSession) {
       _startIdleTimer();
@@ -28,7 +108,7 @@ final class SessionController extends ChangeNotifier {
   final List<SessionSecretCleaner> _secretCleaners;
   SessionState _state;
   SessionTimer? _idleTimer;
-  LockSuppressionReason? _lockSuppressionReason;
+  SessionActivityLease? _activityLease;
 
   /// Collaborator that clears sensitive unlocked state before routing to lock.
   final SessionSecretCleaner? secretCleaner;
@@ -38,6 +118,18 @@ final class SessionController extends ChangeNotifier {
 
   /// Injectable timer implementation used by the session source of truth.
   final SessionTimerFactory timerFactory;
+
+  static SessionState _validateInitialState(SessionState initialState) {
+    if (initialState is UnlockedSession &&
+        initialState.activity != SessionActivity.none) {
+      throw ArgumentError.value(
+        initialState,
+        'initialState',
+        'An active session must be established through beginActivity.',
+      );
+    }
+    return initialState;
+  }
 
   /// The current immutable session state.
   SessionState get state => _state;
@@ -55,7 +147,9 @@ final class SessionController extends ChangeNotifier {
   bool get hasActiveIdleTimer => _idleTimer?.isActive ?? false;
 
   /// Whether the foreground idle timeout is temporarily suppressed.
-  bool get isIdleTimeoutSuppressed => _lockSuppressionReason != null;
+  bool get isIdleTimeoutSuppressed =>
+      _state is UnlockedSession &&
+      (_state as UnlockedSession).activity != SessionActivity.none;
 
   /// Whether the current unlocked session needs a master-password step-up.
   bool get requiresMasterPasswordStepUp => switch (_state) {
@@ -103,35 +197,37 @@ final class SessionController extends ChangeNotifier {
       throw StateError('The current lock reason does not permit this unlock.');
     }
     _cancelIdleTimer();
-    _lockSuppressionReason = null;
     _transition(UnlockedSession(authStrength: authStrength));
     _startIdleTimer();
   }
 
-  /// Temporarily suppresses the idle timeout for an in-progress operation.
-  void beginIdleTimeoutSuppression(LockSuppressionReason reason) {
-    if (_state is! UnlockedSession) {
-      throw StateError('Only an unlocked session can suppress idle timeout.');
+  /// Starts an unlocked workflow and suspends foreground idle timeout.
+  SessionActivityLease beginActivity(SessionActivity activity) {
+    if (activity == SessionActivity.none) {
+      throw ArgumentError.value(
+        activity,
+        'activity',
+        'An active workflow requires a concrete activity.',
+      );
     }
-    if (_lockSuppressionReason != null && _lockSuppressionReason != reason) {
-      throw StateError('Another lock suppression is already active.');
+    final SessionState current = _state;
+    if (current is! UnlockedSession) {
+      throw StateError('Only an unlocked session can start an activity.');
     }
-    _lockSuppressionReason = reason;
+    if (current.activity != SessionActivity.none) {
+      throw StateError('Another session activity is already active.');
+    }
+    final SessionActivityLease lease = SessionActivityLease._(this, activity);
+    _activityLease = lease;
     _cancelIdleTimer();
-  }
-
-  /// Ends an idle-timeout suppression and starts a fresh inactivity window.
-  void endIdleTimeoutSuppression(LockSuppressionReason reason) {
-    if (_lockSuppressionReason != reason) {
-      return;
-    }
-    _lockSuppressionReason = null;
-    _startIdleTimer();
+    _transition(
+      UnlockedSession(authStrength: current.authStrength, activity: activity),
+    );
+    return lease;
   }
 
   /// Locks the current vault session for [reason].
   void lock(LockReason reason) {
-    _lockSuppressionReason = null;
     if (_state is VaultNotCreatedSession) {
       return;
     }
@@ -148,6 +244,7 @@ final class SessionController extends ChangeNotifier {
       _transition(LockedSession(reason: reason));
       return;
     }
+    _interruptActivity();
     _cancelIdleTimer();
     for (final SessionSecretCleaner cleaner in _secretCleaners) {
       cleaner.clearUnlockedSession();
@@ -170,7 +267,6 @@ final class SessionController extends ChangeNotifier {
       throw StateError('Only an active wipe can publish first-run setup.');
     }
     _cancelIdleTimer();
-    _lockSuppressionReason = null;
     _transition(const VaultNotCreatedSession());
   }
 
@@ -187,7 +283,10 @@ final class SessionController extends ChangeNotifier {
       return;
     }
     _transition(
-      const UnlockedSession(authStrength: AuthStrength.masterPassword),
+      UnlockedSession(
+        authStrength: AuthStrength.masterPassword,
+        activity: current.activity,
+      ),
     );
   }
 
@@ -202,8 +301,7 @@ final class SessionController extends ChangeNotifier {
       case SessionEvent.userInteractionObserved:
         _resetIdleTimer();
       case SessionEvent.idleTimeoutElapsed:
-        if (_lockSuppressionReason != null) {
-          _startIdleTimer();
+        if (isIdleTimeoutSuppressed) {
           return;
         }
         lock(LockReason.backgroundOrTimeout);
@@ -215,6 +313,7 @@ final class SessionController extends ChangeNotifier {
   /// Releases stream resources owned by this controller.
   @override
   void dispose() {
+    _interruptActivity();
     _cancelIdleTimer();
     _events.close();
     _states.close();
@@ -230,7 +329,9 @@ final class SessionController extends ChangeNotifier {
   }
 
   void _startIdleTimer() {
-    if (_state is! UnlockedSession) {
+    final SessionState current = _state;
+    if (current is! UnlockedSession ||
+        current.activity != SessionActivity.none) {
       return;
     }
     _idleTimer = timerFactory(idleTimeout, () {
@@ -242,6 +343,31 @@ final class SessionController extends ChangeNotifier {
   void _cancelIdleTimer() {
     _idleTimer?.cancel();
     _idleTimer = null;
+  }
+
+  bool _owns(SessionActivityLease lease) {
+    final SessionState current = _state;
+    return identical(_activityLease, lease) &&
+        current is UnlockedSession &&
+        current.activity == lease.activity;
+  }
+
+  void _completeActivity(SessionActivityLease lease) {
+    if (!_owns(lease)) {
+      lease._markInterrupted();
+      return;
+    }
+    final UnlockedSession current = _state as UnlockedSession;
+    _activityLease = null;
+    lease._markCompleted();
+    _transition(UnlockedSession(authStrength: current.authStrength));
+    _startIdleTimer();
+  }
+
+  void _interruptActivity() {
+    final SessionActivityLease? lease = _activityLease;
+    _activityLease = null;
+    lease?._markInterrupted();
   }
 
   void _transition(SessionState nextState) {

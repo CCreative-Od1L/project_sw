@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:project_sw/features/auth/domain/change_master_password.dart';
 import 'package:project_sw/features/auth/domain/master_password_change_repository.dart';
 import 'package:project_sw/features/auth/domain/recovery/biometric_recovery_confirmer.dart';
@@ -6,6 +8,7 @@ import 'package:project_sw/features/auth/domain/recovery/master_password_recover
 import 'package:project_sw/features/auth/domain/recovery/master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/domain/recovery/recover_master_password.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/master_password_change_cubit.dart';
 import 'package:project_sw/shared/errors/vault_exception.dart';
@@ -160,7 +163,12 @@ void main() {
         repository: recoveryRepository,
       ),
     );
+    final List<SessionState> sessionStates = <SessionState>[];
+    final sessionSubscription = sessionController.states.listen(
+      sessionStates.add,
+    );
     addTearDown(cubit.close);
+    addTearDown(sessionSubscription.cancel);
     addTearDown(sessionController.dispose);
 
     await cubit.recover(
@@ -175,10 +183,16 @@ void main() {
       (sessionController.state as UnlockedSession).authStrength,
       AuthStrength.biometric,
     );
+    expect(
+      sessionStates.whereType<UnlockedSession>().map(
+        (UnlockedSession state) => state.activity,
+      ),
+      <SessionActivity>[SessionActivity.passwordRecovery, SessionActivity.none],
+    );
     expect(sessionController.isIdleTimeoutSuppressed, isFalse);
   });
 
-  test('does not release another operation idle-timeout suppression', () async {
+  test('does not replace or release another session activity', () async {
     final _RecoveryStore store = _RecoveryStore();
     final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);
     for (var attempt = 0; attempt < 3; attempt++) {
@@ -186,7 +200,10 @@ void main() {
     }
     final SessionController sessionController = SessionController(
       initialState: const UnlockedSession(authStrength: AuthStrength.biometric),
-    )..beginIdleTimeoutSuppression(LockSuppressionReason.migrationInProgress);
+    );
+    final SessionActivityLease migrationLease = sessionController.beginActivity(
+      SessionActivity.migrationSending,
+    );
     final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
       ChangeMasterPassword(_PasswordChangeRepository()),
       sessionController,
@@ -208,10 +225,58 @@ void main() {
 
     expect(cubit.state, isA<MasterPasswordRecoveryFault>());
     expect(sessionController.isIdleTimeoutSuppressed, isTrue);
-    sessionController.endIdleTimeoutSuppression(
-      LockSuppressionReason.migrationInProgress,
+    expect(
+      (sessionController.state as UnlockedSession).activity,
+      SessionActivity.migrationSending,
     );
+    migrationLease.complete();
   });
+
+  test(
+    'does not re-wrap the vault after recovery is interrupted by lock',
+    () async {
+      final _RecoveryStore store = _RecoveryStore();
+      final MasterPasswordRecoveryGate gate = MasterPasswordRecoveryGate(store);
+      for (var attempt = 0; attempt < 3; attempt++) {
+        await gate.recordChangePasswordFailure(biometricConfigured: true);
+      }
+      final _BlockingRecoveryConfirmer confirmer = _BlockingRecoveryConfirmer();
+      final _RecoveryRepository repository = _RecoveryRepository();
+      final SessionController sessionController = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.biometric,
+        ),
+      );
+      final MasterPasswordChangeCubit cubit = MasterPasswordChangeCubit(
+        ChangeMasterPassword(_PasswordChangeRepository()),
+        sessionController,
+        recoveryGate: gate,
+        hasConfiguredBiometricRecovery: () async => true,
+        recoverMasterPassword: RecoverMasterPassword(
+          gate: gate,
+          biometricConfirmer: confirmer,
+          repository: repository,
+        ),
+      );
+      addTearDown(cubit.close);
+      addTearDown(sessionController.dispose);
+
+      final Future<void> recovery = cubit.recover(
+        newMasterPassword: 'recovered password',
+        confirmation: 'recovered password',
+      );
+      await confirmer.started.future;
+
+      sessionController.handle(SessionEvent.appBackgrounded);
+      confirmer.complete();
+      await recovery;
+
+      expect(cubit.state, isA<MasterPasswordRecoveryFault>());
+      expect(repository.passwords, isEmpty);
+      expect(store.cooldownUntil, isNull);
+      expect(sessionController.state, isA<LockedSession>());
+    },
+  );
 
   test(
     'loads a persisted recovery window without another failed attempt',
@@ -296,13 +361,28 @@ final class _RecoveryConfirmer implements BiometricRecoveryConfirmer {
   Future<void> confirm() async {}
 }
 
+final class _BlockingRecoveryConfirmer implements BiometricRecoveryConfirmer {
+  final Completer<void> started = Completer<void>();
+  final Completer<void> _completion = Completer<void>();
+
+  @override
+  Future<void> confirm() {
+    started.complete();
+    return _completion.future;
+  }
+
+  void complete() => _completion.complete();
+}
+
 final class _RecoveryRepository implements MasterPasswordRecoveryRepository {
   final List<String> passwords = <String>[];
 
   @override
   Future<void> recoverMasterPassword({
     required String newMasterPassword,
+    required SessionActivityLease activityLease,
   }) async {
+    activityLease.ensureActive();
     passwords.add(newMasterPassword);
   }
 }

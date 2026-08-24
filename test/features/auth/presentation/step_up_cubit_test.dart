@@ -32,8 +32,8 @@ void main() {
       expect(verified, isTrue);
       expect(verifier.passwords, <String>['correct password']);
       expect(
-        sessionController.state,
-        const UnlockedSession(authStrength: AuthStrength.masterPassword),
+        (sessionController.state as UnlockedSession).authStrength,
+        AuthStrength.masterPassword,
       );
       expect(cubit.state, isA<StepUpReady>());
     },
@@ -46,8 +46,8 @@ void main() {
 
     expect(verified, isFalse);
     expect(
-      sessionController.state,
-      const UnlockedSession(authStrength: AuthStrength.biometric),
+      (sessionController.state as UnlockedSession).authStrength,
+      AuthStrength.biometric,
     );
     expect(cubit.state, isA<StepUpInvalidPassword>());
   });
