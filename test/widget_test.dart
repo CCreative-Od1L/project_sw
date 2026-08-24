@@ -226,9 +226,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No entries have been added yet.'), findsOneWidget);
 
+    await tester.enterText(find.bySemanticsLabel('Name'), 'Lock target');
+    await tester.enterText(
+      find.bySemanticsLabel('Password'),
+      'dialog residual secret',
+    );
+    await tester.enterText(
+      find.bySemanticsLabel('Notes'),
+      'dialog residual notes',
+    );
+    await tester.tap(find.text('Save entry'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lock target'));
+    await tester.pumpAndSettle();
+
+    final TextField detailPassword = tester.widget<TextField>(
+      find.ancestor(
+        of: find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.bySemanticsLabel('Password'),
+        ),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(detailPassword.controller?.text, 'dialog residual secret');
+
     sessionController.lock(LockReason.manualLock);
     await tester.pumpAndSettle();
+
     expect(entriesCubit.state.summaries, isEmpty);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('dialog residual notes'), findsNothing);
   });
 }
 
