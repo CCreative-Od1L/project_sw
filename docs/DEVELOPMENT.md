@@ -109,6 +109,7 @@ linter:
 - 统一打包脚本(`scripts/`),参数化平台与环境(dev/staging/release):
   - `scripts/build_android.sh` —— APK/AAB,签名配置经环境变量注入,禁止入库密钥库。
   - `scripts/build_ios.sh` —— IPA,经 fastlane gym,签名经 match/ci。
+- Android release signing 已接入 Gradle 的显式凭据校验;缺少签名环境变量时安全失败,不会使用 debug key。iOS 无签名 release 与正式签名仍按 #53 后续切片推进。
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
 ### 8.2 CI(GitHub Actions,示意)

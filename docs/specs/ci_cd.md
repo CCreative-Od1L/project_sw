@@ -205,6 +205,7 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 - 签名密钥、证书、密钥库**绝不入库**;`.gitignore` 已排除(`*.keystore`、`*.jks`、`*.p12`、`*.p8`、`*.mobileprovision`、`.env*`)。
 - CI 日志禁用 `ACTIONS_STEP_DEBUG` 打印 secret;GitHub 自动 mask 注入的 secret 值。
 - secret 最小权限:发版 workflow 用 `environment: release`(带必需 reviewer / 分支限定),`ci.yml` 不持有任何签名 secret。
+- Android release 配置不得回退到 debug signing;缺少 `ANDROID_KEYSTORE_PATH`、`ANDROID_KEY_ALIAS`、`ANDROID_KEYSTORE_PASSWORD` 或 `ANDROID_KEY_PASSWORD` 时必须在 Gradle 任务中失败,且不得输出 secret 值。
 
 ## 8. 产物与留存
 
