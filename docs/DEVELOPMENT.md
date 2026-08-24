@@ -106,15 +106,16 @@ linter:
 对应需求"脚本化打包流程、CI/CD 流程"。本节为概述;完整设计(workflow 分层、job 矩阵、缓存、runner、签名注入、产物、发版流水线、落地里程碑)见 [specs/ci_cd.md](./specs/ci_cd.md)。
 
 ### 8.1 打包脚本
-- 统一打包脚本(`scripts/`),参数化平台与环境(dev/staging/release):
-  - `scripts/build_android.sh` —— APK/AAB,签名配置经环境变量注入,禁止入库密钥库。
-  - `scripts/build_ios.sh` —— IPA,经 fastlane gym,签名经 match/ci。
+- 统一打包脚本(`scripts/`),按平台与构建模式参数化:
+  - `scripts/build_android.sh` —— `debug-apk` / `release-aab`,签名配置经环境变量注入,禁止入库密钥库。
+  - `scripts/build_ios.sh` —— `unsigned-debug` / `unsigned-release`;正式签名仍经后续 macOS signing lane 接入。
+- 两个脚本会先定位仓库根目录,因此可从任意当前目录调用;测试或封装环境可通过 `REPO_ROOT` 显式指定根目录。
 - Android release signing 已接入 Gradle 的显式凭据校验;缺少签名环境变量时安全失败,不会使用 debug key。iOS 无签名 release 与正式签名仍按 #53 后续切片推进。
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
 ### 8.2 CI(GitHub Actions,示意)
 - **PR 检查**:`fvm dart analyze` + `fvm dart format --set-exit-if-changed` + `fvm flutter test` + 集成测试(模拟器)。
-- **主分支**:同上 + 构建 release 产物 + 上传为 artifact。
+- **主分支**:同上 + 构建 Android debug APK 与 iOS 无签名 debug `.app`,并上传为 artifact;签名 release 由后续发版 lane 负责。
 - **发布**:打 tag 触发 release 流水线,构建各平台分发包并发布。
 - 安全:CI 中禁用打印 secrets;依赖固定版本与 hash 校验。
 
