@@ -44,6 +44,7 @@ void main() {
     await repository.unlockWithMasterPassword('correct password');
     await repository.addEntry(
       const NewVaultEntry(name: 'Example', password: 'private'),
+      activityGuard: const _AlwaysActiveGuard(),
     );
   });
 

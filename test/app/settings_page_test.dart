@@ -497,23 +497,31 @@ final class SettingsVaultRepository implements VaultRepository {
   bool get hasUnlockedSession => true;
 
   @override
-  Future<EntrySummary> addEntry(NewVaultEntry entry) async =>
-      throw UnimplementedError();
+  Future<EntrySummary> addEntry(
+    NewVaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
   List<EntrySummary> get entrySummaries => const <EntrySummary>[];
 
   @override
-  Future<EntryDetail> getEntryDetail(Uint8List entryId) async =>
-      throw UnimplementedError();
+  Future<EntryDetail> getEntryDetail(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
-  Future<EntrySummary> updateEntry(VaultEntry entry) async =>
-      throw UnimplementedError();
+  Future<EntrySummary> updateEntry(
+    VaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
-  Future<void> deleteEntry(Uint8List entryId) async =>
-      throw UnimplementedError();
+  Future<void> deleteEntry(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async => throw UnimplementedError();
 
   @override
   void clearUnlockedSession() {}

@@ -260,7 +260,7 @@ idle timer 是会话系统的一部分,由会话真相源统一启动、重置�
 - `password_change`
 - `biometric_configuration`
 
-迁移协调器、忘码恢复、主密码变更、生物配置与认证擦除入口必须通过会话真相源取得唯一 guard;已满足主密码强度时使用 activity lease,生物会话的主密码变更复用 step-up challenge。认证擦除在验证当前主密码前取得 lease,并在开始不可逆销毁前再次检查;锁定后的旧验证结果不得启动擦除。页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 guard 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁、写入新 header 或结束后续同类活动。
+迁移协调器、忘码恢复、主密码变更、生物配置、认证擦除与条目页面访问入口必须通过会话真相源取得唯一 guard;已满足主密码强度时使用 activity lease,生物会话的主密码变更复用 step-up challenge。认证擦除在验证当前主密码前取得 lease,并在开始不可逆销毁前再次检查;锁定后的旧验证结果不得启动擦除。条目读取、新增、更新和删除在路径解析等异步边界及原子提交前复核 `vaultAccess` lease。页面不得自行维护并行流程标志。活动完成或传输中断后回到 `none`,锁定会使 guard 失效并触发挂起 I/O 取消或敏感提交检查;stale completion 不得重新解锁、写入新 header 或结束后续同类活动。
 
 非 `none` 活动提供一个极窄的受控 `lockSuppression` 效果。
 

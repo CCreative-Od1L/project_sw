@@ -425,6 +425,67 @@ void main() {
       expect(controller.hasActiveIdleTimer, isFalse);
     });
 
+    test('rejects unlock reentry while a locked reason is being tightened', () {
+      final SessionController controller = SessionController(
+        initialState: const LockedSession(
+          reason: LockReason.backgroundOrTimeout,
+        ),
+      );
+      addTearDown(controller.dispose);
+      var reentryRejected = false;
+      final subscription = controller.states.listen((SessionState state) {
+        if (state is LockedSession &&
+            state.reason == LockReason.biometricInvalidated) {
+          try {
+            controller.unlock(AuthStrength.masterPassword);
+          } on StateError {
+            reentryRejected = true;
+          }
+        }
+      });
+      addTearDown(subscription.cancel);
+
+      controller.handle(SessionEvent.biometricInvalidated);
+
+      expect(reentryRejected, isTrue);
+      expect(
+        (controller.state as LockedSession).reason,
+        LockReason.biometricInvalidated,
+      );
+    });
+
+    test('keeps locking through nested locked-state notifications', () {
+      final SessionController controller = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      addTearDown(controller.dispose);
+      var reentryRejected = false;
+      final subscription = controller.states.listen((SessionState state) {
+        if (state is LockedSession && state.reason == LockReason.manualLock) {
+          controller.handle(SessionEvent.biometricInvalidated);
+        }
+        if (state is LockedSession &&
+            state.reason == LockReason.biometricInvalidated) {
+          try {
+            controller.unlock(AuthStrength.masterPassword);
+          } on StateError {
+            reentryRejected = true;
+          }
+        }
+      });
+      addTearDown(subscription.cancel);
+
+      controller.lock(LockReason.manualLock);
+
+      expect(reentryRejected, isTrue);
+      expect(
+        (controller.state as LockedSession).reason,
+        LockReason.biometricInvalidated,
+      );
+    });
+
     test('locks and continues cleanup when one cleaner throws', () {
       final RecordingCleaner survivor = RecordingCleaner();
       final SessionController controller = SessionController(

@@ -948,7 +948,11 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<EntrySummary> addEntry(NewVaultEntry entry) async {
+  Future<EntrySummary> addEntry(
+    NewVaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (entry.name.trim().isEmpty) {
       throw const InvalidArgumentException('An entry name is required.');
     }
@@ -968,6 +972,7 @@ final class EncryptedVaultRepository
     AeadCiphertext? encryptedEntry;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       entryId = crypto.randomBytes(16);
       final DateTime now = DateTime.now().toUtc();
@@ -1019,6 +1024,7 @@ final class EncryptedVaultRepository
         plaintextFormatId: 1,
         sequence: opened.header.sequenceCounter,
       );
+      activityGuard.ensureActive();
       vaultFileEngine.commitEntryBlock(
         path: path,
         opened: opened,
@@ -1033,6 +1039,8 @@ final class EncryptedVaultRepository
         summary,
       ]);
       return summary;
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -1078,16 +1086,23 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<EntryDetail> getEntryDetail(Uint8List entryId) async {
+  Future<EntryDetail> getEntryDetail(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
     if (masterVaultKey == null) throw const VaultLockedException();
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       final VaultEntryRecord record = _recordFor(opened.directory, entryId);
       return EntryDetail(
         _decryptEntry(path, opened.header, record, masterVaultKey),
       );
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -1098,12 +1113,18 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<void> deleteEntry(Uint8List entryId) async {
+  Future<void> deleteEntry(
+    Uint8List entryId, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (_masterVaultKey == null) throw const VaultLockedException();
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       final VaultEntryRecord record = _recordFor(opened.directory, entryId);
+      activityGuard.ensureActive();
       vaultFileEngine.commitEntryDeletion(
         path: path,
         opened: opened,
@@ -1114,6 +1135,8 @@ final class EncryptedVaultRepository
           (EntrySummary item) => !_sameBytes(item.entryId, entryId),
         ),
       );
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
@@ -1124,7 +1147,11 @@ final class EncryptedVaultRepository
   }
 
   @override
-  Future<EntrySummary> updateEntry(VaultEntry entry) async {
+  Future<EntrySummary> updateEntry(
+    VaultEntry entry, {
+    required SessionActivityGuard activityGuard,
+  }) async {
+    activityGuard.ensureActive();
     if (entry.name.trim().isEmpty) {
       throw const InvalidArgumentException('An entry name is required.');
     }
@@ -1141,6 +1168,7 @@ final class EncryptedVaultRepository
     AeadCiphertext? encrypted;
     try {
       final String path = await vaultPathResolver();
+      activityGuard.ensureActive();
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       final VaultEntryRecord current = _recordFor(
         opened.directory,
@@ -1192,6 +1220,7 @@ final class EncryptedVaultRepository
       final int nextFree = inPlace
           ? opened.header.freeListHead
           : current.blockOffset;
+      activityGuard.ensureActive();
       vaultFileEngine.commitEntryBlock(
         path: path,
         opened: opened,
@@ -1211,6 +1240,8 @@ final class EncryptedVaultRepository
         ),
       );
       return summary;
+    } on SessionActivityInterrupted {
+      rethrow;
     } on VaultException {
       rethrow;
     } on FileSystemException catch (error) {
