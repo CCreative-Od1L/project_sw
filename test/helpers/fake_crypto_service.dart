@@ -8,6 +8,7 @@ final class FakeCryptoService implements CryptoService {
   FakeCryptoService({
     this.delays = const <int, Duration>{},
     this.derivationFailure,
+    this.beforeDeriveKek,
   });
 
   /// Delays applied to each derivation's memory-cost profile.
@@ -15,6 +16,9 @@ final class FakeCryptoService implements CryptoService {
 
   /// Failure raised instead of deriving a KEK, when configured.
   final Object? derivationFailure;
+
+  /// Optional synchronization hook invoked before each deterministic KDF.
+  final Future<void> Function(String password)? beforeDeriveKek;
 
   /// KEK buffers returned to callers.
   final List<Uint8List> derivedKeys = <Uint8List>[];
@@ -35,6 +39,7 @@ final class FakeCryptoService implements CryptoService {
     required int iterations,
     required int parallelism,
   }) async {
+    await beforeDeriveKek?.call(password);
     if (derivationFailure != null) {
       throw derivationFailure!;
     }
