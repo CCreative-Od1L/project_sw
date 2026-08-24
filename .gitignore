@@ -18,6 +18,13 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Release signing materials
+*.keystore
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+
 # IDE
 .vscode/
 .idea/
