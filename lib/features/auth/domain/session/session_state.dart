@@ -62,6 +62,9 @@ enum SessionActivity {
 
   /// Atomic master-password verification and re-wrap is in progress.
   passwordChange,
+
+  /// Enabling, disabling, or resetting biometric access is in progress.
+  biometricConfiguration,
 }
 
 /// Authentication strength held by an unlocked session.

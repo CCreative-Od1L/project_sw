@@ -51,26 +51,38 @@ class MainActivity : FlutterFragmentActivity() {
             return
         }
         try {
-            deleteKeystoreKey()
+            if (!deleteBiometricMaterialBestEffort()) {
+                result.error(ERROR_AUTHENTICATION, null, null)
+                return
+            }
             val key = generateKeystoreKey()
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, key)
             val transientKey = ByteArray(TRANSIENT_KEY_LENGTH)
             SecureRandom().nextBytes(transientKey)
-            authenticate(cipher, result) { authenticatedCipher ->
+            authenticate(
+                cipher,
+                result,
+                onAuthenticationError = { deleteBiometricMaterialBestEffort() },
+            ) { authenticatedCipher ->
                 try {
                     val ciphertext = authenticatedCipher.doFinal(transientKey)
-                    persistEnvelope(authenticatedCipher.iv, ciphertext)
+                    if (!persistEnvelope(authenticatedCipher.iv, ciphertext)) {
+                        throw IllegalStateException("Biometric envelope was not persisted")
+                    }
                     result.success(transientKey.copyOf())
                 } catch (error: Exception) {
+                    deleteBiometricMaterialBestEffort()
                     result.error(ERROR_AUTHENTICATION, null, null)
                 } finally {
                     transientKey.fill(0)
                 }
             }
         } catch (error: KeyPermanentlyInvalidatedException) {
+            deleteBiometricMaterialBestEffort()
             result.error(ERROR_INVALIDATED, null, null)
         } catch (error: Exception) {
+            deleteBiometricMaterialBestEffort()
             result.error(ERROR_AUTHENTICATION, null, null)
         }
     }
@@ -152,6 +164,7 @@ class MainActivity : FlutterFragmentActivity() {
     private fun authenticate(
         cipher: Cipher,
         result: MethodChannel.Result,
+        onAuthenticationError: () -> Unit = {},
         onAuthenticated: (Cipher) -> Unit,
     ) {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -169,6 +182,7 @@ class MainActivity : FlutterFragmentActivity() {
                     val authenticatedCipher =
                         authenticationResult.cryptoObject?.cipher
                     if (authenticatedCipher == null) {
+                        onAuthenticationError()
                         result.error(ERROR_AUTHENTICATION, null, null)
                     } else {
                         onAuthenticated(authenticatedCipher)
@@ -190,6 +204,7 @@ class MainActivity : FlutterFragmentActivity() {
                         -> ERROR_CANCELLED
                         else -> ERROR_AUTHENTICATION
                     }
+                    onAuthenticationError()
                     result.error(normalized, null, null)
                 }
             },
@@ -238,7 +253,31 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    private fun persistEnvelope(iv: ByteArray, ciphertext: ByteArray) {
+    private fun deleteBiometricMaterialBestEffort(): Boolean {
+        var keyRemoved = false
+        var envelopeRemoved = false
+        try {
+            deleteKeystoreKey()
+            keyRemoved = true
+        } catch (error: Exception) {
+            // The caller still needs a MethodChannel result on cleanup faults.
+        }
+        try {
+            val preferences = getSharedPreferences(
+                PREFERENCES_NAME,
+                Context.MODE_PRIVATE,
+            )
+            envelopeRemoved = preferences
+                .edit()
+                .remove(ENVELOPE_KEY)
+                .commit() && !preferences.contains(ENVELOPE_KEY)
+        } catch (error: Exception) {
+            // Report failure without letting best-effort cleanup throw.
+        }
+        return keyRemoved && envelopeRemoved
+    }
+
+    private fun persistEnvelope(iv: ByteArray, ciphertext: ByteArray): Boolean {
         val envelope = ByteBuffer.allocate(4 + iv.size + ciphertext.size)
             .putInt(iv.size)
             .put(iv)
@@ -246,7 +285,7 @@ class MainActivity : FlutterFragmentActivity() {
             .array()
         val encoded = Base64.encodeToString(envelope, Base64.NO_WRAP)
         envelope.fill(0)
-        getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+        return getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(ENVELOPE_KEY, encoded)
             .commit()
