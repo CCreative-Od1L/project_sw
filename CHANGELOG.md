@@ -20,4 +20,4 @@ All notable user-visible changes to PROJECT_SW are documented here.
 
 ### Known limitations
 
-- Final Android and iOS release signing and real-device acceptance are maintained as release-gate work.
+- Android release signing and real-device acceptance remain release-gate work. An iOS software release is outside the V1.0 scope because signing certificates and distribution qualification are unavailable.

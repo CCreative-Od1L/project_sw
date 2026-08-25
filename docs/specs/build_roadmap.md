@@ -146,7 +146,7 @@
 - **忘码恢复与死锁擦除**:忘码恢复通道(改密码错 ≥3 次浮现、一周冷却、二次生物确认、salt 重生);死锁擦除(特定手势浮现、四重摩擦、延迟倒计时);擦除覆盖(库文件、.bak、journal、日志、Keychain/Keystore)
 - **完整状态机**:lock_and_recovery.md §5 的 12 状态全部实现,由 ADR-0010 所定义的全局会话真相源统一驱动,含 S5 生物失效、S6/S7 冷却期、S9/S10 迁移状态、S11 擦除
 - **设置页(可配置预留)**:会话超时参数当前固定值展示(标注"未来可配置");剪贴板自动清除待平台专项方案确定
-- **CI/CD 落地**:按 [ci_cd.md §12](ci_cd.md) 里程碑——`ci.yml`(PR 检查)、`build.yml`(产物)、`release.yml`(tag/version/CHANGELOG preflight,后续接签名发版)、`scheduled.yml`(依赖审计);`scripts/build_android.sh`、`scripts/build_ios.sh`;master 分支保护配置;签名 secret 配置
+- **CI/CD 落地**:按 [ci_cd.md §12](ci_cd.md) 里程碑——`ci.yml`(PR 检查)、`build.yml`(Android/iOS 无签名验证产物)、`release.yml`(Android tag/version/CHANGELOG preflight、signed AAB 与 GitHub Release)、`scheduled.yml`(依赖审计);`scripts/build_android.sh`、`scripts/build_ios.sh`;master 分支保护配置;Android signing secret 配置
 - **CHANGELOG.md**:初始化,记录 v1.0 用户可见变化
 
 **验收标准**:
@@ -154,7 +154,7 @@
 2. 两台设备间可完成局域网迁移,迁移后条目明文一致,entry_id 冲突按 updated_at 覆盖
 3. 忘码恢复通道四重门槛正确,冷却期生效
 4. 死锁擦除四重摩擦正确,擦除后 Keychain 清除验证
-5. CI:PR 必过 `ci.yml`,tag 触发 `release.yml` 构建签名产物并创建 GitHub Release
+5. CI:PR 必过 `ci.yml`,tag 触发 `release.yml` 构建 Android signed AAB 并创建 GitHub Release;iOS 不纳入 V1.0 发布
 6. `fvm dart analyze` 零 warning,`fvm flutter test` + 集成测试全绿
 7. 任一历史 tag 可重新构建
 

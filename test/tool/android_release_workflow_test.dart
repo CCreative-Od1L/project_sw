@@ -29,6 +29,7 @@ void main() {
         workflow,
         contains('permissions:\n      actions: read\n      contents: write'),
       );
+      expect(workflow, isNot(contains('build_ios.sh')));
     },
   );
 }
