@@ -219,11 +219,12 @@ feature-b   │ 自己的缓存(可读写)  │── 读 ──┘   ← featur
 - `build.yml` 的平台构建通过 `scripts/build_android.sh debug-apk` 与
   `scripts/build_ios.sh unsigned-debug` 执行;脚本显式校验产物,避免 workflow
   命令与本地构建语义漂移。
-- 当前 `release.yml` 上传非敏感的可重建 metadata 与 signed Android AAB,并将对应 CHANGELOG 段落和两个 artifact 汇总到 GitHub Release;iOS 不进入该 workflow。
+- 当前 `release.yml` 上传非敏感的可重建 metadata 与 signed Android AAB,并将对应 CHANGELOG 段落和两个 artifact 汇总到 GitHub Release;iOS 不进入该 workflow。Android release job 先执行 `flutter pub get --enforce-lockfile`,再以 `FLUTTER_BUILD_WITH_PUB=1` 调用 release 脚本;不得用 `--no-pub` 绕过 Flutter 3.44.7 的平台插件工具刷新。
 
 ## 9. 依赖校验与安全
 
 - **`pubspec.lock` 入库**(已约定 [DEVELOPMENT.md §7](../DEVELOPMENT.md)):CI `fvm flutter pub get` 基于锁文件,保证可重放。
+- **Android release 插件工具刷新**:Flutter 3.44.7 的 release AAB 在锁定依赖解析后仍需执行 pub-enabled build;release workflow 必须设置 `FLUTTER_BUILD_WITH_PUB=1`,避免 `--no-pub` 留下与 release classpath 不一致的 `GeneratedPluginRegistrant`。
 - **依赖固定**:Actions 第三方 action 钉 tag + SHA(`uses: <action>@<tag>` 并注释 SHA),防供应链篡改。
 - **定期审计**(`scheduled.yml`):`fvm dart pub outdated` + 安全公告扫描;发现高危依赖开 issue,按 `security:` 提交处理并优先发版([GIT_WORKFLOW.md §6.3](../GIT_WORKFLOW.md))。
 - CI 中禁用打印 secrets;workflow 不含任何硬编码凭据。

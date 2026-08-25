@@ -110,6 +110,7 @@ linter:
   - `scripts/build_android.sh` —— `debug-apk` / `release-aab`,签名配置经环境变量注入,禁止入库密钥库。
   - `scripts/build_ios.sh` —— `unsigned-debug` / `unsigned-release`;仅用于 CI/开发验证,V1.0 不发布 iOS 软件版本。
 - 两个脚本会先定位仓库根目录,因此可从任意当前目录调用;测试或封装环境可通过 `REPO_ROOT` 显式指定根目录。
+- Android debug 构建默认使用 `--no-pub`;Android release AAB 在 Flutter 3.44.7 下必须先执行 `flutter pub get --enforce-lockfile`,再通过 `FLUTTER_BUILD_WITH_PUB=1` 调用 `scripts/build_android.sh release-aab`,以刷新与 release classpath 一致的平台插件注册表。
 - Android release signing 已接入 Gradle 的显式凭据校验;tag workflow 从 `ANDROID_KEYSTORE_BASE64` 解码到 runner 临时目录,再注入四个签名环境变量;缺少任一项时安全失败,不会使用 debug key。iOS 仅保留无签名构建验证,证书/签名资格不在当前 V1.0 发布范围内。
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
