@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import 'package:project_sw/core/data_hygiene/sensitive_clipboard_scope.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 import 'package:project_sw/features/auth/presentation/biometric_unlock_cubit.dart';
+import 'package:project_sw/features/auth/presentation/deadlock_wipe_cubit.dart';
 import 'package:project_sw/features/auth/presentation/setup_cubit.dart';
 import 'package:project_sw/features/auth/presentation/unlock_cubit.dart';
 import 'package:project_sw/features/vault/presentation/vault_entries_cubit.dart';
@@ -26,6 +29,7 @@ final class ProjectSwApp extends StatefulWidget {
     this.setupCubit,
     this.unlockCubit,
     this.biometricUnlockCubit,
+    this.deadlockWipeCubit,
     this.vaultEntriesCubit,
     this.sensitiveClipboardController,
     this.generatorPageBuilder,
@@ -48,6 +52,9 @@ final class ProjectSwApp extends StatefulWidget {
 
   /// Optional biometric unlock action coordinator.
   final BiometricUnlockCubit? biometricUnlockCubit;
+
+  /// Optional hidden deadlock-wipe escape path coordinator.
+  final DeadlockWipeCubit? deadlockWipeCubit;
 
   /// Optional unlocked-entry projection, omitted only by route skeleton tests.
   final VaultEntriesCubit? vaultEntriesCubit;
@@ -79,12 +86,16 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
     setupCubit: widget.setupCubit,
     unlockCubit: widget.unlockCubit,
     biometricUnlockCubit: widget.biometricUnlockCubit,
+    deadlockWipeCubit: widget.deadlockWipeCubit,
     vaultEntriesCubit: widget.vaultEntriesCubit,
     generatorPageBuilder: widget.generatorPageBuilder,
     settingsPageBuilder: widget.settingsPageBuilder,
     generatePassword: widget.generatePassword,
     passwordRandomSource: widget.passwordRandomSource,
   );
+
+  SensitiveClipboardController get _clipboardController =>
+      widget.sensitiveClipboardController ?? _fallbackClipboardController;
 
   @override
   void dispose() {
@@ -99,11 +110,10 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
       value: widget.authCubit,
       child: SessionLifecycleAdapter(
         sessionController: widget.sessionController,
-        onForegrounded: widget.sensitiveClipboardController?.onForegrounded,
+        onForegrounded: _refreshClipboardOnForegrounded,
+        onBackgrounded: _clearClipboardOnBackgrounded,
         child: SensitiveClipboardScope(
-          controller:
-              widget.sensitiveClipboardController ??
-              _fallbackClipboardController,
+          controller: _clipboardController,
           child: MaterialApp.router(
             title: 'Project SW',
             theme: AppTheme.light,
@@ -120,5 +130,21 @@ final class _ProjectSwAppState extends State<ProjectSwApp> {
         ),
       ),
     );
+  }
+
+  void _refreshClipboardOnForegrounded() {
+    unawaited(_runClipboardOperation(_clipboardController.onForegrounded));
+  }
+
+  void _clearClipboardOnBackgrounded() {
+    unawaited(_runClipboardOperation(_clipboardController.clearForSessionLock));
+  }
+
+  Future<void> _runClipboardOperation(Future<void> Function() operation) async {
+    try {
+      await operation();
+    } on Object {
+      // Platform clipboard failures cannot block app lifecycle handling.
+    }
   }
 }

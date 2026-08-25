@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
+import 'package:project_sw/features/auth/domain/session/session_events.dart';
 import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
 
@@ -16,7 +17,9 @@ void main() {
       expect(cubit.state.isLocked, isTrue);
       expect(cubit.state.authStrength, AuthStrength.none);
 
-      controller.lock(LockReason.backgroundOrTimeout);
+      controller.markVaultCreated();
+      controller.unlock(AuthStrength.masterPassword);
+      controller.handle(SessionEvent.appBackgrounded);
       await Future<void>.delayed(Duration.zero);
 
       expect(cubit.state.routeState, SessionRouteState.unlock);
@@ -24,11 +27,13 @@ void main() {
       expect(cubit.state.lockReason, LockReason.backgroundOrTimeout);
 
       controller.unlock(AuthStrength.biometric);
+      controller.beginActivity(SessionActivity.migrationReceiving);
       await Future<void>.delayed(Duration.zero);
 
       expect(cubit.state.routeState, SessionRouteState.home);
       expect(cubit.state.isLocked, isFalse);
       expect(cubit.state.authStrength, AuthStrength.biometric);
+      expect(cubit.state.activity, SessionActivity.migrationReceiving);
     },
   );
 }

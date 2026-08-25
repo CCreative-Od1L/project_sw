@@ -129,7 +129,9 @@ final class SensitiveClipboardController extends ChangeNotifier {
   SensitiveClipboardTimer? _timer;
   String? _lastCopiedValue;
   DateTime? _expiresAt;
+  Future<void> _operationTail = Future<void>.value();
   var _generation = 0;
+  var _disposed = false;
   SensitiveClipboardState _state = const SensitiveClipboardState.idle();
 
   /// Fixed sensitive-copy lifetime for the current app version.
@@ -139,29 +141,69 @@ final class SensitiveClipboardController extends ChangeNotifier {
   SensitiveClipboardState get state => _state;
 
   /// Copies a password or secret custom field and starts its cleanup window.
-  Future<void> copySensitive(String value) async {
+  Future<void> copySensitive(String value) {
+    if (_disposed) {
+      return Future<void>.error(
+        StateError('Cannot copy with a disposed clipboard controller.'),
+      );
+    }
     _cancelTimer();
     final int generation = ++_generation;
-    await _clipboard.writeText(value);
-    _lastCopiedValue = value;
-    _expiresAt = _clock().add(timeout);
-    _publish(
-      SensitiveClipboardState(
-        status: SensitiveClipboardStatus.active,
-        remaining: timeout,
-      ),
-    );
-    _scheduleNext(generation);
+    _lastCopiedValue = null;
+    _expiresAt = null;
+    _publish(const SensitiveClipboardState.idle());
+    return _serialize(() async {
+      if (_disposed || generation != _generation) return;
+      await _clipboard.writeText(value);
+      if (_disposed || generation != _generation) {
+        await _clearIfOwnedBestEffort(value);
+        return;
+      }
+      _lastCopiedValue = value;
+      _expiresAt = _clock().add(timeout);
+      _publish(
+        SensitiveClipboardState(
+          status: SensitiveClipboardStatus.active,
+          remaining: timeout,
+        ),
+      );
+      _scheduleNext(generation);
+    });
   }
 
   /// Applies an expiry immediately when the app returns from suspension.
   Future<void> onForegrounded() async {
-    if (_expiresAt == null) return;
-    await _refresh(generation: _generation);
+    final int generation = _generation;
+    try {
+      await _serialize(() => _refresh(generation: generation));
+    } on Object {
+      // Platform clipboard cleanup remains best-effort across lifecycle calls.
+    }
+  }
+
+  /// Invalidates copied plaintext when the vault session locks.
+  ///
+  /// In-memory feedback is reset synchronously. The platform clipboard is
+  /// cleared asynchronously only when it still contains the value written by
+  /// this controller; platform and clipboard-history behavior remain
+  /// best-effort.
+  Future<void> clearForSessionLock() {
+    if (_disposed) return Future<void>.value();
+    _cancelTimer();
+    final String? copiedValue = _lastCopiedValue;
+    ++_generation;
+    _lastCopiedValue = null;
+    _expiresAt = null;
+    _publish(const SensitiveClipboardState.idle());
+    return _serialize(() async {
+      if (copiedValue != null) await _clearIfOwned(copiedValue);
+    });
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    ++_generation;
     _cancelTimer();
     _lastCopiedValue = null;
     _expiresAt = null;
@@ -173,15 +215,24 @@ final class SensitiveClipboardController extends ChangeNotifier {
     if (expiresAt == null || generation != _generation) return;
     final Duration remaining = expiresAt.difference(_clock());
     if (remaining <= Duration.zero) {
-      unawaited(_refresh(generation: generation));
+      unawaited(_refreshFromTimer(generation));
       return;
     }
     final Duration tick = remaining < const Duration(seconds: 1)
         ? remaining
         : const Duration(seconds: 1);
     _timer = timerFactory(tick, () {
-      unawaited(_refresh(generation: generation));
+      unawaited(_refreshFromTimer(generation));
     });
+  }
+
+  Future<void> _refreshFromTimer(int generation) async {
+    try {
+      await _serialize(() => _refresh(generation: generation));
+    } on Object {
+      // Platform clipboard cleanup is best-effort and may be retried when the
+      // app next returns to the foreground.
+    }
   }
 
   Future<void> _refresh({required int generation}) async {
@@ -203,10 +254,8 @@ final class SensitiveClipboardController extends ChangeNotifier {
     }
 
     _cancelTimer();
-    final String? currentValue = await _clipboard.readText();
-    if (generation != _generation) return;
-    final bool ownsClipboard = currentValue == copiedValue;
-    if (ownsClipboard) await _clipboard.clearText();
+    final bool ownsClipboard = await _clearIfOwned(copiedValue);
+    if (_disposed || generation != _generation) return;
     _lastCopiedValue = null;
     _expiresAt = null;
     _publish(
@@ -223,7 +272,33 @@ final class SensitiveClipboardController extends ChangeNotifier {
     _timer = null;
   }
 
+  Future<bool> _clearIfOwned(String copiedValue) async {
+    final String? currentValue = await _clipboard.readText();
+    final bool ownsClipboard = currentValue == copiedValue;
+    if (ownsClipboard) await _clipboard.clearText();
+    return ownsClipboard;
+  }
+
+  Future<void> _clearIfOwnedBestEffort(String copiedValue) async {
+    try {
+      await _clearIfOwned(copiedValue);
+    } on Object {
+      // A stale copy cannot retain controller state merely because the
+      // platform clipboard is unavailable.
+    }
+  }
+
+  Future<void> _serialize(Future<void> Function() operation) {
+    final Future<void> next = _operationTail.then((_) => operation());
+    _operationTail = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
   void _publish(SensitiveClipboardState state) {
+    if (_disposed) return;
     _state = state;
     notifyListeners();
   }
