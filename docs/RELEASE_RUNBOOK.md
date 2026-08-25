@@ -43,6 +43,7 @@ alias 和密码通过 `gh secret set ... --env release` 交互式输入或由受
 - `CHANGELOG.md` 有对应的 `## [X.Y.Z]` 段落；
 - 工作区清洁，且 `master` 已包含准备发布的提交；
 - 本地格式检查、静态分析、全量测试和 Android debug 构建通过；
+- Android release 构建必须在锁定依赖解析后允许 Flutter 刷新平台插件工具；发布 workflow 通过 `FLUTTER_BUILD_WITH_PUB=1` 启用该路径，不能把它改回 `--no-pub`；
 - release environment 中四个 secret 均已配置，且没有在日志中打印 secret。
 
 建议先在本地执行非敏感门禁：
@@ -53,6 +54,11 @@ fvm flutter analyze --no-pub
 fvm flutter test --no-pub
 FLUTTER_COMMAND='fvm flutter' bash scripts/build_android.sh debug-apk
 ```
+
+不要在 Android release AAB 构建中使用 `--no-pub`。Flutter 3.44.7
+需要在已执行 `flutter pub get --enforce-lockfile` 后再次运行 pub-enabled
+构建，才能刷新与 release classpath 一致的平台插件注册表。发布 workflow
+已在签名构建 step 设置 `FLUTTER_BUILD_WITH_PUB=1`。
 
 ## Tag 演练
 

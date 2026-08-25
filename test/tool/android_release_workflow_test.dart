@@ -14,6 +14,7 @@ void main() {
       expect(workflow, contains('environment: release'));
       expect(workflow, contains('scripts/prepare_android_signing.sh'));
       expect(workflow, contains('scripts/build_android.sh release-aab'));
+      expect(workflow, contains("FLUTTER_BUILD_WITH_PUB: '1'"));
       expect(workflow, contains(r'ANDROID_KEYSTORE_BASE64: ${{ secrets.'));
       expect(workflow, contains(r'ANDROID_KEY_ALIAS: ${{ secrets.'));
       expect(workflow, contains(r'ANDROID_KEYSTORE_PASSWORD: ${{ secrets.'));
