@@ -23,6 +23,10 @@ Modes:
 
 Set FLUTTER_COMMAND when the Flutter executable needs a wrapper, for example:
   FLUTTER_COMMAND='fvm flutter' scripts/build_android.sh debug-apk
+
+For Flutter 3.44.7 Android release builds, run pub-enabled tooling after the
+locked dependencies have been resolved:
+  FLUTTER_BUILD_WITH_PUB=1 scripts/build_android.sh release-aab
 USAGE
 }
 
@@ -38,7 +42,10 @@ case "${mode}" in
     artifact='build/app/outputs/flutter-apk/app-debug.apk'
     ;;
   release-aab)
-    build_args=(appbundle --release --no-pub)
+    build_args=(appbundle --release)
+    if [[ "${FLUTTER_BUILD_WITH_PUB:-0}" != '1' ]]; then
+      build_args+=(--no-pub)
+    fi
     artifact='build/app/outputs/bundle/release/app-release.aab'
     ;;
   *)

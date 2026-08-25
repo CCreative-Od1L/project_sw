@@ -38,6 +38,9 @@ case "$*" in
   'build appbundle --release --no-pub')
     artifact='build/app/outputs/bundle/release/app-release.aab'
     ;;
+  'build appbundle --release')
+    artifact='build/app/outputs/bundle/release/app-release.aab'
+    ;;
   *)
     echo "unexpected Flutter arguments: $*" >&2
     exit 42
@@ -110,6 +113,30 @@ fi
         ).existsSync(),
         isTrue,
       );
+
+      final ProcessResult releaseWithPub = await runScript(
+        'build_android.sh',
+        <String>['release-aab'],
+        workingDirectory: Directory.systemTemp.path,
+        environment: <String, String>{
+          ...environment,
+          'FLUTTER_BUILD_WITH_PUB': '1',
+        },
+      );
+      expect(releaseWithPub.exitCode, 0, reason: '${releaseWithPub.stderr}');
+      expect(arguments.readAsStringSync(), 'build\nappbundle\n--release\n');
+
+      final ProcessResult debugWithPub = await runScript(
+        'build_android.sh',
+        <String>['debug-apk'],
+        workingDirectory: Directory.systemTemp.path,
+        environment: <String, String>{
+          ...environment,
+          'FLUTTER_BUILD_WITH_PUB': '1',
+        },
+      );
+      expect(debugWithPub.exitCode, 0, reason: '${debugWithPub.stderr}');
+      expect(arguments.readAsStringSync(), 'build\napk\n--debug\n--no-pub\n');
 
       final File debugArtifact = File(
         '${fixture.path}/build/app/outputs/flutter-apk/app-debug.apk',
