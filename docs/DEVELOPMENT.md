@@ -117,6 +117,7 @@ linter:
 - **PR 检查**:`fvm dart analyze` + `fvm dart format --set-exit-if-changed` + `fvm flutter test` + 集成测试(模拟器)。
 - **主分支**:同上 + 构建 Android debug APK 与 iOS 无签名 debug `.app`,并上传为 artifact;iOS `.app` 仅用于工程验证。
 - **发布**:打 tag 触发 Android release preflight、signed AAB 构建与 GitHub Release 汇总;iOS 不进入发布 workflow。
+- Android 发布配置与 tag 演练步骤见 [RELEASE_RUNBOOK.md](./RELEASE_RUNBOOK.md)。
 - 安全:CI 中禁用打印 secrets;依赖固定版本与 hash 校验。
 
 ### 8.3 CD / 分发

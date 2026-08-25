@@ -66,6 +66,7 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 | [docs/specs/build_roadmap.md](docs/specs/build_roadmap.md) | 构建路线图:v0.1 任务级 tracer bullet、v0.5 MVP、v1.0 完整版 |
 | [docs/SECURITY.md](docs/SECURITY.md) | 威胁模型、加密方案、密钥层级、生物解锁、迁移与搜索安全 |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发环境、代码规范、测试体系、可观测性、CI/CD、发布流程 |
+| [docs/RELEASE_RUNBOOK.md](docs/RELEASE_RUNBOOK.md) | V1.0 Android-only 发布配置、Tag 演练与非敏感证据记录 |
 | [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git 工作流:分支模型、提交格式、PR 生命周期、标签与发布 |
 | [docs/simple_description.md](docs/simple_description.md) | 项目原始需求描述 |
 
