@@ -266,6 +266,158 @@ class AppLocalizationsEn extends AppLocalizations {
       'No credentials or vault plaintext are shown here.';
 
   @override
+  String get masterPasswordSettings => 'Master password';
+
+  @override
+  String get masterPasswordChangeDescription =>
+      'Changing it creates a fresh salt and re-wraps the vault key without re-encrypting your entries.';
+
+  @override
+  String get changeMasterPassword => 'Change master password';
+
+  @override
+  String get changeMasterPasswordTitle => 'Change master password';
+
+  @override
+  String get masterPasswordChangeWarning =>
+      'This security-sensitive action verifies your current master password. Keep the new password safe; it cannot be recovered without a valid biometric recovery path.';
+
+  @override
+  String get currentMasterPassword => 'Current master password';
+
+  @override
+  String get newMasterPassword => 'New master password';
+
+  @override
+  String get confirmNewMasterPassword => 'Confirm new master password';
+
+  @override
+  String get changePassword => 'Change password';
+
+  @override
+  String get masterPasswordChanged => 'Master password changed';
+
+  @override
+  String get currentMasterPasswordInvalid =>
+      'Current master password is incorrect.';
+
+  @override
+  String get newMasterPasswordRequired => 'Enter a new master password.';
+
+  @override
+  String get newMasterPasswordsDoNotMatch =>
+      'The new master passwords do not match.';
+
+  @override
+  String get masterPasswordChangeFailed =>
+      'The master password could not be changed.';
+
+  @override
+  String get recoverWithBiometrics => 'Recover with biometrics';
+
+  @override
+  String get recoverMasterPasswordTitle => 'Recover master password';
+
+  @override
+  String get masterPasswordRecoveryWarning =>
+      'Anyone who passes this biometric check can take over the vault by setting a new master password. Continue only on a trusted device.';
+
+  @override
+  String get recoverPassword => 'Recover password';
+
+  @override
+  String get masterPasswordRecovered => 'Master password recovered';
+
+  @override
+  String get syncRecoveryBackup =>
+      'Update any backup device with the new master password.';
+
+  @override
+  String masterPasswordStrengthLabel(String strength) {
+    return 'Password strength: $strength';
+  }
+
+  @override
+  String get newMasterPasswordTooWeak => 'Choose a stronger master password.';
+
+  @override
+  String get masterPasswordRecoveryUnavailable =>
+      'Password recovery is no longer available.';
+
+  @override
+  String get masterPasswordRecoveryCancelled =>
+      'Biometric confirmation was cancelled.';
+
+  @override
+  String get masterPasswordRecoveryBiometricUnavailable =>
+      'Biometric confirmation is unavailable. Your vault was not changed.';
+
+  @override
+  String get masterPasswordRecoveryFailed =>
+      'The master password could not be recovered.';
+
+  @override
+  String get deadlockWipeTitle => 'Permanently delete vault';
+
+  @override
+  String get deadlockWipeWarning =>
+      'This permanently deletes every password and cannot be undone.';
+
+  @override
+  String get deadlockWipeInstructions =>
+      'Type DELETE exactly. A cancelable 10-second countdown starts before deletion.';
+
+  @override
+  String get deadlockWipeConfirmation => 'Type DELETE to confirm';
+
+  @override
+  String get deadlockWipeConfirmationInvalid =>
+      'Enter DELETE exactly to continue.';
+
+  @override
+  String get startDeadlockWipeCountdown => 'Start 10-second countdown';
+
+  @override
+  String deadlockWipeCountdown(int seconds) {
+    return 'Deleting in $seconds seconds';
+  }
+
+  @override
+  String get cancelDeadlockWipe => 'Cancel deletion';
+
+  @override
+  String get deadlockWipeWorking => 'Deleting and verifying vault data…';
+
+  @override
+  String get deadlockWipeFailed =>
+      'Deletion did not complete. Setup remains blocked; review the warning and retry.';
+
+  @override
+  String get deleteVaultSettings => 'Delete vault';
+
+  @override
+  String get deleteVaultDescription =>
+      'Permanently delete this vault, its backups, recovery state, local logs, and biometric key.';
+
+  @override
+  String get deleteVaultWarning =>
+      'This permanently deletes every password and cannot be undone. Enter the current master password to continue.';
+
+  @override
+  String get deleteVaultAction => 'Permanently delete vault';
+
+  @override
+  String get deleteVaultInvalidPassword =>
+      'The current master password is incorrect. Nothing was deleted.';
+
+  @override
+  String get deleteVaultFailed =>
+      'Deletion did not complete. Setup remains blocked until every target can be removed.';
+
+  @override
+  String get vaultDeleted => 'Vault permanently deleted';
+
+  @override
   String get biometricSettings => 'Biometric unlock';
 
   @override
