@@ -1,0 +1,505 @@
+{
+  "date": "2026-10-22",
+  "original_head": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+  "original_tree": "6a229a07528198a0ce0175fac1f4574d700e76a4",
+  "origin_master": "fd1b880dbf2b129959af9e7230e102de28c098f8",
+  "local_branches": [
+    {
+      "original": "chore/android-release-signing-seam",
+      "sha": "c4bb9b60acb7837dd38485279e98fa04b1899413",
+      "upstream": "origin/chore/android-release-signing-seam",
+      "archive": "archive/pre-independent-20261022/chore/android-release-signing-seam"
+    },
+    {
+      "original": "chore/android-signed-aab-release",
+      "sha": "b5da96bd4c9303b735c25bb5f44aba5f5fa33fde",
+      "upstream": "origin/chore/android-signed-aab-release",
+      "archive": "archive/pre-independent-20261022/chore/android-signed-aab-release"
+    },
+    {
+      "original": "chore/github-release-aggregation",
+      "sha": "5d951d40a97fab4b9fddf838440b673b8d40270e",
+      "upstream": "origin/chore/github-release-aggregation",
+      "archive": "archive/pre-independent-20261022/chore/github-release-aggregation"
+    },
+    {
+      "original": "chore/platform-build-scripts",
+      "sha": "d6c794f9453a0d75b448e665657020ff508aa1cd",
+      "upstream": "origin/chore/platform-build-scripts",
+      "archive": "archive/pre-independent-20261022/chore/platform-build-scripts"
+    },
+    {
+      "original": "chore/v1-android-integration-ci",
+      "sha": "7f78db4abb2cc12a70418be78069e385d5a10a89",
+      "upstream": "origin/chore/v1-android-integration-ci",
+      "archive": "archive/pre-independent-20261022/chore/v1-android-integration-ci"
+    },
+    {
+      "original": "chore/v1-ci-quality-gate",
+      "sha": "d3a51395edc0a0d81e2eed8260832f62214024f8",
+      "upstream": "origin/chore/v1-ci-quality-gate",
+      "archive": "archive/pre-independent-20261022/chore/v1-ci-quality-gate"
+    },
+    {
+      "original": "chore/v1-dependency-audit",
+      "sha": "c281b633122d73ed6df2f0419750772c48b5bfa6",
+      "upstream": "origin/chore/v1-dependency-audit",
+      "archive": "archive/pre-independent-20261022/chore/v1-dependency-audit"
+    },
+    {
+      "original": "chore/v1-platform-builds",
+      "sha": "b5ad7b445facd2593c4a0c73b56aa1e58a4ff5a1",
+      "upstream": "origin/chore/v1-platform-builds",
+      "archive": "archive/pre-independent-20261022/chore/v1-platform-builds"
+    },
+    {
+      "original": "chore/v1-release-metadata-preflight",
+      "sha": "1929c55a6c1ed57dff078ed2aae4fdc1eb8ccd13",
+      "upstream": "origin/chore/v1-release-metadata-preflight",
+      "archive": "archive/pre-independent-20261022/chore/v1-release-metadata-preflight"
+    },
+    {
+      "original": "docs/android-only-release-scope",
+      "sha": "5b764aa41c6b0d2ff78794cd86d73a728606f440",
+      "upstream": "origin/docs/android-only-release-scope",
+      "archive": "archive/pre-independent-20261022/docs/android-only-release-scope"
+    },
+    {
+      "original": "docs/android-release-runbook",
+      "sha": "190f4a9c314311378271c8e2fa914453ca9ed7ab",
+      "upstream": "origin/docs/android-release-runbook",
+      "archive": "archive/pre-independent-20261022/docs/android-release-runbook"
+    },
+    {
+      "original": "feat/v1-authenticated-wipe-ui",
+      "sha": "133b47da4228ce6e2b40458451d253ea0a4698d9",
+      "upstream": "origin/feat/v1-authenticated-wipe-ui",
+      "archive": "archive/pre-independent-20261022/feat/v1-authenticated-wipe-ui"
+    },
+    {
+      "original": "feat/v1-biometric-recovery-core",
+      "sha": "224dade2db381eacdd828389bc29a28852b5cfa3",
+      "upstream": "origin/feat/v1-biometric-recovery-core",
+      "archive": "archive/pre-independent-20261022/feat/v1-biometric-recovery-core"
+    },
+    {
+      "original": "feat/v1-biometric-recovery-ui",
+      "sha": "c8ea753c2e4a5ac942773753c98a3f8aba96b5ca",
+      "upstream": "origin/feat/v1-biometric-recovery-ui",
+      "archive": "archive/pre-independent-20261022/feat/v1-biometric-recovery-ui"
+    },
+    {
+      "original": "feat/v1-deadlock-wipe-core",
+      "sha": "3dbaa70761518180bf67f7f6fba4cd5f8a72fb27",
+      "upstream": "origin/feat/v1-deadlock-wipe-core",
+      "archive": "archive/pre-independent-20261022/feat/v1-deadlock-wipe-core"
+    },
+    {
+      "original": "feat/v1-deadlock-wipe-ui",
+      "sha": "d34147cebec7d30760ada710528c2664eda27b30",
+      "upstream": "origin/feat/v1-deadlock-wipe-ui",
+      "archive": "archive/pre-independent-20261022/feat/v1-deadlock-wipe-ui"
+    },
+    {
+      "original": "feat/v1-lan-migration-ui",
+      "sha": "b2c9a793a0e04a52247b4e22187fbf88c1287480",
+      "upstream": "origin/feat/v1-lan-migration-ui",
+      "archive": "archive/pre-independent-20261022/feat/v1-lan-migration-ui"
+    },
+    {
+      "original": "feat/v1-master-password-change-core",
+      "sha": "64274d722f6f6ff5ab6791bbd3007dcdee4ab0ad",
+      "upstream": "origin/feat/v1-master-password-change-core",
+      "archive": "archive/pre-independent-20261022/feat/v1-master-password-change-core"
+    },
+    {
+      "original": "feat/v1-master-password-change-ui",
+      "sha": "57aeabe46c438cdf75d9daa434d81a47f8df278c",
+      "upstream": "origin/feat/v1-master-password-change-ui",
+      "archive": "archive/pre-independent-20261022/feat/v1-master-password-change-ui"
+    },
+    {
+      "original": "feat/v1-recovery-gate",
+      "sha": "5bc89a5309067449da3ee14a1c4cc267d7cb520b",
+      "upstream": "origin/feat/v1-recovery-gate",
+      "archive": "archive/pre-independent-20261022/feat/v1-recovery-gate"
+    },
+    {
+      "original": "feat/v1-recovery-resume-window",
+      "sha": "244156ec5a4a80ed392a595b2219c8472d2844ba",
+      "upstream": "origin/feat/v1-recovery-resume-window",
+      "archive": "archive/pre-independent-20261022/feat/v1-recovery-resume-window"
+    },
+    {
+      "original": "feat/v1-session-activity-state",
+      "sha": "b7311a16e2dfe2bfa134329cd4943af583b404e5",
+      "upstream": "origin/feat/v1-session-activity-state",
+      "archive": "archive/pre-independent-20261022/feat/v1-session-activity-state"
+    },
+    {
+      "original": "feat/v1-session-transition-guards",
+      "sha": "869333c720a19a0f487238799e82f81773e3ea58",
+      "upstream": "origin/feat/v1-session-transition-guards",
+      "archive": "archive/pre-independent-20261022/feat/v1-session-transition-guards"
+    },
+    {
+      "original": "fix/android-release-pub-regeneration",
+      "sha": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "upstream": "origin/fix/android-release-pub-regeneration",
+      "archive": "archive/pre-independent-20261022/fix/android-release-pub-regeneration"
+    },
+    {
+      "original": "fix/v1-authenticated-wipe-guard",
+      "sha": "9991757131b669767900036e30e2dce40d8a3574",
+      "upstream": "origin/fix/v1-authenticated-wipe-guard",
+      "archive": "archive/pre-independent-20261022/fix/v1-authenticated-wipe-guard"
+    },
+    {
+      "original": "fix/v1-biometric-configuration-guard",
+      "sha": "8111febaec6e5a2598e36b453fd8ef19381a4a38",
+      "upstream": "origin/fix/v1-biometric-configuration-guard",
+      "archive": "archive/pre-independent-20261022/fix/v1-biometric-configuration-guard"
+    },
+    {
+      "original": "fix/v1-clipboard-lock-cleanup",
+      "sha": "7b68321a3d3a99ad476c70b812cc2a9f78058427",
+      "upstream": "origin/fix/v1-clipboard-lock-cleanup",
+      "archive": "archive/pre-independent-20261022/fix/v1-clipboard-lock-cleanup"
+    },
+    {
+      "original": "fix/v1-dialog-secret-cleanup",
+      "sha": "c401baf75e5b04536b65b18a54a0928aaac1f16a",
+      "upstream": "origin/fix/v1-dialog-secret-cleanup",
+      "archive": "archive/pre-independent-20261022/fix/v1-dialog-secret-cleanup"
+    },
+    {
+      "original": "fix/v1-password-change-activity-guard",
+      "sha": "dbb50748c6233ce2ef0548d3948cdea8a301c3b3",
+      "upstream": "origin/fix/v1-password-change-activity-guard",
+      "archive": "archive/pre-independent-20261022/fix/v1-password-change-activity-guard"
+    },
+    {
+      "original": "fix/v1-session-state-contract",
+      "sha": "42fc892e4be5878fb9d5fc6958503d137fa4cc7d",
+      "upstream": "origin/fix/v1-session-state-contract",
+      "archive": "archive/pre-independent-20261022/fix/v1-session-state-contract"
+    },
+    {
+      "original": "fix/v1-step-up-challenge-lifecycle",
+      "sha": "3950e34409986b35cf72ad76cae66a9009a0b97d",
+      "upstream": "origin/fix/v1-step-up-challenge-lifecycle",
+      "archive": "archive/pre-independent-20261022/fix/v1-step-up-challenge-lifecycle"
+    },
+    {
+      "original": "fix/v1-unlock-attempt-ownership",
+      "sha": "036c428600da7bfd0d7ae1387a8abeaeedb85c79",
+      "upstream": "origin/fix/v1-unlock-attempt-ownership",
+      "archive": "archive/pre-independent-20261022/fix/v1-unlock-attempt-ownership"
+    },
+    {
+      "original": "fix/v1-vault-crud-activity-guard",
+      "sha": "a0c9f7a642a378fc9877d26a41e9c1f0e634715b",
+      "upstream": "origin/fix/v1-vault-crud-activity-guard",
+      "archive": "archive/pre-independent-20261022/fix/v1-vault-crud-activity-guard"
+    },
+    {
+      "original": "master",
+      "sha": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "upstream": "origin/master",
+      "archive": "archive/pre-independent-20261022/master"
+    },
+    {
+      "original": "test/v1-background-lock-cleanup",
+      "sha": "ab04786111349e357bb30306d93ed612d58c634b",
+      "upstream": "origin/test/v1-background-lock-cleanup",
+      "archive": "archive/pre-independent-20261022/test/v1-background-lock-cleanup"
+    },
+    {
+      "original": "test/v1-cross-entry-sensitive-cleanup",
+      "sha": "551e3096f1bfa8fc9f9e59a0a703131b87b15683",
+      "upstream": "origin/test/v1-cross-entry-sensitive-cleanup",
+      "archive": "archive/pre-independent-20261022/test/v1-cross-entry-sensitive-cleanup"
+    }
+  ],
+  "uncommitted_documents": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "f3458a9231a004489e5ebccbfc367427cb09df60dfd8a6a8c258caaeff656df1"
+    },
+    {
+      "path": "README.md",
+      "sha256": "107ff7f5582c600403c36892a4a4577f906130a53d0533b6cefea8680a7c92cd"
+    },
+    {
+      "path": "docs/DEVELOPMENT.md",
+      "sha256": "e6d9a9cd1c6eb43464887da17cbc2d9481f117e0b89042f686b38a7d16aace92"
+    },
+    {
+      "path": "docs/PENDING_VALIDATION.md",
+      "sha256": "9eeceda8f67073ff558fda58c60c8348c4cf65bb9578c33c6c2dae45c19140a6"
+    },
+    {
+      "path": "docs/PROGRESS.md",
+      "sha256": "b26a0438a4533ff2136b98100f9c7fff70f9ca3b3a4480c42f469654c56ce6f1"
+    },
+    {
+      "path": "docs/specs/build_roadmap.md",
+      "sha256": "62c5cc50af55abcd73c68b124e15ec78351b4913768c2a7e65ec6b7935f2c22f"
+    },
+    {
+      "path": "docs/specs/ci_cd.md",
+      "sha256": "de8f3c3108217abe61d4eefe1251a7201b1d9885ec98ef10325312feabcfdb55"
+    },
+    {
+      "path": "docs/specs/data_hygiene.md",
+      "sha256": "ea9ed47b868656c83a0ae738c9718a60141e7ff64cfb961994a5d97903e0d88f"
+    }
+  ],
+  "open_pull_requests": [
+    {
+      "number": 64,
+      "headRefName": "feat/v1-lan-migration-ui",
+      "headRefOid": "b2c9a793a0e04a52247b4e22187fbf88c1287480",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/64"
+    },
+    {
+      "number": 65,
+      "headRefName": "chore/v1-ci-quality-gate",
+      "headRefOid": "d3a51395edc0a0d81e2eed8260832f62214024f8",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/65"
+    },
+    {
+      "number": 66,
+      "headRefName": "chore/v1-platform-builds",
+      "headRefOid": "b5ad7b445facd2593c4a0c73b56aa1e58a4ff5a1",
+      "baseRefName": "chore/v1-ci-quality-gate",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/66"
+    },
+    {
+      "number": 67,
+      "headRefName": "chore/v1-dependency-audit",
+      "headRefOid": "c281b633122d73ed6df2f0419750772c48b5bfa6",
+      "baseRefName": "chore/v1-platform-builds",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/67"
+    },
+    {
+      "number": 68,
+      "headRefName": "chore/v1-android-integration-ci",
+      "headRefOid": "7f78db4abb2cc12a70418be78069e385d5a10a89",
+      "baseRefName": "chore/v1-dependency-audit",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/68"
+    },
+    {
+      "number": 69,
+      "headRefName": "feat/v1-master-password-change-core",
+      "headRefOid": "64274d722f6f6ff5ab6791bbd3007dcdee4ab0ad",
+      "baseRefName": "chore/v1-android-integration-ci",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/69"
+    },
+    {
+      "number": 70,
+      "headRefName": "feat/v1-master-password-change-ui",
+      "headRefOid": "57aeabe46c438cdf75d9daa434d81a47f8df278c",
+      "baseRefName": "feat/v1-master-password-change-core",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/70"
+    },
+    {
+      "number": 71,
+      "headRefName": "feat/v1-recovery-gate",
+      "headRefOid": "5bc89a5309067449da3ee14a1c4cc267d7cb520b",
+      "baseRefName": "feat/v1-master-password-change-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/71"
+    },
+    {
+      "number": 72,
+      "headRefName": "feat/v1-biometric-recovery-core",
+      "headRefOid": "224dade2db381eacdd828389bc29a28852b5cfa3",
+      "baseRefName": "feat/v1-recovery-gate",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/72"
+    },
+    {
+      "number": 73,
+      "headRefName": "feat/v1-biometric-recovery-ui",
+      "headRefOid": "c8ea753c2e4a5ac942773753c98a3f8aba96b5ca",
+      "baseRefName": "feat/v1-biometric-recovery-core",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/73"
+    },
+    {
+      "number": 74,
+      "headRefName": "feat/v1-recovery-resume-window",
+      "headRefOid": "244156ec5a4a80ed392a595b2219c8472d2844ba",
+      "baseRefName": "feat/v1-biometric-recovery-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/74"
+    },
+    {
+      "number": 75,
+      "headRefName": "feat/v1-deadlock-wipe-core",
+      "headRefOid": "3dbaa70761518180bf67f7f6fba4cd5f8a72fb27",
+      "baseRefName": "feat/v1-recovery-resume-window",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/75"
+    },
+    {
+      "number": 76,
+      "headRefName": "feat/v1-deadlock-wipe-ui",
+      "headRefOid": "d34147cebec7d30760ada710528c2664eda27b30",
+      "baseRefName": "feat/v1-deadlock-wipe-core",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/76"
+    },
+    {
+      "number": 77,
+      "headRefName": "feat/v1-authenticated-wipe-ui",
+      "headRefOid": "133b47da4228ce6e2b40458451d253ea0a4698d9",
+      "baseRefName": "feat/v1-deadlock-wipe-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/77"
+    },
+    {
+      "number": 78,
+      "headRefName": "feat/v1-session-transition-guards",
+      "headRefOid": "869333c720a19a0f487238799e82f81773e3ea58",
+      "baseRefName": "feat/v1-authenticated-wipe-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/78"
+    },
+    {
+      "number": 79,
+      "headRefName": "feat/v1-session-activity-state",
+      "headRefOid": "b7311a16e2dfe2bfa134329cd4943af583b404e5",
+      "baseRefName": "feat/v1-session-transition-guards",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/79"
+    },
+    {
+      "number": 80,
+      "headRefName": "fix/v1-step-up-challenge-lifecycle",
+      "headRefOid": "3950e34409986b35cf72ad76cae66a9009a0b97d",
+      "baseRefName": "feat/v1-session-activity-state",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/80"
+    },
+    {
+      "number": 81,
+      "headRefName": "fix/v1-password-change-activity-guard",
+      "headRefOid": "dbb50748c6233ce2ef0548d3948cdea8a301c3b3",
+      "baseRefName": "fix/v1-step-up-challenge-lifecycle",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/81"
+    },
+    {
+      "number": 82,
+      "headRefName": "fix/v1-biometric-configuration-guard",
+      "headRefOid": "8111febaec6e5a2598e36b453fd8ef19381a4a38",
+      "baseRefName": "fix/v1-password-change-activity-guard",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/82"
+    },
+    {
+      "number": 83,
+      "headRefName": "fix/v1-clipboard-lock-cleanup",
+      "headRefOid": "7b68321a3d3a99ad476c70b812cc2a9f78058427",
+      "baseRefName": "fix/v1-biometric-configuration-guard",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/83"
+    },
+    {
+      "number": 84,
+      "headRefName": "fix/v1-dialog-secret-cleanup",
+      "headRefOid": "c401baf75e5b04536b65b18a54a0928aaac1f16a",
+      "baseRefName": "fix/v1-clipboard-lock-cleanup",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/84"
+    },
+    {
+      "number": 85,
+      "headRefName": "fix/v1-authenticated-wipe-guard",
+      "headRefOid": "9991757131b669767900036e30e2dce40d8a3574",
+      "baseRefName": "fix/v1-dialog-secret-cleanup",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/85"
+    },
+    {
+      "number": 86,
+      "headRefName": "fix/v1-vault-crud-activity-guard",
+      "headRefOid": "a0c9f7a642a378fc9877d26a41e9c1f0e634715b",
+      "baseRefName": "fix/v1-authenticated-wipe-guard",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/86"
+    },
+    {
+      "number": 87,
+      "headRefName": "fix/v1-session-state-contract",
+      "headRefOid": "42fc892e4be5878fb9d5fc6958503d137fa4cc7d",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/87"
+    },
+    {
+      "number": 88,
+      "headRefName": "test/v1-cross-entry-sensitive-cleanup",
+      "headRefOid": "551e3096f1bfa8fc9f9e59a0a703131b87b15683",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/88"
+    },
+    {
+      "number": 89,
+      "headRefName": "test/v1-background-lock-cleanup",
+      "headRefOid": "ab04786111349e357bb30306d93ed612d58c634b",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/89"
+    },
+    {
+      "number": 90,
+      "headRefName": "fix/v1-unlock-attempt-ownership",
+      "headRefOid": "036c428600da7bfd0d7ae1387a8abeaeedb85c79",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/90"
+    },
+    {
+      "number": 91,
+      "headRefName": "chore/v1-release-metadata-preflight",
+      "headRefOid": "1929c55a6c1ed57dff078ed2aae4fdc1eb8ccd13",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/91"
+    },
+    {
+      "number": 92,
+      "headRefName": "chore/android-release-signing-seam",
+      "headRefOid": "c4bb9b60acb7837dd38485279e98fa04b1899413",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/92"
+    },
+    {
+      "number": 93,
+      "headRefName": "chore/platform-build-scripts",
+      "headRefOid": "d6c794f9453a0d75b448e665657020ff508aa1cd",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/93"
+    },
+    {
+      "number": 94,
+      "headRefName": "chore/android-signed-aab-release",
+      "headRefOid": "b5da96bd4c9303b735c25bb5f44aba5f5fa33fde",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/94"
+    },
+    {
+      "number": 95,
+      "headRefName": "chore/github-release-aggregation",
+      "headRefOid": "5d951d40a97fab4b9fddf838440b673b8d40270e",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/95"
+    },
+    {
+      "number": 96,
+      "headRefName": "docs/android-only-release-scope",
+      "headRefOid": "5b764aa41c6b0d2ff78794cd86d73a728606f440",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/96"
+    },
+    {
+      "number": 97,
+      "headRefName": "docs/android-release-runbook",
+      "headRefOid": "190f4a9c314311378271c8e2fa914453ca9ed7ab",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/97"
+    },
+    {
+      "number": 98,
+      "headRefName": "fix/android-release-pub-regeneration",
+      "headRefOid": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "baseRefName": "docs/android-release-runbook",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/98"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 > **代号**:PROJECT_SW(正式名称待定)
 > **一句话定位**:一个仅依靠本地能力进行加密的开源密码管理器
-> **协议**:MIT · **状态**:v0.1 tracer bullet 已完成，v0.5 规划中
+> **协议**:MIT · **状态**:v0.1、v0.5 已验收；v1.0 实现与发布验收收尾中，尚未正式发布。详见 [当前进度](docs/PROGRESS.md)。
 
 ---
 
@@ -15,8 +15,10 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 - 👆 **生物解锁**:指纹/面容授权释放硬件 Keychain/Keystore 中的密钥
 - 🖥️ **局域网迁移**:设备间通过 LAN 安全迁移密码库,无需任何云服务
 - 🔍 **本地搜索**:对加密库进行本地检索
-- 🌐 **国际化**:中文 + 英文(i18n 预留)
+- 🌐 **国际化**:中文 + 英文
 - 📱 **跨平台**:Flutter,移动端优先
+
+> 以上包含目标功能。当前工作区已有建库、解锁、条目 CRUD、生成器、搜索、生物认证与恢复/擦除流程；局域网迁移底层已实现，二维码/扫码页面仍在未合并的 [PR #64](https://github.com/CCreative-Od1L/project_sw/pull/64)，尚未接入当前工作区。v1.0 仍需整合 PR、完成真机验收和 Android 正式发布演练；iOS 不在本次软件发布范围内。
 
 ## 非目标(明确不做)
 
@@ -52,6 +54,9 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 
 | 文档 | 内容 |
 |------|------|
+| [docs/PROGRESS.md](docs/PROGRESS.md) | 当前进度、代码与远端分支差异、待验收与发布事项、验证证据 |
+| [docs/PENDING_VALIDATION.md](docs/PENDING_VALIDATION.md) | 已开发但待真机/完整链路验证的功能、已有验证边界与验收清单 |
+| [docs/BRANCH_ORGANIZATION.md](docs/BRANCH_ORGANIZATION.md) | 共同代码基线、独立任务分支、历史归档与远端 PR 收敛顺序 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构综述、Clean Architecture 分层、模块划分、数据流、密钥层级 |
 | [docs/specs/vault_format.md](docs/specs/vault_format.md) | Vault 文件格式:二进制外壳、Entry Block 双段、free list、journal、AAD |
 | [docs/specs/vault_entry.md](docs/specs/vault_entry.md) | VaultEntry 字段规格:固定字段、自定义字段、卫生汇总、条目组织 |
@@ -72,7 +77,7 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 
 ## 快速开始
 
-> 已提供可运行的 Flutter 应用骨架与会话路由。建库、解锁和 vault CRUD 仍按 v0.1 路线图逐步实现。
+> 当前工作区可运行建库 → 解锁 → 条目 CRUD → 锁定/重解锁，以及生成器、搜索和设置流程。v1.0 的分支整合与验收边界见 [当前进度](docs/PROGRESS.md)。
 
 ```bash
 # 1. 环境准备(详见 docs/DEVELOPMENT.md)

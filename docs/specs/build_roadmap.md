@@ -1,15 +1,17 @@
 # 构建路线图 · PROJECT_SW
 
 > 本文档定义从空仓库到生产级产品的分阶段构建路径。每个版本定义目标、前置依赖、交付物与验收标准。
-> v0.1(tracer bullet)展开到任务级,v0.5 与 v1.0 保持里程碑级(在 v0.1 验证通过后细化)。
+> v0.1(tracer bullet)保留任务级构建顺序；v0.5 与 v1.0 的任务拆分已进入 GitHub Issues。当前实现与验收证据见 [当前进度](../PROGRESS.md)。
+
+> **进度快照(2026-10-22)**：v0.1 与 v0.5 Android MVP 已完成验收；v1.0 多项实现已汇入共同代码基线候选 `chore/v1-common-baseline`（`4fa3c7a`），本地 `master` 已对齐远端的 `fd1b880`。仍需基线交付、迁移门控/接口整合、擦除跨重启保护、最终真机验收与 Android tag 发布演练。分支归属见 [分支整理记录](../BRANCH_ORGANIZATION.md)。
 
 ## 版本概览
 
-| 版本 | 定位 | 核心交付 |
-|------|------|---------|
-| v0.1 | tracer bullet | crypto + vault_file + auth(主密码)+ vault CRUD 端到端切片 |
-| v0.5 | 可用 MVP | 完整 UI、密码生成器、本地搜索、锁定/超时/数据卫生、i18n |
-| v1.0 | 完整版 | 生物解锁、局域网迁移、忘码恢复/死锁擦除、设置页、CI/CD 全流程 |
+| 版本 | 定位 | 核心交付 | 当前状态 |
+|------|------|---------|----------|
+| v0.1 | tracer bullet | crypto + vault_file + auth(主密码)+ vault CRUD 端到端切片 | 已验收；#13–#19、#28 已关闭 |
+| v0.5 | 可用 MVP | 完整 UI、密码生成器、本地搜索、锁定/超时/数据卫生、i18n | Android MVP 已验收；#30–#36 已关闭 |
+| v1.0 | 完整版 | 生物解锁、局域网迁移、忘码恢复/死锁擦除、设置页、CI/CD 全流程 | 实现与验收收尾中；#47、#49–#53 开放，尚未发布 |
 
 ---
 
@@ -129,7 +131,7 @@
 5. 搜索结果不暴露 `password` / `notes` / `custom_fields` / `secret` 字段,详情页退出后完整详情对象不残留在全局状态
 6. `fvm dart analyze` 零 warning,`fvm flutter test` + 集成测试全绿
 
-> v0.5 任务级分解在 v0.1 验收通过后细化。
+> v0.5 任务级分解 #30–#36 已完成；Android 真机验收见 [#36](https://github.com/CCreative-Od1L/project_sw/issues/36)。上述条目保留该版本的交付范围与验收标准。
 
 ---
 
@@ -158,7 +160,7 @@
 6. `fvm dart analyze` 零 warning,`fvm flutter test` + 集成测试全绿
 7. 任一历史 tag 可重新构建
 
-> v1.0 任务级分解在 v0.5 验收通过后细化。
+> v1.0 已拆分为总任务 [#47](https://github.com/CCreative-Od1L/project_sw/issues/47) 与 #48–#53。#48 已关闭，#49–#53 仍开放；各项实现、未合并 PR 和真机/发布验收缺口见 [当前进度](../PROGRESS.md)。
 
 ---
 
@@ -174,5 +176,5 @@
 
 - 路线图基于当前文档体系(ARCHITECTURE/SECURITY/DEVELOPMENT + specs + ADR-0001~0004),新决策产生新 ADR 时路线图相应调整
 - v0.1 的 Argon2id 耗时已在 Xiaomi M2007J17C(Android 12) 上完成基线实测(SECURITY.md §3.1);其他设备仍由首次建库时的自适应基准选择参数,这不影响已验证的 `sodium` 短生命周期 isolate 执行路径
-- v0.5 与 v1.0 的里程碑级描述保留弹性,任务级分解在对应前置版本验收通过后进行,避免过早规划未验证的假设
+- v0.5 与 v1.0 的任务级分解已记录在 GitHub Issues；本路线图保留版本范围与验收标准，当前完成情况以进度记录中的代码、PR 和验收证据区分
 > Infra 组件(DI、observability、路由、错误体系)在 v0.1 Phase 0-1 就位,作为后续所有版本的地基

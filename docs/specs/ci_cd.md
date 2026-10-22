@@ -1,9 +1,9 @@
 # CI/CD 设计规格 · PROJECT_SW
 
 > 概述见 [DEVELOPMENT.md §8](../DEVELOPMENT.md);触发点与分支保护见 [GIT_WORKFLOW.md](../GIT_WORKFLOW.md)。
-> 本规格为 CI/CD 的**设计依据**。PR/主干质量门禁已开始落地到
+> 本规格为 CI/CD 的**设计依据**。当前本地代码的 PR/主干质量门禁已落地到
 > `.github/workflows/ci.yml`;移动端集成测试由 `integration.yml` 的 Android
-> 模拟器承载。构建与定期维护工作流也已落地;V1.0 签名发布范围限定为 Android。
+> 模拟器承载。构建、定期维护及 Android 签名/发布工作流也已实现；候选 PR 尚待整合，正式 tag 发布演练尚未验收。实现与运行证据见 [当前进度](../PROGRESS.md)。V1.0 签名发布范围限定为 Android。
 
 ## 1. 目标与定位
 
@@ -14,14 +14,15 @@
 
 ## 2. 流水线分层与触发器
 
-四条独立 workflow,触发器分离,职责不混。
+五条独立 workflow，移动端集成测试与快速质量门禁分开执行。
 
 | Workflow | 触发器 | 职责 | 失败后果 |
 |----------|--------|------|----------|
-| **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 集成测试 | 阻止 PR 合并(分支保护要求状态检查通过) |
-| **`build.yml`(产物构建)** | `push` 到 `master`、`workflow_dispatch` | 构建 debug 产物并上传 artifact;签名 release 产物由 `release.yml` 负责 | 不阻断主干,但 artifact 缺失可被发版流程检出 |
+| **`ci.yml`(PR/主干检查)** | `pull_request`(目标 `master`)、`push`(到 `master`) | 静态分析 + 格式化 + 单元/widget 测试 + 加密安全测试 | 配置为分支保护必需检查后阻止不通过的 PR 合并 |
+| **`integration.yml`(移动端集成)** | `pull_request`、`push` 到 `master`、`workflow_dispatch` | Android API 35 模拟器运行 `integration_test/` | 配置为分支保护必需检查后阻止不通过的 PR 合并 |
+| **`build.yml`(产物构建)** | `push` 到 `master`、涉及应用/平台/构建依赖路径的 `pull_request`、`workflow_dispatch` | 构建 debug 产物并上传 artifact;签名 release 产物由 `release.yml` 负责 | 不阻断主干,但 artifact 缺失可被发版流程检出 |
 | **`release.yml`(发版)** | `push` tag `v*.*.*` | tag metadata preflight、Android signed AAB 与 GitHub Release 汇总;iOS 不进入发布流程 | Android 签名或 preflight 失败,不继续发版 |
-| **`scheduled.yml`(定期维护)** | `schedule`(每周)、`workflow_dispatch` | 依赖过期检查、pub 安全公告解析、锁定 SDK 工具链记录 | 生成报告 artifact,由 Dependabot PR 跟踪可用更新 |
+| **`scheduled.yml`(定期维护)** | `schedule`(每周)、涉及本 workflow/Dependabot 配置的 `pull_request`、`workflow_dispatch` | 依赖过期检查、pub 安全公告解析、锁定 SDK 工具链记录 | 生成报告 artifact,由 Dependabot PR 跟踪可用更新 |
 
 > 触发器与 [GIT_WORKFLOW.md §1.1/§4.2](../GIT_WORKFLOW.md) 对齐:PR 必过 `ci.yml`,tag 触发 `release.yml`。
 
@@ -29,12 +30,12 @@
 
 | 维度 | 取值 | 说明 |
 |------|------|------|
-| OS | `ubuntu-latest` | 单元/widget/集成测试跑 Linux runner(成本低);平台真机签名在 `release.yml` 各自 OS runner 跑 |
-| Flutter 通道 | `stable` | 单通道;必须由 `.fvmrc` 锁定具体版本，开发与 CI 一律通过 `fvm flutter` / `fvm dart` 调用(见 [DEVELOPMENT.md §1.1](../DEVELOPMENT.md)) |
+| OS | `ubuntu-latest` | 单元/widget 测试跑 Linux runner；移动端集成测试在独立 Android 模拟器 workflow 中执行 |
+| Flutter 通道 | `stable` | 单通道，由 `.fvmrc` 锁定具体版本；本地通过 FVM 调用，CI 直接安装并调用同版本 SDK(见 [DEVELOPMENT.md §1.1](../DEVELOPMENT.md)) |
 | Dart SDK | 随 Flutter | 不单独约束 |
-| 测试目标 | `fvm flutter test`(unit+widget)+ `integration_test` | 集成测试在 Linux 模拟器或 `integration_test` 桌面回退跑 |
+| 测试目标 | `flutter test`(unit+widget)+ 加密安全测试 | CI 直接使用 `.fvmrc` 锁定的 SDK；`integration.yml` 在 Android API 35 / x86_64 模拟器执行 `integration_test/` |
 
-> 集成测试跑模拟器成本高且易抖动;若 Linux runner 跑移动端模拟器不稳,回退方案:集成测试在 `integration_test` 桌面宿主跑(平台无关逻辑),平台特异性集成(生物/Keychain/迁移)留作本地手动 + 发版前冒烟。**回退决策留待实现期**,本规格锁定"集成测试须在 CI 跑"的硬要求,具体承载实现期定。
+> 集成测试承载方式已确定为 Linux runner 上的 Android API 35 模拟器，已有成功运行记录。生物集合变更、真实平台密钥行为与双设备扫码迁移仍需真机验收；模拟器通过不能替代这些验收。
 
 ## 4. 检查项与执行顺序(`ci.yml`)
 
@@ -254,18 +255,18 @@ V1.0 Android 签名发版流程为:
 
 > 分支保护规则需在 GitHub Settings 手动配置;CI workflow 落地后同步配置,使 check 名对齐。
 
-## 12. 落地里程碑(代码就绪后)
+## 12. 落地里程碑与待验收
 
-本规格为设计依据,实际 YAML/脚本在代码骨架就绪后分阶段落:
+以下实现已进入当前本地代码，远端候选 PR 合并与运行证据见 [当前进度](../PROGRESS.md)：
 
-1. **`fvm flutter create` 后**:落 `ci.yml`(步骤 1–6,集成测试步骤 7 在模拟器方案定后补);同步配置 `master` 分支保护。
-2. **首个可运行构建后**:落 `build.yml`(debug 产物 + artifact)。
+1. **质量门禁已实现**：`ci.yml` 覆盖格式、静态分析、单元/widget 和加密安全测试；`integration.yml` 运行 Android API 35 模拟器集成。`master` 分支保护与必需检查配置仍需核验。
+2. **验证构建已实现**：`build.yml` 生成 Android debug APK 与 iOS unsigned debug `.app` 并上传 artifact；不代表 iOS 已具备签名发布资格。
 3. **首次发版前**:已落 `release.yml` 的 tag/version/CHANGELOG/可重建元数据 preflight、平台构建脚本、Android signed AAB job 与 GitHub Release 汇总;仍需配置 Android release environment secrets 并完成一次 tag → Android Release 演练。
-4. **稳定后**:落 `scheduled.yml`(依赖/安全审计)与 Dependabot 周期更新(已完成)。
+4. **依赖维护已实现**：`scheduled.yml` 依赖/安全审计与 Dependabot 周期更新均已配置。
 
 ## 13. 待决(实现期)
 
-- [ ] 集成测试在 CI 的承载方式(Linux 模拟器 vs `integration_test` 桌面回退 vs 平台特异性本地手动)
+- [x] 集成测试承载：`integration.yml` 的 Android API 35 / x86_64 模拟器，已有成功运行记录
 - [ ] Android 分发渠道最终取舍(仅 GitHub Release / 接 Firebase / 接商店)
 - [x] iOS V1.0 发布范围确认:因缺乏证书和签名资格,不发布 iOS 软件版本
 - [x] Flutter `3.44.7` 已由 `.fvmrc` 锁定

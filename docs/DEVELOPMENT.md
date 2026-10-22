@@ -18,11 +18,11 @@
 
 > 若原生构建成为负担,可临时降级为纯 Dart 方案 `cryptography_plus`(信封架构与具体库解耦,迁移成本可控,见 ARCHITECTURE.md §设计原则 5)。
 
-## 2. 项目初始化步骤(首个开发任务)
+## 2. 项目初始化记录(已完成)
 
 > 完整构建顺序与版本里程碑见 [specs/build_roadmap.md](specs/build_roadmap.md)。
 
-> 仓库已 `git init` 并配置 `.gitignore`;以下为代码骨架初始化步骤。
+> 应用骨架、依赖、严格 lint 与 LICENSE 已就位；以下保留初始化顺序供参考，无需在现有仓库重复执行。当前实现、候选 PR 与验收状态见 [当前进度](PROGRESS.md)。
 
 1. `fvm flutter create . --org <org> --platforms=ios,android`(按需扩展桌面/web)。
 2. 按 [ARCHITECTURE.md §5](./ARCHITECTURE.md) 建立目录骨架:顶层 `lib/features/`(6 条业务线,每条内含 `presentation/`/`domain/`/`data/`)、`lib/core/`、`lib/shared/`、`lib/app/`;顶层 `test/features/`、`test/core/`、`integration_test/`。
@@ -95,7 +95,7 @@ linter:
 
 > 完整的 Git 工作流规范(分支模型、提交格式、PR 生命周期、标签与发布)见 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)。
 
-- **Git 分支策略**:简洁主干开发 + 功能分支;`main` 始终可发布。
+- **Git 分支策略**:简洁主干开发 + 功能分支，主分支为 `master`；发布前须完成候选 PR 整合和发布门禁，见 [当前进度](PROGRESS.md)。
 - **提交规范**:Conventional Commits(`feat:` / `fix:` / `docs:` / `refactor:` / `test:` / `chore:` / `security:`)。
 - **语义化版本**:SemVer `MAJOR.MINOR.PATCH`;移动端构建号 `+N` 递增。
 - **CHANGELOG.md**:随版本更新,记录用户可见变化。
@@ -114,8 +114,8 @@ linter:
 - Android release signing 已接入 Gradle 的显式凭据校验;tag workflow 从 `ANDROID_KEYSTORE_BASE64` 解码到 runner 临时目录,再注入四个签名环境变量;缺少任一项时安全失败,不会使用 debug key。iOS 仅保留无签名构建验证,证书/签名资格不在当前 V1.0 发布范围内。
 - 签名密钥、证书、密钥库**绝不入库**,通过 CI secrets / 本地环境变量提供。
 
-### 8.2 CI(GitHub Actions,示意)
-- **PR 检查**:`fvm dart analyze` + `fvm dart format --set-exit-if-changed` + `fvm flutter test` + 集成测试(模拟器)。
+### 8.2 CI(GitHub Actions,当前实现)
+- **PR 检查**:`ci.yml` 执行格式、静态分析、单元/widget 与加密安全测试；`integration.yml` 独立运行 Android API 35 模拟器集成测试。CI 直接使用 `.fvmrc` 锁定的 SDK，本地通过 FVM 调用同版本。
 - **主分支**:同上 + 构建 Android debug APK 与 iOS 无签名 debug `.app`,并上传为 artifact;iOS `.app` 仅用于工程验证。
 - **发布**:打 tag 触发 Android release preflight、signed AAB 构建与 GitHub Release 汇总;iOS 不进入发布 workflow。
 - Android 发布配置与 tag 演练步骤见 [RELEASE_RUNBOOK.md](./RELEASE_RUNBOOK.md)。
@@ -140,11 +140,14 @@ linter:
 - 核心安全依赖(`sodium`)锁定具体版本并追踪上游安全公告。
 - 禁止引入任何会上报外部/联网分析的"分析"类依赖(与本地优先原则冲突)。
 
-## 11. 待补全
+## 11. 工程化完成项与待验收
 
-- [ ] `pubspec.yaml` 依赖清单(含 dev 依赖)
-- [ ] `analysis_options.yaml` 最终 lint 规则集
+- [x] `pubspec.yaml` 依赖清单(含 dev 依赖)及入库 lockfile
+- [x] `analysis_options.yaml` 严格类型检查与 lint 规则
 - [x] ~~CI/CD 设计规格~~ → 已定:见 [specs/ci_cd.md](./specs/ci_cd.md)(workflow YAML 与 `scripts/` 按其 §12 分阶段落地)
 - [x] release metadata preflight、Android signed AAB 与 GitHub Release 汇总——tag、`pubspec.yaml` 版本、`CHANGELOG.md`、Flutter/lockfile 可重建元数据及 Android 签名构建已落地;iOS 发布已明确排除在 V1.0 范围外
-- [ ] CI workflow 文件(.github/workflows/)与打包脚本——按 [specs/ci_cd.md §12](./specs/ci_cd.md) 里程碑分阶段落
+- [x] 当前本地已有 `ci.yml`、`integration.yml`、`build.yml`、`release.yml`、`scheduled.yml` 与平台打包脚本；候选 PR 合并状态及既有成功运行见 [当前进度](PROGRESS.md)
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)
+- [ ] 候选 PR 整合、`master` 分支保护与必需检查配置核验
+- [ ] 正式 Android release 环境配置、真实 tag → GitHub Release 演练及历史 tag 重建验收；临时签名 AAB 构建成功不等于正式发布完成
+- [ ] v1.0 最终 Android 真机验收(含双设备迁移、生物恢复/擦除及后台中断)
