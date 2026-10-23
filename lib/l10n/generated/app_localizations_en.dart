@@ -481,4 +481,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsComingSoon => 'Security settings are coming next.';
+
+  @override
+  String get wipeIncompleteTitle => 'Deletion incomplete';
+
+  @override
+  String get wipeIncompleteExplanation =>
+      'A vault deletion was interrupted. Finish deleting the remaining data before unlocking or creating a new vault.';
+
+  @override
+  String get continueVaultWipe => 'Continue deletion';
 }

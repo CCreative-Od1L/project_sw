@@ -22,11 +22,11 @@
 | `master` | 共同代码基线 `cf15300`，后续包含独立交付的文档提交 | 本地引用与 `origin/master` 对齐 |
 | 共同基线只读视图 | detached HEAD `cf15300` | `/home/pleGGen/projects/password_manager_worktrees/baseline` |
 | `docs/v1-progress-and-validation`（交付分支） | 从 `cf15300` 独立交付文档，合入后删除 | `/home/pleGGen/projects/password_manager`，交付后回到 `master` |
-| `fix/v1-wipe-restart-recovery` | 从共同基线创建；仅同步 `origin/master`，尚无修复提交 | `/home/pleGGen/projects/password_manager_worktrees/wipe-restart` |
+| `fix/v1-wipe-restart-recovery` | 从共同基线创建；本次独立实现持久化擦除保护、启动恢复与安全重试 | `/home/pleGGen/projects/password_manager_worktrees/wipe-restart` |
 | `feat/v1-lan-migration-integration` | 从共同基线创建；仅同步 `origin/master`，尚无迁移移植提交 | `/home/pleGGen/projects/password_manager_worktrees/lan-migration` |
 | `archive/pre-independent-20261022/feat/v1-lan-migration-ui` | `b2c9a79`，旧 PR #64 的移植来源 | 仅保留引用，无 worktree |
 
-三个任务分支从同一主干基线出发，不互相继承任务改动。迁移与擦除工作区目前是干净起点；创建或同步分支不代表功能修复已经完成。后续各自开发、验证，并分别创建以 `master` 为目标的 PR。
+三个任务分支从同一主干基线出发，不互相继承任务改动。迁移分支尚待接入；擦除分支本次已有独立实现和自动化。创建或同步分支本身不代表功能验收完成。后续各自开发、验证，并分别创建以 `master` 为目标的 PR。
 
 原 `/tmp` 工作区已失效，本次恢复到项目旁的持久目录，未混入任何分支任务改动。后续不以 `/tmp` 作为工作区的持久依赖。
 
@@ -60,7 +60,7 @@
 完整工作清单、依赖及完成标准见 [当前待工作项](WORK_ITEMS.md)。
 
 1. 文档经独立 PR 交付，交付状态以对应 PR 为准；合入后任务只从最新主干同步。Issue 状态校正继续按 [W09](WORK_ITEMS.md#工作总表) 跟踪。
-2. 擦除分支实现跨进程失败/中断保护与可达的安全重试；迁移分支移植 #64，补齐 step-up、lease/guard、生产装配及规格要求的单条选择；分别验证并提交 PR。
+2. 擦除跨进程保护与安全重试已实现并补自动化，仍需平台验收；迁移分支移植 #64，补齐 step-up、lease/guard、生产装配及规格要求的单条选择；分别验证并提交 PR。
 3. 新迁移方案交付后，再确认替代关系并收敛旧 PR #64。
 4. 主干启用的 Dependabot 自动生成依赖更新 PR，这些新 PR 按独立维护任务处理，不属于本次被替代的 #65–#98。
 5. 按 [待验证清单](PENDING_VALIDATION.md) 完成剩余平台联调和发布验收；关闭旧 PR 和清理源分支不关闭这些验收要求。

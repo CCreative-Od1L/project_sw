@@ -449,4 +449,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsComingSoon => '安全设置将在下一批功能中加入。';
+
+  @override
+  String get wipeIncompleteTitle => '删除尚未完成';
+
+  @override
+  String get wipeIncompleteExplanation =>
+      '密码库删除曾被中断。请继续清理剩余数据，完成后才能重新建库；当前无法解锁。';
+
+  @override
+  String get continueVaultWipe => '继续删除';
 }

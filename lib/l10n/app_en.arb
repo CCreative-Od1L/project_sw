@@ -183,5 +183,8 @@
   "stepUpFailed": "Master-password verification could not be completed.",
   "stepUpUnavailable": "The vault is no longer unlocked. Unlock it again before continuing.",
   "generatorComingSoon": "Password generator is coming next.",
-  "settingsComingSoon": "Security settings are coming next."
+  "settingsComingSoon": "Security settings are coming next.",
+  "wipeIncompleteTitle": "Deletion incomplete",
+  "wipeIncompleteExplanation": "A vault deletion was interrupted. Finish deleting the remaining data before unlocking or creating a new vault.",
+  "continueVaultWipe": "Continue deletion"
 }

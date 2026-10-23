@@ -943,6 +943,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Security settings are coming next.'**
   String get settingsComingSoon;
+
+  /// No description provided for @wipeIncompleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion incomplete'**
+  String get wipeIncompleteTitle;
+
+  /// No description provided for @wipeIncompleteExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'A vault deletion was interrupted. Finish deleting the remaining data before unlocking or creating a new vault.'**
+  String get wipeIncompleteExplanation;
+
+  /// No description provided for @continueVaultWipe.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue deletion'**
+  String get continueVaultWipe;
 }
 
 class _AppLocalizationsDelegate

@@ -14,6 +14,7 @@ import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'package:project_sw/features/auth/data/biometric_recovery_confirmer.dart';
 import 'package:project_sw/features/auth/data/file_master_password_recovery_store.dart';
 import 'package:project_sw/features/auth/data/file_vault_wipe_repository.dart';
+import 'package:project_sw/features/auth/data/file_vault_wipe_progress_store.dart';
 import 'package:project_sw/features/auth/data/method_channel_biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/authenticated_wipe_vault.dart';
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
@@ -32,6 +33,7 @@ import 'package:project_sw/features/auth/domain/session/session_state.dart';
 import 'package:project_sw/features/auth/domain/unlock_vault.dart';
 import 'package:project_sw/features/auth/domain/vault_repository.dart';
 import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
+import 'package:project_sw/features/auth/domain/vault_wipe_progress_store.dart';
 import 'package:project_sw/features/auth/domain/verify_master_password.dart';
 import 'package:project_sw/features/auth/domain/wipe_vault.dart';
 import 'package:project_sw/features/auth/presentation/auth_cubit.dart';
@@ -59,6 +61,7 @@ void registerAppDependencies(
   VaultPathResolver? vaultPathResolver,
   RecoveryStatePathResolver? recoveryStatePathResolver,
   VaultWipeTargetPathsResolver? vaultWipeTargetPathsResolver,
+  VaultWipeProgressStore? wipeProgressStore,
   ClipboardPort? clipboardPort,
   BiometricKeyStore? biometricKeyStore,
 }) {
@@ -88,7 +91,9 @@ void registerAppDependencies(
           serviceLocator<SensitiveClipboardController>(),
         ),
       ];
-  final SessionState initialState = config.vaultExistsAtLaunch
+  final SessionState initialState = config.wipePendingAtLaunch
+      ? const LockedSession(reason: LockReason.wipeStarted)
+      : config.vaultExistsAtLaunch
       ? const LockedSession(reason: LockReason.coldStart)
       : const VaultNotCreatedSession();
   serviceLocator.registerSingleton<SessionSecretCleaner>(
@@ -187,10 +192,18 @@ void registerAppDependencies(
               '$recoveryPath.tmp',
             ];
           };
+      serviceLocator.registerSingleton<VaultWipeProgressStore>(
+        wipeProgressStore ??
+            FileVaultWipeProgressStore(
+              pathResolver: () async =>
+                  '${await vaultPathResolver()}.wipe-pending',
+            ),
+      );
       serviceLocator.registerSingleton<VaultWipeRepository>(
         FileVaultWipeRepository(
           biometricKeyStore: serviceLocator<BiometricKeyStore>(),
           targetPathsResolver: wipeTargets,
+          progressStore: serviceLocator<VaultWipeProgressStore>(),
         ),
       );
       serviceLocator.registerSingleton<WipeVault>(
@@ -330,19 +343,35 @@ final class _SensitiveClipboardSessionCleaner implements SessionSecretCleaner {
 }
 
 /// Initializes native crypto and the application-support vault location.
-Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
-  final Directory appSupportDirectory = await getApplicationSupportDirectory();
+Future<void> registerProductionAppDependencies(
+  GetIt serviceLocator, {
+  Directory? supportDirectory,
+  Directory? documentsDirectory,
+  CryptoService? crypto,
+  BiometricKeyStore? keyStore,
+}) async {
+  final Directory appSupportDirectory =
+      supportDirectory ?? await getApplicationSupportDirectory();
   final Directory appDocumentsDirectory =
-      await getApplicationDocumentsDirectory();
+      documentsDirectory ?? await getApplicationDocumentsDirectory();
   final String vaultPath =
       '${appSupportDirectory.path}${Platform.pathSeparator}vault.psw';
   final String recoveryStatePath =
       '${appSupportDirectory.path}${Platform.pathSeparator}'
       'master_password_recovery.json';
-  final CryptoService cryptoService = await SodiumCryptoService.initialize();
+  final FileVaultWipeProgressStore wipeProgress = FileVaultWipeProgressStore(
+    pathResolver: () async => '$vaultPath.wipe-pending',
+  );
+  final bool wipePending = await wipeProgress.readPending();
+  final CryptoService cryptoService =
+      crypto ?? await SodiumCryptoService.initialize();
   registerAppDependencies(
     serviceLocator,
-    config: AppConfig(vaultExistsAtLaunch: File(vaultPath).existsSync()),
+    config: AppConfig(
+      vaultExistsAtLaunch: File(vaultPath).existsSync(),
+      wipePendingAtLaunch: wipePending,
+    ),
+    wipeProgressStore: wipeProgress,
     cryptoService: cryptoService,
     vaultPathResolver: () async => vaultPath,
     recoveryStatePathResolver: () async => recoveryStatePath,
@@ -355,6 +384,6 @@ Future<void> registerProductionAppDependencies(GetIt serviceLocator) async {
       '$recoveryStatePath.tmp',
       '${appDocumentsDirectory.path}${Platform.pathSeparator}logs',
     ],
-    biometricKeyStore: const MethodChannelBiometricKeyStore(),
+    biometricKeyStore: keyStore ?? const MethodChannelBiometricKeyStore(),
   );
 }
