@@ -1,3 +1,5 @@
+import 'package:go_router/go_router.dart';
+import 'package:project_sw/app/route_paths.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/localization.dart';
@@ -131,6 +133,13 @@ final class _HomeContentState extends State<_HomeContent>
     final VaultEntriesCubit? cubit = widget.vaultEntriesCubit;
     return SessionPageScaffold(
       title: context.l10n.vault,
+      actions: <Widget>[
+        IconButton(
+          tooltip: context.l10n.migration,
+          icon: const Icon(Icons.swap_horiz),
+          onPressed: () => context.push(migrationRoutePath),
+        ),
+      ],
       child: ListView(
         children: <Widget>[
           Text(

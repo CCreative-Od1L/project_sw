@@ -6,3 +6,6 @@ const String generatorRoutePath = '/generator';
 
 /// Settings is protected by the unlocked session route policy.
 const String settingsRoutePath = '/settings';
+
+/// LAN migration is restricted to unlocked sessions.
+const String migrationRoutePath = '/migration';

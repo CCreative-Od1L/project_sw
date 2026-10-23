@@ -1,3 +1,4 @@
+import 'package:project_sw/features/migration/domain/migration_transfer.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -122,6 +123,9 @@ void registerAppDependencies(
             ? serviceLocator<BiometricKeyStore>()
             : null,
       ),
+    );
+    serviceLocator.registerSingleton<MigrationVaultPort>(
+      serviceLocator<EncryptedVaultRepository>(),
     );
     serviceLocator.registerSingleton<VaultRepository>(
       serviceLocator<EncryptedVaultRepository>(),

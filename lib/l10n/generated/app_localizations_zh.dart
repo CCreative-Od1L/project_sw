@@ -459,4 +459,78 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get continueVaultWipe => '继续删除';
+
+  @override
+  String get migration => '迁移密码库';
+
+  @override
+  String get migrationChooseRole => '选择此设备的迁移角色';
+
+  @override
+  String get migrationSendTitle => '发送密码库';
+
+  @override
+  String get migrationSendDescription => '在此设备显示一次性二维码，由另一台设备扫描。';
+
+  @override
+  String get migrationReceiveTitle => '接收密码库';
+
+  @override
+  String get migrationReceiveDescription => '扫描发送设备上的二维码，开始安全迁移。';
+
+  @override
+  String get migrationShowQr => '显示二维码';
+
+  @override
+  String get migrationScanQr => '扫描二维码';
+
+  @override
+  String get migrationWaitingForPeer => '等待另一台设备扫描…';
+
+  @override
+  String get migrationConnecting => '正在建立安全连接…';
+
+  @override
+  String get migrationTransferring => '正在迁移密码库…';
+
+  @override
+  String get migrationKeepForeground => '迁移期间请保持应用在前台，并确保两台设备连接同一局域网。';
+
+  @override
+  String get migrationQrExpires => '二维码将在 5 分钟后失效。';
+
+  @override
+  String migrationPairingAddress(Object host, Object port) {
+    return '连接地址：$host:$port';
+  }
+
+  @override
+  String get migrationScanHint => '将发送设备上的二维码放入取景框内。';
+
+  @override
+  String get migrationInvalidQr => '二维码无效或已过期，请重新生成。';
+
+  @override
+  String get migrationComplete => '密码库迁移完成';
+
+  @override
+  String get migrationCompleteDescription => '请在接收设备核对条目。生物识别设置不会迁移。';
+
+  @override
+  String get migrationFailed => '密码库迁移未完成，请确认两台设备在同一局域网后重试。';
+
+  @override
+  String get migrationCancel => '取消迁移';
+
+  @override
+  String get migrationBack => '返回';
+
+  @override
+  String get migrationScope => '发送范围';
+
+  @override
+  String get migrationAllEntries => '全部条目';
+
+  @override
+  String get migrationCameraUnavailable => '无法使用相机。请在系统设置中允许相机访问，然后返回重试。';
 }

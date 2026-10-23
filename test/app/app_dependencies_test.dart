@@ -1,3 +1,5 @@
+import 'package:project_sw/features/migration/domain/migration_transfer.dart';
+import 'package:project_sw/features/auth/data/encrypted_vault_repository.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -123,6 +125,13 @@ void main() {
     expect(
       serviceLocator<MasterPasswordChangeCubit>(),
       isA<MasterPasswordChangeCubit>(),
+    );
+    expect(
+      identical(
+        serviceLocator<MigrationVaultPort>(),
+        serviceLocator<EncryptedVaultRepository>(),
+      ),
+      isTrue,
     );
     expect(serviceLocator<VaultWipeRepository>(), isA<VaultWipeRepository>());
     expect(serviceLocator<WipeVault>(), isA<WipeVault>());

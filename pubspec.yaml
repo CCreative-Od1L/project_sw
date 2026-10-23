@@ -28,6 +28,8 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  mobile_scanner: 7.4.0
+  qr_flutter: 4.1.0
   flutter:
     sdk: flutter
   flutter_localizations:

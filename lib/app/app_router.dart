@@ -1,3 +1,4 @@
+import 'package:project_sw/app/pages/migration_page.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:project_sw/app/pages/app_shell.dart';
@@ -27,6 +28,7 @@ GoRouter buildAppRouter(
   VaultEntriesCubit? vaultEntriesCubit,
   WidgetBuilder? generatorPageBuilder,
   WidgetBuilder? settingsPageBuilder,
+  WidgetBuilder? migrationPageBuilder,
   GeneratePassword? generatePassword,
   PasswordRandomSource? passwordRandomSource,
 }) {
@@ -78,6 +80,12 @@ GoRouter buildAppRouter(
                 generatorPageBuilder?.call(context) ?? const GeneratorPage(),
           ),
           GoRoute(
+            path: migrationRoutePath,
+            builder: (context, state) =>
+                migrationPageBuilder?.call(context) ??
+                const MigrationUnavailablePage(),
+          ),
+          GoRoute(
             path: settingsRoutePath,
             builder: (BuildContext context, GoRouterState state) =>
                 settingsPageBuilder?.call(context) ?? const SettingsPage(),
@@ -103,7 +111,10 @@ String? redirectForSessionRoute({
       _ => SessionRouteState.unlock.path,
     },
     SessionRouteState.home => switch (location) {
-      vaultRoutePath || generatorRoutePath || settingsRoutePath => null,
+      vaultRoutePath ||
+      generatorRoutePath ||
+      settingsRoutePath ||
+      migrationRoutePath => null,
       _ => vaultRoutePath,
     },
   };

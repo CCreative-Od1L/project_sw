@@ -1,3 +1,7 @@
+import 'package:project_sw/app/pages/migration_page.dart';
+import 'package:project_sw/core/crypto/crypto_service.dart';
+import 'package:project_sw/features/migration/data/migration_flow.dart';
+import 'package:project_sw/features/migration/domain/migration_transfer.dart';
 import 'package:flutter/widgets.dart';
 import 'package:project_sw/app/app_dependencies.dart';
 import 'package:project_sw/app/project_sw_app.dart';
@@ -48,6 +52,17 @@ Future<void> main() async {
         sensitiveClipboardController:
             appServiceLocator<SensitiveClipboardController>(),
         sessionController: appServiceLocator<SessionController>(),
+      ),
+      migrationPageBuilder: (_) => MigrationPage(
+        sessionController: appServiceLocator<SessionController>(),
+        stepUpCubit: appServiceLocator<StepUpCubit>(),
+        entries: () => appServiceLocator<VaultEntriesCubit>().state.summaries,
+        onImported: appServiceLocator<VaultEntriesCubit>().refresh,
+        flow: NetworkMigrationFlow(
+          crypto: appServiceLocator<CryptoService>(),
+          vault: appServiceLocator<MigrationVaultPort>(),
+          sessionController: appServiceLocator<SessionController>(),
+        ),
       ),
       settingsPageBuilder: (_) => SettingsPage(
         config: appServiceLocator<AppConfig>(),

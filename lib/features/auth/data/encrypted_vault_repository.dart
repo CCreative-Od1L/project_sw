@@ -464,6 +464,7 @@ final class EncryptedVaultRepository
   @override
   Future<List<MigrationEntryPayload>> exportMigrationEntries({
     required SessionActivityGuard activityGuard,
+    MigrationSelection selection = const MigrationSelection.all(),
   }) async {
     activityGuard.ensureActive();
     final Uint8List? masterVaultKey = _masterVaultKey;
@@ -478,6 +479,7 @@ final class EncryptedVaultRepository
       final OpenVaultFile opened = vaultFileEngine.openVaultFile(path);
       header = opened.header;
       for (final VaultEntryRecord record in opened.directory.records) {
+        if (!selection.includes(record.entryId)) continue;
         exported.add(
           _exportMigrationEntry(
             path: path,
@@ -485,6 +487,11 @@ final class EncryptedVaultRepository
             record: record,
             masterVaultKey: masterVaultKey,
           ),
+        );
+      }
+      if (!selection.isAll && exported.isEmpty) {
+        throw const InvalidArgumentException(
+          'The selected migration entry no longer exists.',
         );
       }
       activityGuard.ensureActive();

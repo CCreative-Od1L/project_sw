@@ -541,6 +541,9 @@ final class SessionController extends ChangeNotifier {
     }
   }
 
+  /// Whether this controller still owns the active operation lease.
+  bool ownsActivity(SessionActivityLease lease) => _owns(lease);
+
   bool _owns(SessionActivityLease lease) {
     final SessionState current = _state;
     return identical(_activityLease, lease) &&
