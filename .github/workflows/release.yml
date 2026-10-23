@@ -31,7 +31,7 @@ jobs:
         run: bash scripts/verify_release_metadata.sh
 
       - name: Upload reproducibility metadata
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-metadata-${{ github.ref_name }}-${{ github.sha }}
           path: release-metadata/release-metadata.txt
@@ -77,7 +77,7 @@ jobs:
         run: bash scripts/build_android.sh release-aab
 
       - name: Upload signed Android AAB
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: project-sw-android-release-${{ github.ref_name }}-${{ github.sha }}
           path: build/app/outputs/bundle/release/app-release.aab

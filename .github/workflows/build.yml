@@ -48,7 +48,7 @@ jobs:
         run: bash scripts/build_android.sh debug-apk
 
       - name: Upload Android artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: project-sw-android-debug-${{ github.sha }}
           path: build/app/outputs/flutter-apk/app-debug.apk
@@ -78,7 +78,7 @@ jobs:
         run: bash scripts/build_ios.sh unsigned-debug
 
       - name: Upload iOS artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: project-sw-ios-unsigned-debug-${{ github.sha }}
           path: build/ios/iphoneos/Runner.app
