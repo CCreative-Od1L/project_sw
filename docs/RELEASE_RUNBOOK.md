@@ -12,6 +12,10 @@
 
 任一步骤失败都会阻止后续步骤；workflow 不会回退到 debug signing。
 
+## 下载 action 兼容验证
+
+发布下载固定到支持 Node 24 的 `actions/download-artifact` v8.0.2。`artifact-download.yml` 在相关 PR 中使用同一完整 SHA，上传并下载非敏感 metadata 和二进制测试文件，再核对路径与逐字节一致性。此检查不需要签名材料，也不创建 tag 或 Release；它验证 artifact 传输兼容，不代替下文的正式签名发布演练。后续更新 action 时，发布与兼容验证两处固定版本应同时更新。
+
 ## 一次性配置 release environment
 
 在 GitHub repository settings 创建名为 `release` 的 Environment，并按组织策略配置 required reviewer。只在该 Environment 中配置以下四个 Actions Secrets：
