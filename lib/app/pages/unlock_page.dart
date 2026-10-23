@@ -52,6 +52,9 @@ final class _UnlockPageState extends State<UnlockPage>
   @override
   void dispose() {
     widget.sessionController.unregisterSecretCleaner(this);
+    if (!(widget.deadlockWipeCubit?.isClosed ?? true)) {
+      widget.deadlockWipeCubit?.hide();
+    }
     _passwordController
       ..clear()
       ..dispose();
@@ -123,8 +126,7 @@ final class _UnlockPageState extends State<UnlockPage>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildUnlockForm(BuildContext context) {
     final UnlockCubit? unlockCubit = widget.unlockCubit;
     final Widget content;
     if (unlockCubit == null) {
@@ -138,7 +140,22 @@ final class _UnlockPageState extends State<UnlockPage>
         ),
       );
     }
+    return content;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final DeadlockWipeCubit? wipeCubit = widget.deadlockWipeCubit;
+    final Widget content = StreamBuilder<SessionState>(
+      stream: widget.sessionController.states,
+      initialData: widget.sessionController.state,
+      builder: (BuildContext context, AsyncSnapshot<SessionState> snapshot) {
+        if (snapshot.data case LockedSession(reason: LockReason.wipeStarted)) {
+          return _PendingWipeContent(cubit: wipeCubit);
+        }
+        return _buildUnlockForm(context);
+      },
+    );
     if (wipeCubit == null) return content;
     return BlocProvider<DeadlockWipeCubit>.value(
       value: wipeCubit,
@@ -403,6 +420,55 @@ final class _DeadlockWipeDialogState extends State<_DeadlockWipeDialog> {
           ],
         );
       },
+    );
+  }
+}
+
+final class _PendingWipeContent extends StatelessWidget {
+  const _PendingWipeContent({required this.cubit});
+
+  final DeadlockWipeCubit? cubit;
+
+  @override
+  Widget build(BuildContext context) {
+    final DeadlockWipeCubit? coordinator = cubit;
+    if (coordinator == null) return _body(context, null);
+    return BlocBuilder<DeadlockWipeCubit, DeadlockWipeViewState>(
+      bloc: coordinator,
+      builder: (BuildContext context, DeadlockWipeViewState state) =>
+          _body(context, state),
+    );
+  }
+
+  Widget _body(BuildContext context, DeadlockWipeViewState? state) {
+    final bool working = state is DeadlockWipeWorking;
+    return SessionPageScaffold(
+      title: context.l10n.wipeIncompleteTitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.delete_forever_outlined, size: 40),
+          const SizedBox(height: 16),
+          Text(context.l10n.wipeIncompleteExplanation),
+          const SizedBox(height: 16),
+          if (working) ...<Widget>[
+            Text(context.l10n.deadlockWipeWorking),
+            const LinearProgressIndicator(),
+          ],
+          if (state is DeadlockWipeFault) ...<Widget>[
+            Text(context.l10n.deadlockWipeFailed),
+            const SizedBox(height: 16),
+          ],
+          FilledButton.icon(
+            key: const ValueKey<String>('continue-vault-wipe'),
+            onPressed: working || cubit == null
+                ? null
+                : () => cubit!.revealPendingWipe(),
+            icon: const Icon(Icons.delete_forever_outlined),
+            label: Text(context.l10n.continueVaultWipe),
+          ),
+        ],
+      ),
     );
   }
 }

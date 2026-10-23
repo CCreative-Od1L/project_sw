@@ -3,12 +3,16 @@ final class AppConfig {
   /// Creates application configuration with conservative security defaults.
   const AppConfig({
     this.vaultExistsAtLaunch = false,
+    this.wipePendingAtLaunch = false,
     this.idleTimeout = const Duration(minutes: 5),
     this.sensitiveClipboardTimeout = const Duration(seconds: 20),
   });
 
   /// Whether bootstrap has established that a vault exists on this device.
   final bool vaultExistsAtLaunch;
+
+  /// Whether a durable wipe marker must block setup and all authentication.
+  final bool wipePendingAtLaunch;
 
   /// The future session idle timeout, owned by the session source of truth.
   final Duration idleTimeout;

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:project_sw/features/auth/domain/biometric/biometric_key_store.dart';
 import 'package:project_sw/features/auth/domain/vault_wipe_repository.dart';
+import 'package:project_sw/features/auth/domain/vault_wipe_progress_store.dart';
 
 /// Resolves the explicit app-owned files and directories included in a wipe.
 typedef VaultWipeTargetPathsResolver = Future<List<String>> Function();
@@ -12,6 +13,8 @@ final class FileVaultWipeRepository implements VaultWipeRepository {
   const FileVaultWipeRepository({
     required this.biometricKeyStore,
     required this.targetPathsResolver,
+    this.progressStore,
+    this.removeTarget,
   });
 
   /// Platform-owned key material that must confirm deletion before files move.
@@ -20,6 +23,12 @@ final class FileVaultWipeRepository implements VaultWipeRepository {
   /// Explicit paths owned by the application; broad roots are not accepted.
   final VaultWipeTargetPathsResolver targetPathsResolver;
 
+  /// Durable intent, kept outside the deletion targets.
+  final VaultWipeProgressStore? progressStore;
+
+  /// Optional filesystem adapter used to exercise partial deletion failures.
+  final Future<void> Function(String path)? removeTarget;
+
   @override
   Future<void> wipeVault() async {
     try {
@@ -27,9 +36,10 @@ final class FileVaultWipeRepository implements VaultWipeRepository {
       if (targets.isEmpty || targets.any(_isBroadTarget)) {
         throw const FileSystemException('Wipe target scope is invalid.');
       }
+      await progressStore?.markPending();
       await biometricKeyStore.deleteKey();
       for (final String path in targets) {
-        await _delete(path);
+        await (removeTarget ?? _delete)(path);
       }
       for (final String path in targets) {
         if (await FileSystemEntity.type(path, followLinks: false) !=
@@ -37,6 +47,7 @@ final class FileVaultWipeRepository implements VaultWipeRepository {
           throw const FileSystemException('Wipe target still exists.');
         }
       }
+      await progressStore?.clear();
     } on VaultWipeException {
       rethrow;
     } on Object catch (error) {

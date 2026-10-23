@@ -108,6 +108,27 @@ final class DeadlockWipeCubit extends Cubit<DeadlockWipeViewState> {
     }
   }
 
+  /// Opens recovery only for a blocked wipe, or observes its ongoing attempt.
+  Future<void> revealPendingWipe() async {
+    if (!_wipeVault.isPending ||
+        state is DeadlockWipeWorking ||
+        state is DeadlockWipeCountingDown) {
+      return;
+    }
+    final Future<WipedVault>? running = _wipeVault.inFlight;
+    if (running == null) {
+      emit(const DeadlockWipeRevealed());
+      return;
+    }
+    emit(const DeadlockWipeWorking());
+    try {
+      await running;
+      if (!isClosed) emit(const DeadlockWipeCompleted());
+    } on Object {
+      if (!isClosed) emit(const DeadlockWipeFault());
+    }
+  }
+
   /// Hides the form and cancels any countdown that has not started deletion.
   void hide() {
     if (state is DeadlockWipeWorking) return;
@@ -134,9 +155,9 @@ final class DeadlockWipeCubit extends Cubit<DeadlockWipeViewState> {
     emit(const DeadlockWipeWorking());
     try {
       await _wipeVault();
-      emit(const DeadlockWipeCompleted());
+      if (!isClosed) emit(const DeadlockWipeCompleted());
     } on Object {
-      emit(const DeadlockWipeFault());
+      if (!isClosed) emit(const DeadlockWipeFault());
     }
   }
 

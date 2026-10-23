@@ -183,5 +183,8 @@
   "stepUpFailed": "无法完成主密码验证。",
   "stepUpUnavailable": "密码库已不再处于解锁状态，请重新解锁后继续。",
   "generatorComingSoon": "密码生成器将在下一批功能中加入。",
-  "settingsComingSoon": "安全设置将在下一批功能中加入。"
+  "settingsComingSoon": "安全设置将在下一批功能中加入。",
+  "wipeIncompleteTitle": "删除尚未完成",
+  "wipeIncompleteExplanation": "密码库删除曾被中断。请继续清理剩余数据，完成后才能重新建库；当前无法解锁。",
+  "continueVaultWipe": "继续删除"
 }
