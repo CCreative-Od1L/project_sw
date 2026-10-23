@@ -8,9 +8,9 @@ All notable user-visible changes to PROJECT_SW are documented here.
 
 - Biometric unlock with master-password fallback and biometric-set invalidation handling.
 - Master-password step-up protection for high-sensitivity settings and recovery actions.
-- Local network vault migration with QR pairing, ephemeral session encryption, transcript integrity, conflict handling, and atomic import.
+- Local network migration core with pairing payloads, ephemeral session encryption, transcript integrity, conflict handling, and atomic import.
 - Master-password recovery with biometric confirmation, cooldown, and deadlock-wipe protection.
-- Material-style settings, recovery, migration, and lock-state experiences.
+- Material-style settings, recovery, and lock-state experiences.
 
 ### Security and privacy
 
@@ -20,4 +20,6 @@ All notable user-visible changes to PROJECT_SW are documented here.
 
 ### Known limitations
 
-- Android release signing and real-device acceptance remain release-gate work. An iOS software release is outside the V1.0 scope because signing certificates and distribution qualification are unavailable.
+- QR display, camera scanning, and migration pages remain in unmerged PR #64. The candidate still needs migration master-password step-up and integration with the current session activity lease/guard APIs and production wiring.
+- A failed wipe keeps the current process locked, but wipe progress/failure state is not persisted across process restarts. Restart-safe handling of an incomplete wipe remains an implementation gap.
+- LAN migration integration, restart-safe wipe handling, final Android real-device acceptance, production signing configuration, and a complete tag-to-Release rehearsal remain release-gate work. The Android signing/build/publish pipeline is implemented, with a temporary-signing AAB build recorded. An iOS software release is outside the V1.0 scope because signing certificates and distribution qualification are unavailable.

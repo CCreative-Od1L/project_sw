@@ -4,6 +4,10 @@
 
 ## Agent skills
 
+### Git branches
+
+Active task branches must share the common code baseline and remain independent: do not base one task on another unmerged task branch or mix their changes. Use a separate worktree per task. See `docs/GIT_WORKFLOW.md` for the branch rules and `docs/BRANCH_ORGANIZATION.md` for the current baseline, worktrees, and archive refs.
+
 ### Issue tracker
 
 GitHub Issues (via `gh` CLI); external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.

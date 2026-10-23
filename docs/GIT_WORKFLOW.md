@@ -7,8 +7,8 @@
 
 ### 1.1 主干
 
-- **`main`**(`master` 的别名,同分支):唯一长期分支,**始终可发布**。
-- `main` 上的每个提交都必须通过 CI(分析 + 格式化 + 单元测试 + 集成测试),无例外。
+- **`master`**:唯一长期主干，以 `origin/master` 为远端基线，目标保持可发布。
+- `master` 上的每个提交都必须通过 CI(分析 + 格式化 + 单元测试 + 集成测试),无例外。
 
 ### 1.2 功能分支
 
@@ -29,15 +29,23 @@
   security/update-sodium
   ```
 
-### 1.3 发布分支(临时)
+### 1.3 分支独立性
+
+- 活动功能分支从共同主干提交创建，只包含本任务改动；不得继承其他未合并功能分支的专属提交。
+- PR 默认目标为 `master`。若代码依赖尚未进入主干，先交付共同基础，再创建互不依赖的功能分支；仅修改 PR 的目标分支不能消除代码或历史依赖。
+- 每个并行任务使用独立 worktree；文档、迁移整合、擦除修复分别提交，禁止在一个任务分支继续串接另一个任务。
+- 共同基础变更后，各分支只从共同基线同步；不把兄弟功能分支 merge/cherry-pick 进来充当前置。
+- 共同代码基线已由 PR #99 交付 `master`（`cf15300`）；原候选 `4fa3c7a` 保存在持久 bundle 备份中，已交付的旧归档分支已清理。文档、迁移整合和擦除修复分支均以该主干提交为共同起点。新公共前置仍须先交付主干，再供各独立任务使用。详见 [分支整理记录](BRANCH_ORGANIZATION.md)。
+
+### 1.4 发布分支(临时)
 
 - 仅在需要**冻结特性**时创建(如 RC 阶段):`release/v<MAJOR>.<MINOR>.0`。
-- 从 `main` 切出,仅接受缺陷修复;发布后合并回 `main` 并打 tag,**分支随即删除**。
+- 从 `master` 切出,仅接受缺陷修复;发布后合并回 `master` 并打 tag,**分支随即删除**。
 
-### 1.4 热修复分支(临时)
+### 1.5 热修复分支(临时)
 
-- 当 `main` 上的最新 tag 存在必须立即修复的缺陷时,从该 tag 切出 `hotfix/<description>`。
-- 修复后合并回 `main` 并打新 tag,**分支随即删除**。
+- 当 `master` 上的最新 tag 存在必须立即修复的缺陷时,从该 tag 切出 `hotfix/<description>`。
+- 修复后合并回 `master` 并打新 tag,**分支随即删除**。
 
 ## 2. 提交规范(Conventional Commits)
 
@@ -108,30 +116,30 @@ to support updated sodium build hooks.
 
 - **一个提交做一件事**:逻辑独立的变更不混在同一提交。
 - 文档与对应代码的变更可在同一提交(如 `feat(crypto): ...` 含对应 `SECURITY.md` 更新)。
-- **WIP 提交不入 `main`**:在功能分支上可多次提交,合入 `main` 前经 squash/rebase 整理为干净历史。
+- **WIP 提交不入 `master`**:在功能分支上可多次提交,合入 `master` 前经 squash/rebase 整理为干净历史。
 
 ## 3. 功能分支生命周期
 
 ### 3.1 创建
 
 ```bash
-git checkout main
-git pull --rebase origin main
+git checkout master
+git pull --rebase origin master
 git checkout -b feat/my-feature
 ```
 
 ### 3.2 开发
 
 - 在功能分支上以 Conventional Commits 格式提交。
-- 定期将 `main` 合并到功能分支以保持同步:
+- 定期将 `master` 合并到功能分支以保持同步:
 
 ```bash
 # 在功能分支上
 git fetch origin
-git rebase origin/main
+git rebase origin/master
 ```
 
-- **禁止**直接向 `main` 推送。
+- **禁止**直接向 `master` 推送。
 
 ### 3.3 提交前检查
 
@@ -151,14 +159,14 @@ CI 上将运行相同检查 + 集成测试。任何失败将阻止合并。
 git push -u origin feat/my-feature
 ```
 
-- 在 GitHub 上创建 Pull Request,目标分支 `main`。
+- 在 GitHub 上创建 Pull Request,目标分支 `master`。
 - PR 标题使用 Conventional Commits 格式。
 - PR body 须包含:变更摘要、关联 issue、测试证据(截图/日志链接)。
 - 至少一个审查者批准后方可合并(个人项目阶段可为自审,但 PR 流程保留)。
 
 ### 3.5 合并
 
-- **优先使用 rebase + fast-forward merge**,保持 `main` 历史线性。
+- **优先使用 rebase + fast-forward merge**,保持 `master` 历史线性。
 - 若功能分支包含多个 WIP 提交,**squash merge** 为单个干净提交(使用 PR 标题作为 squashed commit 的 message)。
 - 功能分支合并后**立即删除**(GitHub PR 可自动删除分支)。
 
@@ -181,9 +189,9 @@ git push origin --delete feat/my-feature
 ### 4.2 打标签
 
 ```bash
-# 确保在 main 上且工作区干净
-git checkout main
-git pull --rebase origin main
+# 确保在 master 上且工作区干净
+git checkout master
+git pull --rebase origin master
 git tag -a v1.0.0 -m "v1.0.0: Initial release"
 git push origin v1.0.0
 ```
@@ -201,13 +209,13 @@ git push origin v1.0.0
 
 ## 5. 分支保护规则(GitHub Settings)
 
-`main` 分支应配置:
+`master` 分支应配置:
 
 | 规则 | 值 |
 |------|----|
 | 要求 PR 才能合并 | ✓ |
 | 要求状态检查通过 | ✓(CI 全部绿) |
-| 要求分支最新(`main` 无新提交) | ✓ |
+| 要求分支最新(`master` 无新提交) | ✓ |
 | 要求对话解决 | ✓ |
 | 限制推送权限 | ✓(仅仓库管理员) |
 | 删除分支保护 | ✓ |
@@ -255,7 +263,7 @@ git push origin v1.0.0
 ### 7.1 新功能
 
 ```bash
-git checkout main && git pull --rebase
+git checkout master && git pull --rebase
 git checkout -b feat/my-feature
 # 开发 + 多次提交...
 fvm dart format --set-exit-if-changed . && fvm dart analyze && fvm flutter test
@@ -269,7 +277,7 @@ git push -u origin feat/my-feature
 git checkout v1.0.0 -b hotfix/critical-bug
 # 修复 + 提交...
 git push -u origin hotfix/critical-bug
-# PR → merge to main → tag v1.0.1 → 删除分支
+# PR → merge to master → tag v1.0.1 → 删除分支
 ```
 
 ### 7.3 同步功能分支
@@ -277,7 +285,7 @@ git push -u origin hotfix/critical-bug
 ```bash
 git checkout feat/my-feature
 git fetch origin
-git rebase origin/main
+git rebase origin/master
 # 若冲突:解决 → git add → git rebase --continue
 git push --force-with-lease origin feat/my-feature
 ```

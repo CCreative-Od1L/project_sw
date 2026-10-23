@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "repository": "CCreative-Od1L/project_sw",
+  "preflight_at_utc": "2026-10-23T13:38:22.971028+00:00",
+  "started_at_utc": "2026-10-23T13:38:22.981975+00:00",
+  "completed_at_utc": "2026-10-23T13:38:23.109032+00:00",
+  "method": "git update-ref --stdin transaction with expected old SHA for each deletion and verification of retained heads",
+  "counts": {
+    "local_branches_before": 41,
+    "deleted_archive_branches": 36,
+    "local_branches_after": 5,
+    "covered_pr_archive_branches": 34,
+    "duplicate_old_baseline_branches": 2
+  },
+  "deleted_branches": [
+    {
+      "branch": "archive/pre-independent-20261022/chore/v1-ci-quality-gate",
+      "head": "d3a51395edc0a0d81e2eed8260832f62214024f8",
+      "original_pr": 65,
+      "matching_merged_commit": "571e6f3d81f9a615da8d9b2bfa7b22bbe6259754",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/v1-ci-quality-gate"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/v1-platform-builds",
+      "head": "b5ad7b445facd2593c4a0c73b56aa1e58a4ff5a1",
+      "original_pr": 66,
+      "matching_merged_commit": "325b1c6a00ff01fd2bd7edf618d3cabdc5611b29",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/v1-platform-builds"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/v1-dependency-audit",
+      "head": "c281b633122d73ed6df2f0419750772c48b5bfa6",
+      "original_pr": 67,
+      "matching_merged_commit": "bf36657290eff94322eb90664e10c4f14077791e",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/v1-dependency-audit"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/v1-android-integration-ci",
+      "head": "7f78db4abb2cc12a70418be78069e385d5a10a89",
+      "original_pr": 68,
+      "matching_merged_commit": "26a6266f88d952b197266c8c2de8b84a54e698da",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/v1-android-integration-ci"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-master-password-change-core",
+      "head": "64274d722f6f6ff5ab6791bbd3007dcdee4ab0ad",
+      "original_pr": 69,
+      "matching_merged_commit": "a28ac28ba1a8d56c8b2e54d9ed923d440580fe7b",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-master-password-change-core"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-master-password-change-ui",
+      "head": "57aeabe46c438cdf75d9daa434d81a47f8df278c",
+      "original_pr": 70,
+      "matching_merged_commit": "eb9f04a3dee7e10b077dec182bd055ff565c95c3",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-master-password-change-ui"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-recovery-gate",
+      "head": "5bc89a5309067449da3ee14a1c4cc267d7cb520b",
+      "original_pr": 71,
+      "matching_merged_commit": "328e528edbda81b32e6bf558d2b56868ae2a9826",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-recovery-gate"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-biometric-recovery-core",
+      "head": "224dade2db381eacdd828389bc29a28852b5cfa3",
+      "original_pr": 72,
+      "matching_merged_commit": "851120338006d958a23215bde96eb9d4744f6000",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-biometric-recovery-core"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-biometric-recovery-ui",
+      "head": "c8ea753c2e4a5ac942773753c98a3f8aba96b5ca",
+      "original_pr": 73,
+      "matching_merged_commit": "4456f3bbdf41b3cffa79b5162435dc363737460c",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-biometric-recovery-ui"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-recovery-resume-window",
+      "head": "244156ec5a4a80ed392a595b2219c8472d2844ba",
+      "original_pr": 74,
+      "matching_merged_commit": "c789e52c5fc9027a82b0cfa06f40866f1dfcff4a",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-recovery-resume-window"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-deadlock-wipe-core",
+      "head": "3dbaa70761518180bf67f7f6fba4cd5f8a72fb27",
+      "original_pr": 75,
+      "matching_merged_commit": "c33a9f5b6d178617f10013ea38a73463a598493f",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-deadlock-wipe-core"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-deadlock-wipe-ui",
+      "head": "d34147cebec7d30760ada710528c2664eda27b30",
+      "original_pr": 76,
+      "matching_merged_commit": "ce784b84726f57a29fc39be59240a9ca7d39ff75",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-deadlock-wipe-ui"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-authenticated-wipe-ui",
+      "head": "133b47da4228ce6e2b40458451d253ea0a4698d9",
+      "original_pr": 77,
+      "matching_merged_commit": "0bbdb38324c49ae2a19aa929242790228c92ad6b",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-authenticated-wipe-ui"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-session-transition-guards",
+      "head": "869333c720a19a0f487238799e82f81773e3ea58",
+      "original_pr": 78,
+      "matching_merged_commit": "726eb367002813f5481c5223212ea26c410cd67d",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-session-transition-guards"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-session-activity-state",
+      "head": "b7311a16e2dfe2bfa134329cd4943af583b404e5",
+      "original_pr": 79,
+      "matching_merged_commit": "584e4ce8a516f127e7e68486e69546b5137d3582",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/feat/v1-session-activity-state"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-step-up-challenge-lifecycle",
+      "head": "3950e34409986b35cf72ad76cae66a9009a0b97d",
+      "original_pr": 80,
+      "matching_merged_commit": "4b538fee34f2e1e36f534e235fc97a4915e8b5f3",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-step-up-challenge-lifecycle"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-password-change-activity-guard",
+      "head": "dbb50748c6233ce2ef0548d3948cdea8a301c3b3",
+      "original_pr": 81,
+      "matching_merged_commit": "97da485dc452676aacbbf825ce85d6a8cbfc8b89",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-password-change-activity-guard"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-biometric-configuration-guard",
+      "head": "8111febaec6e5a2598e36b453fd8ef19381a4a38",
+      "original_pr": 82,
+      "matching_merged_commit": "e203cc147d55b5099b53af506663a74418238e5d",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-biometric-configuration-guard"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-clipboard-lock-cleanup",
+      "head": "7b68321a3d3a99ad476c70b812cc2a9f78058427",
+      "original_pr": 83,
+      "matching_merged_commit": "597489d260e052a14f4c5882a991741ca0c6c5c5",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-clipboard-lock-cleanup"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-dialog-secret-cleanup",
+      "head": "c401baf75e5b04536b65b18a54a0928aaac1f16a",
+      "original_pr": 84,
+      "matching_merged_commit": "13b17c27131cedae2605e30f25d5c33f46e812a8",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-dialog-secret-cleanup"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-authenticated-wipe-guard",
+      "head": "9991757131b669767900036e30e2dce40d8a3574",
+      "original_pr": 85,
+      "matching_merged_commit": "f58083f43e936dac3a82f19fd6bdb9abf0ca0e42",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-authenticated-wipe-guard"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-vault-crud-activity-guard",
+      "head": "a0c9f7a642a378fc9877d26a41e9c1f0e634715b",
+      "original_pr": 86,
+      "matching_merged_commit": "7645992a8dd47e158a0ad27154dd75c46fb2f5e6",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-vault-crud-activity-guard"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-session-state-contract",
+      "head": "42fc892e4be5878fb9d5fc6958503d137fa4cc7d",
+      "original_pr": 87,
+      "matching_merged_commit": "b4a9b235fa2345cfa0e695de0a91d3d533387eb9",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-session-state-contract"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/test/v1-cross-entry-sensitive-cleanup",
+      "head": "551e3096f1bfa8fc9f9e59a0a703131b87b15683",
+      "original_pr": 88,
+      "matching_merged_commit": "a2c9e6347fa223db61542dce4ced084605dadb56",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/test/v1-cross-entry-sensitive-cleanup"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/test/v1-background-lock-cleanup",
+      "head": "ab04786111349e357bb30306d93ed612d58c634b",
+      "original_pr": 89,
+      "matching_merged_commit": "7d073335790427a3b5a4105bd420cf242e5d602e",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/test/v1-background-lock-cleanup"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/v1-unlock-attempt-ownership",
+      "head": "036c428600da7bfd0d7ae1387a8abeaeedb85c79",
+      "original_pr": 90,
+      "matching_merged_commit": "9e8695c0cb30bf017b77d469ea7b4f12291fd5c8",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/v1-unlock-attempt-ownership"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/v1-release-metadata-preflight",
+      "head": "1929c55a6c1ed57dff078ed2aae4fdc1eb8ccd13",
+      "original_pr": 91,
+      "matching_merged_commit": "61c6b9811ab08b173d004078976f6194799b9bda",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/v1-release-metadata-preflight"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/android-release-signing-seam",
+      "head": "c4bb9b60acb7837dd38485279e98fa04b1899413",
+      "original_pr": 92,
+      "matching_merged_commit": "91afe5f7d7415cfaf9d3809f153583869d3fb302",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/android-release-signing-seam"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/platform-build-scripts",
+      "head": "d6c794f9453a0d75b448e665657020ff508aa1cd",
+      "original_pr": 93,
+      "matching_merged_commit": "83d4fddd77be7f2c144ea2ddd566e2132e88acf8",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/platform-build-scripts"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/android-signed-aab-release",
+      "head": "b5da96bd4c9303b735c25bb5f44aba5f5fa33fde",
+      "original_pr": 94,
+      "matching_merged_commit": "2e51fae63a5d15f6c6c6695d2264dceff704851b",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/android-signed-aab-release"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/chore/github-release-aggregation",
+      "head": "5d951d40a97fab4b9fddf838440b673b8d40270e",
+      "original_pr": 95,
+      "matching_merged_commit": "35e25fadf206629210ac308c09bb2067247f1047",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/chore/github-release-aggregation"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/docs/android-only-release-scope",
+      "head": "5b764aa41c6b0d2ff78794cd86d73a728606f440",
+      "original_pr": 96,
+      "matching_merged_commit": "7119fd1562d147921b7d2762f5ca2ea82b558c29",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/docs/android-only-release-scope"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/docs/android-release-runbook",
+      "head": "190f4a9c314311378271c8e2fa914453ca9ed7ab",
+      "original_pr": 97,
+      "matching_merged_commit": "66dc2b5c18f1d848b8e0f3182a4eee4ad941a60f",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/docs/android-release-runbook"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/fix/android-release-pub-regeneration",
+      "head": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "original_pr": 98,
+      "matching_merged_commit": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "category": "covered_closed_pr",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/android-release-pub-regeneration"
+    },
+    {
+      "branch": "archive/pre-independent-20261022/master",
+      "head": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "original_pr": null,
+      "matching_merged_commit": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "category": "duplicate_old_baseline",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/master"
+    },
+    {
+      "branch": "archive/landed-20261022/v1-common-baseline",
+      "head": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "original_pr": null,
+      "matching_merged_commit": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "category": "duplicate_old_baseline",
+      "bundle_source_ref": "refs/heads/archive/pre-independent-20261022/fix/android-release-pub-regeneration"
+    }
+  ],
+  "preserved_branches": [
+    {
+      "branch": "archive/pre-independent-20261022/feat/v1-lan-migration-ui",
+      "head": "b2c9a793a0e04a52247b4e22187fbf88c1287480"
+    },
+    {
+      "branch": "docs/v1-progress-and-validation",
+      "head": "53cf9b0dd643e25facf84e8edf0b0e761c838821"
+    },
+    {
+      "branch": "feat/v1-lan-migration-integration",
+      "head": "cf15300f5400fa87054f1d86c8b486926f367004"
+    },
+    {
+      "branch": "fix/v1-wipe-restart-recovery",
+      "head": "cf15300f5400fa87054f1d86c8b486926f367004"
+    },
+    {
+      "branch": "master",
+      "head": "cf15300f5400fa87054f1d86c8b486926f367004"
+    }
+  ],
+  "backup": {
+    "path": ".git/branch-backups/2026-10-22/before-baseline-convergence.bundle",
+    "verified": true,
+    "sha256": "08e077bb0ecf27849f4ef79d83b21acbea44bc8b25e021fe750a1b8c1a19682b"
+  },
+  "checks": {
+    "all_36_candidates_absent": true,
+    "only_five_preserved_branches_remain": true,
+    "worktrees_unchanged": true,
+    "current_branch_unchanged": true,
+    "all_worktree_changes_unchanged": true,
+    "remote_tracking_refs_and_tags_unchanged": true,
+    "backup_file_unchanged": true,
+    "standalone_bundle_restore_verified": true,
+    "migration_candidate_retained": true,
+    "deleted_branch_editor_configuration_removed": true,
+    "independent_task_baselines_unchanged": true
+  },
+  "worktree_changes_preserved_before_documentation_update": true,
+  "workspace_state_before_documentation_update": {
+    "/home/pleGGen/projects/password_manager": {
+      "status_sha256": "0aa57dbead4704d57d134661f1e1922245ef627f76f62694a8b4f2a84ed8cdce",
+      "tracked_diff_sha256": "160e23ae840b6a44490a910e9fb60010aa6ff6267cab3372fc5a9811a2ccbabd",
+      "staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked_file_sha256": {
+        "docs/branches/2026-10-23-remote-cleanup-candidates.json": "e2ddfe0e97a266269d8646cc7f685f393fa99c60c716ecdfb580a8756f9ba8be",
+        "docs/branches/2026-10-23-remote-cleanup-candidates.md": "9a9f3dcc7fb08c2e4d368346165484db1bbed31a660ffe4e7782b06bf408ea6f",
+        "docs/branches/2026-10-23-remote-cleanup-results.json": "080d9ab1c8c24c1d5d10625783579a4143523479cfd9c18aaa2e98091ba4f3bb"
+      }
+    },
+    "/home/pleGGen/projects/password_manager_worktrees/baseline": {
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked_file_sha256": {}
+    },
+    "/home/pleGGen/projects/password_manager_worktrees/lan-migration": {
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked_file_sha256": {}
+    },
+    "/home/pleGGen/projects/password_manager_worktrees/wipe-restart": {
+      "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "untracked_file_sha256": {}
+    }
+  },
+  "remote_mutations_performed": 0,
+  "commit_created": false,
+  "transaction_stdout": "start: ok\nprepare: ok\ncommit: ok",
+  "removed_branch_configuration": {
+    "branch.archive/pre-independent-20261022/chore/v1-ci-quality-gate.vscode-merge-base": "origin/master",
+    "branch.archive/pre-independent-20261022/feat/v1-session-transition-guards.vscode-merge-base": "origin/master"
+  },
+  "restore_example": "git fetch .git/branch-backups/2026-10-22/before-baseline-convergence.bundle <bundle_source_ref>:refs/heads/<branch>"
+}
