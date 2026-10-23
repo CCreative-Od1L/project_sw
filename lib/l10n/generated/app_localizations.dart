@@ -254,6 +254,138 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settings;
 
+  /// No description provided for @migration.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault migration'**
+  String get migration;
+
+  /// No description provided for @migrateVault.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrate vault'**
+  String get migrateVault;
+
+  /// No description provided for @migrationChooseRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose this device\'s migration role'**
+  String get migrationChooseRole;
+
+  /// No description provided for @migrationSendTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send vault'**
+  String get migrationSendTitle;
+
+  /// No description provided for @migrationSendDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show a one-time QR code for the other device to scan.'**
+  String get migrationSendDescription;
+
+  /// No description provided for @migrationReceiveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive vault'**
+  String get migrationReceiveTitle;
+
+  /// No description provided for @migrationReceiveDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan the sender\'s QR code to begin a secure migration.'**
+  String get migrationReceiveDescription;
+
+  /// No description provided for @migrationShowQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Show QR code'**
+  String get migrationShowQr;
+
+  /// No description provided for @migrationScanQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan QR code'**
+  String get migrationScanQr;
+
+  /// No description provided for @migrationWaitingForPeer.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the other device to scan…'**
+  String get migrationWaitingForPeer;
+
+  /// No description provided for @migrationConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Establishing a secure connection…'**
+  String get migrationConnecting;
+
+  /// No description provided for @migrationTransferring.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating the vault…'**
+  String get migrationTransferring;
+
+  /// No description provided for @migrationKeepForeground.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the app in the foreground and connect both devices to the same local network.'**
+  String get migrationKeepForeground;
+
+  /// No description provided for @migrationQrExpires.
+  ///
+  /// In en, this message translates to:
+  /// **'This QR code expires in 5 minutes.'**
+  String get migrationQrExpires;
+
+  /// No description provided for @migrationPairingAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection address: {host}:{port}'**
+  String migrationPairingAddress(Object host, Object port);
+
+  /// No description provided for @migrationScanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Place the sender\'s QR code inside the viewfinder.'**
+  String get migrationScanHint;
+
+  /// No description provided for @migrationInvalidQr.
+  ///
+  /// In en, this message translates to:
+  /// **'The QR code is invalid or expired. Generate a new one.'**
+  String get migrationInvalidQr;
+
+  /// No description provided for @migrationComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault migration complete'**
+  String get migrationComplete;
+
+  /// No description provided for @migrationCompleteDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The receiving vault was committed as one atomic change. Biometric settings are not migrated.'**
+  String get migrationCompleteDescription;
+
+  /// No description provided for @migrationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Vault migration did not complete. Confirm both devices are on the same local network and try again.'**
+  String get migrationFailed;
+
+  /// No description provided for @migrationCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel migration'**
+  String get migrationCancel;
+
+  /// No description provided for @migrationBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get migrationBack;
+
   /// No description provided for @vaultUnlocked.
   ///
   /// In en, this message translates to:

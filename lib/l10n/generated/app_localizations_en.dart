@@ -96,6 +96,81 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settings => 'Settings';
 
   @override
+  String get migration => 'Vault migration';
+
+  @override
+  String get migrateVault => 'Migrate vault';
+
+  @override
+  String get migrationChooseRole => 'Choose this device\'s migration role';
+
+  @override
+  String get migrationSendTitle => 'Send vault';
+
+  @override
+  String get migrationSendDescription =>
+      'Show a one-time QR code for the other device to scan.';
+
+  @override
+  String get migrationReceiveTitle => 'Receive vault';
+
+  @override
+  String get migrationReceiveDescription =>
+      'Scan the sender\'s QR code to begin a secure migration.';
+
+  @override
+  String get migrationShowQr => 'Show QR code';
+
+  @override
+  String get migrationScanQr => 'Scan QR code';
+
+  @override
+  String get migrationWaitingForPeer => 'Waiting for the other device to scan…';
+
+  @override
+  String get migrationConnecting => 'Establishing a secure connection…';
+
+  @override
+  String get migrationTransferring => 'Migrating the vault…';
+
+  @override
+  String get migrationKeepForeground =>
+      'Keep the app in the foreground and connect both devices to the same local network.';
+
+  @override
+  String get migrationQrExpires => 'This QR code expires in 5 minutes.';
+
+  @override
+  String migrationPairingAddress(Object host, Object port) {
+    return 'Connection address: $host:$port';
+  }
+
+  @override
+  String get migrationScanHint =>
+      'Place the sender\'s QR code inside the viewfinder.';
+
+  @override
+  String get migrationInvalidQr =>
+      'The QR code is invalid or expired. Generate a new one.';
+
+  @override
+  String get migrationComplete => 'Vault migration complete';
+
+  @override
+  String get migrationCompleteDescription =>
+      'The receiving vault was committed as one atomic change. Biometric settings are not migrated.';
+
+  @override
+  String get migrationFailed =>
+      'Vault migration did not complete. Confirm both devices are on the same local network and try again.';
+
+  @override
+  String get migrationCancel => 'Cancel migration';
+
+  @override
+  String get migrationBack => 'Back';
+
+  @override
   String get vaultUnlocked => 'Vault unlocked';
 
   @override

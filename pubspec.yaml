@@ -40,7 +40,9 @@ dependencies:
   go_router: ^17.3.0
   flutter_bloc: ^9.1.1
   intl: ^0.20.2
+  mobile_scanner: ^7.4.0
   path_provider: ^2.1.6
+  qr_flutter: ^4.1.0
   sodium: ^4.0.0
 
 dev_dependencies:

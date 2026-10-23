@@ -60,5 +60,12 @@ void main() {
       ),
       isNull,
     );
+    expect(
+      redirectForSessionRoute(
+        routeState: SessionRouteState.home,
+        location: '/migration',
+      ),
+      isNull,
+    );
   });
 }

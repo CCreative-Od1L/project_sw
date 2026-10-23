@@ -7,6 +7,7 @@ final class SessionPageScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.child,
+    this.actions,
   });
 
   /// The page title.
@@ -15,10 +16,13 @@ final class SessionPageScaffold extends StatelessWidget {
   /// The page's primary content.
   final Widget child;
 
+  /// Optional Material app-bar actions.
+  final List<Widget>? actions;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(title), actions: actions),
       body: SafeArea(
         child: Padding(padding: const EdgeInsets.all(24), child: child),
       ),

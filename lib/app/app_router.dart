@@ -6,6 +6,7 @@ import 'package:project_sw/app/pages/home_page.dart';
 import 'package:project_sw/app/pages/setup_page.dart';
 import 'package:project_sw/app/pages/settings_page.dart';
 import 'package:project_sw/app/pages/unlock_page.dart';
+import 'package:project_sw/app/pages/migration_page.dart';
 import 'package:project_sw/app/route_paths.dart';
 import 'package:project_sw/app/session_lifecycle_adapter.dart';
 import 'package:project_sw/features/auth/domain/session/session_controller.dart';
@@ -27,6 +28,7 @@ GoRouter buildAppRouter(
   VaultEntriesCubit? vaultEntriesCubit,
   WidgetBuilder? generatorPageBuilder,
   WidgetBuilder? settingsPageBuilder,
+  WidgetBuilder? migrationPageBuilder,
   GeneratePassword? generatePassword,
   PasswordRandomSource? passwordRandomSource,
 }) {
@@ -82,6 +84,12 @@ GoRouter buildAppRouter(
             builder: (BuildContext context, GoRouterState state) =>
                 settingsPageBuilder?.call(context) ?? const SettingsPage(),
           ),
+          GoRoute(
+            path: migrationRoutePath,
+            builder: (BuildContext context, GoRouterState state) =>
+                migrationPageBuilder?.call(context) ??
+                const MigrationUnavailablePage(),
+          ),
         ],
       ),
     ],
@@ -103,7 +111,10 @@ String? redirectForSessionRoute({
       _ => SessionRouteState.unlock.path,
     },
     SessionRouteState.home => switch (location) {
-      vaultRoutePath || generatorRoutePath || settingsRoutePath => null,
+      vaultRoutePath ||
+      generatorRoutePath ||
+      settingsRoutePath ||
+      migrationRoutePath => null,
       _ => vaultRoutePath,
     },
   };
