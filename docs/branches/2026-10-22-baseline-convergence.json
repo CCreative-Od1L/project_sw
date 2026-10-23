@@ -1,0 +1,628 @@
+{
+  "pr": 99,
+  "url": "https://github.com/CCreative-Od1L/project_sw/pull/99",
+  "merged_at": "2026-10-23T05:46:41Z",
+  "old_base": "fd1b880dbf2b129959af9e7230e102de28c098f8",
+  "original_head": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+  "merged_head": "cf15300f5400fa87054f1d86c8b486926f367004",
+  "tree": "6a229a07528198a0ce0175fac1f4574d700e76a4",
+  "verified_commit_patch_pairs": 36,
+  "commit_mapping": {
+    "d3a51395edc0a0d81e2eed8260832f62214024f8": "571e6f3d81f9a615da8d9b2bfa7b22bbe6259754",
+    "ae76a09e9da99f84fc3ea89fa9a953381098b03d": "ef15f4705f2b8d4b80ffe302d8d3110e56c4f603",
+    "b5ad7b445facd2593c4a0c73b56aa1e58a4ff5a1": "325b1c6a00ff01fd2bd7edf618d3cabdc5611b29",
+    "c281b633122d73ed6df2f0419750772c48b5bfa6": "bf36657290eff94322eb90664e10c4f14077791e",
+    "7f78db4abb2cc12a70418be78069e385d5a10a89": "26a6266f88d952b197266c8c2de8b84a54e698da",
+    "64274d722f6f6ff5ab6791bbd3007dcdee4ab0ad": "a28ac28ba1a8d56c8b2e54d9ed923d440580fe7b",
+    "57aeabe46c438cdf75d9daa434d81a47f8df278c": "eb9f04a3dee7e10b077dec182bd055ff565c95c3",
+    "5bc89a5309067449da3ee14a1c4cc267d7cb520b": "328e528edbda81b32e6bf558d2b56868ae2a9826",
+    "224dade2db381eacdd828389bc29a28852b5cfa3": "851120338006d958a23215bde96eb9d4744f6000",
+    "c8ea753c2e4a5ac942773753c98a3f8aba96b5ca": "4456f3bbdf41b3cffa79b5162435dc363737460c",
+    "244156ec5a4a80ed392a595b2219c8472d2844ba": "c789e52c5fc9027a82b0cfa06f40866f1dfcff4a",
+    "3dbaa70761518180bf67f7f6fba4cd5f8a72fb27": "c33a9f5b6d178617f10013ea38a73463a598493f",
+    "d34147cebec7d30760ada710528c2664eda27b30": "ce784b84726f57a29fc39be59240a9ca7d39ff75",
+    "133b47da4228ce6e2b40458451d253ea0a4698d9": "0bbdb38324c49ae2a19aa929242790228c92ad6b",
+    "869333c720a19a0f487238799e82f81773e3ea58": "726eb367002813f5481c5223212ea26c410cd67d",
+    "b7311a16e2dfe2bfa134329cd4943af583b404e5": "584e4ce8a516f127e7e68486e69546b5137d3582",
+    "3950e34409986b35cf72ad76cae66a9009a0b97d": "4b538fee34f2e1e36f534e235fc97a4915e8b5f3",
+    "dbb50748c6233ce2ef0548d3948cdea8a301c3b3": "97da485dc452676aacbbf825ce85d6a8cbfc8b89",
+    "8111febaec6e5a2598e36b453fd8ef19381a4a38": "e203cc147d55b5099b53af506663a74418238e5d",
+    "7b68321a3d3a99ad476c70b812cc2a9f78058427": "597489d260e052a14f4c5882a991741ca0c6c5c5",
+    "c401baf75e5b04536b65b18a54a0928aaac1f16a": "13b17c27131cedae2605e30f25d5c33f46e812a8",
+    "9991757131b669767900036e30e2dce40d8a3574": "f58083f43e936dac3a82f19fd6bdb9abf0ca0e42",
+    "a0c9f7a642a378fc9877d26a41e9c1f0e634715b": "7645992a8dd47e158a0ad27154dd75c46fb2f5e6",
+    "42fc892e4be5878fb9d5fc6958503d137fa4cc7d": "b4a9b235fa2345cfa0e695de0a91d3d533387eb9",
+    "551e3096f1bfa8fc9f9e59a0a703131b87b15683": "a2c9e6347fa223db61542dce4ced084605dadb56",
+    "ab04786111349e357bb30306d93ed612d58c634b": "7d073335790427a3b5a4105bd420cf242e5d602e",
+    "827f919144792cbddf6bed9967d9d04914affd02": "79645556959bbdc2758f9db6c5cc9000432be319",
+    "036c428600da7bfd0d7ae1387a8abeaeedb85c79": "9e8695c0cb30bf017b77d469ea7b4f12291fd5c8",
+    "1929c55a6c1ed57dff078ed2aae4fdc1eb8ccd13": "61c6b9811ab08b173d004078976f6194799b9bda",
+    "c4bb9b60acb7837dd38485279e98fa04b1899413": "91afe5f7d7415cfaf9d3809f153583869d3fb302",
+    "d6c794f9453a0d75b448e665657020ff508aa1cd": "83d4fddd77be7f2c144ea2ddd566e2132e88acf8",
+    "b5da96bd4c9303b735c25bb5f44aba5f5fa33fde": "2e51fae63a5d15f6c6c6695d2264dceff704851b",
+    "5d951d40a97fab4b9fddf838440b673b8d40270e": "35e25fadf206629210ac308c09bb2067247f1047",
+    "5b764aa41c6b0d2ff78794cd86d73a728606f440": "7119fd1562d147921b7d2762f5ca2ea82b558c29",
+    "190f4a9c314311378271c8e2fa914453ca9ed7ab": "66dc2b5c18f1d848b8e0f3182a4eee4ad941a60f",
+    "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832": "cf15300f5400fa87054f1d86c8b486926f367004"
+  },
+  "covered_pull_requests": [
+    {
+      "number": 65,
+      "headRefName": "chore/v1-ci-quality-gate",
+      "headRefOid": "d3a51395edc0a0d81e2eed8260832f62214024f8",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/65",
+      "matchingMergedCommit": "571e6f3d81f9a615da8d9b2bfa7b22bbe6259754"
+    },
+    {
+      "number": 66,
+      "headRefName": "chore/v1-platform-builds",
+      "headRefOid": "b5ad7b445facd2593c4a0c73b56aa1e58a4ff5a1",
+      "baseRefName": "chore/v1-ci-quality-gate",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/66",
+      "matchingMergedCommit": "325b1c6a00ff01fd2bd7edf618d3cabdc5611b29"
+    },
+    {
+      "number": 67,
+      "headRefName": "chore/v1-dependency-audit",
+      "headRefOid": "c281b633122d73ed6df2f0419750772c48b5bfa6",
+      "baseRefName": "chore/v1-platform-builds",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/67",
+      "matchingMergedCommit": "bf36657290eff94322eb90664e10c4f14077791e"
+    },
+    {
+      "number": 68,
+      "headRefName": "chore/v1-android-integration-ci",
+      "headRefOid": "7f78db4abb2cc12a70418be78069e385d5a10a89",
+      "baseRefName": "chore/v1-dependency-audit",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/68",
+      "matchingMergedCommit": "26a6266f88d952b197266c8c2de8b84a54e698da"
+    },
+    {
+      "number": 69,
+      "headRefName": "feat/v1-master-password-change-core",
+      "headRefOid": "64274d722f6f6ff5ab6791bbd3007dcdee4ab0ad",
+      "baseRefName": "chore/v1-android-integration-ci",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/69",
+      "matchingMergedCommit": "a28ac28ba1a8d56c8b2e54d9ed923d440580fe7b"
+    },
+    {
+      "number": 70,
+      "headRefName": "feat/v1-master-password-change-ui",
+      "headRefOid": "57aeabe46c438cdf75d9daa434d81a47f8df278c",
+      "baseRefName": "feat/v1-master-password-change-core",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/70",
+      "matchingMergedCommit": "eb9f04a3dee7e10b077dec182bd055ff565c95c3"
+    },
+    {
+      "number": 71,
+      "headRefName": "feat/v1-recovery-gate",
+      "headRefOid": "5bc89a5309067449da3ee14a1c4cc267d7cb520b",
+      "baseRefName": "feat/v1-master-password-change-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/71",
+      "matchingMergedCommit": "328e528edbda81b32e6bf558d2b56868ae2a9826"
+    },
+    {
+      "number": 72,
+      "headRefName": "feat/v1-biometric-recovery-core",
+      "headRefOid": "224dade2db381eacdd828389bc29a28852b5cfa3",
+      "baseRefName": "feat/v1-recovery-gate",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/72",
+      "matchingMergedCommit": "851120338006d958a23215bde96eb9d4744f6000"
+    },
+    {
+      "number": 73,
+      "headRefName": "feat/v1-biometric-recovery-ui",
+      "headRefOid": "c8ea753c2e4a5ac942773753c98a3f8aba96b5ca",
+      "baseRefName": "feat/v1-biometric-recovery-core",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/73",
+      "matchingMergedCommit": "4456f3bbdf41b3cffa79b5162435dc363737460c"
+    },
+    {
+      "number": 74,
+      "headRefName": "feat/v1-recovery-resume-window",
+      "headRefOid": "244156ec5a4a80ed392a595b2219c8472d2844ba",
+      "baseRefName": "feat/v1-biometric-recovery-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/74",
+      "matchingMergedCommit": "c789e52c5fc9027a82b0cfa06f40866f1dfcff4a"
+    },
+    {
+      "number": 75,
+      "headRefName": "feat/v1-deadlock-wipe-core",
+      "headRefOid": "3dbaa70761518180bf67f7f6fba4cd5f8a72fb27",
+      "baseRefName": "feat/v1-recovery-resume-window",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/75",
+      "matchingMergedCommit": "c33a9f5b6d178617f10013ea38a73463a598493f"
+    },
+    {
+      "number": 76,
+      "headRefName": "feat/v1-deadlock-wipe-ui",
+      "headRefOid": "d34147cebec7d30760ada710528c2664eda27b30",
+      "baseRefName": "feat/v1-deadlock-wipe-core",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/76",
+      "matchingMergedCommit": "ce784b84726f57a29fc39be59240a9ca7d39ff75"
+    },
+    {
+      "number": 77,
+      "headRefName": "feat/v1-authenticated-wipe-ui",
+      "headRefOid": "133b47da4228ce6e2b40458451d253ea0a4698d9",
+      "baseRefName": "feat/v1-deadlock-wipe-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/77",
+      "matchingMergedCommit": "0bbdb38324c49ae2a19aa929242790228c92ad6b"
+    },
+    {
+      "number": 78,
+      "headRefName": "feat/v1-session-transition-guards",
+      "headRefOid": "869333c720a19a0f487238799e82f81773e3ea58",
+      "baseRefName": "feat/v1-authenticated-wipe-ui",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/78",
+      "matchingMergedCommit": "726eb367002813f5481c5223212ea26c410cd67d"
+    },
+    {
+      "number": 79,
+      "headRefName": "feat/v1-session-activity-state",
+      "headRefOid": "b7311a16e2dfe2bfa134329cd4943af583b404e5",
+      "baseRefName": "feat/v1-session-transition-guards",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/79",
+      "matchingMergedCommit": "584e4ce8a516f127e7e68486e69546b5137d3582"
+    },
+    {
+      "number": 80,
+      "headRefName": "fix/v1-step-up-challenge-lifecycle",
+      "headRefOid": "3950e34409986b35cf72ad76cae66a9009a0b97d",
+      "baseRefName": "feat/v1-session-activity-state",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/80",
+      "matchingMergedCommit": "4b538fee34f2e1e36f534e235fc97a4915e8b5f3"
+    },
+    {
+      "number": 81,
+      "headRefName": "fix/v1-password-change-activity-guard",
+      "headRefOid": "dbb50748c6233ce2ef0548d3948cdea8a301c3b3",
+      "baseRefName": "fix/v1-step-up-challenge-lifecycle",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/81",
+      "matchingMergedCommit": "97da485dc452676aacbbf825ce85d6a8cbfc8b89"
+    },
+    {
+      "number": 82,
+      "headRefName": "fix/v1-biometric-configuration-guard",
+      "headRefOid": "8111febaec6e5a2598e36b453fd8ef19381a4a38",
+      "baseRefName": "fix/v1-password-change-activity-guard",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/82",
+      "matchingMergedCommit": "e203cc147d55b5099b53af506663a74418238e5d"
+    },
+    {
+      "number": 83,
+      "headRefName": "fix/v1-clipboard-lock-cleanup",
+      "headRefOid": "7b68321a3d3a99ad476c70b812cc2a9f78058427",
+      "baseRefName": "fix/v1-biometric-configuration-guard",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/83",
+      "matchingMergedCommit": "597489d260e052a14f4c5882a991741ca0c6c5c5"
+    },
+    {
+      "number": 84,
+      "headRefName": "fix/v1-dialog-secret-cleanup",
+      "headRefOid": "c401baf75e5b04536b65b18a54a0928aaac1f16a",
+      "baseRefName": "fix/v1-clipboard-lock-cleanup",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/84",
+      "matchingMergedCommit": "13b17c27131cedae2605e30f25d5c33f46e812a8"
+    },
+    {
+      "number": 85,
+      "headRefName": "fix/v1-authenticated-wipe-guard",
+      "headRefOid": "9991757131b669767900036e30e2dce40d8a3574",
+      "baseRefName": "fix/v1-dialog-secret-cleanup",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/85",
+      "matchingMergedCommit": "f58083f43e936dac3a82f19fd6bdb9abf0ca0e42"
+    },
+    {
+      "number": 86,
+      "headRefName": "fix/v1-vault-crud-activity-guard",
+      "headRefOid": "a0c9f7a642a378fc9877d26a41e9c1f0e634715b",
+      "baseRefName": "fix/v1-authenticated-wipe-guard",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/86",
+      "matchingMergedCommit": "7645992a8dd47e158a0ad27154dd75c46fb2f5e6"
+    },
+    {
+      "number": 87,
+      "headRefName": "fix/v1-session-state-contract",
+      "headRefOid": "42fc892e4be5878fb9d5fc6958503d137fa4cc7d",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/87",
+      "matchingMergedCommit": "b4a9b235fa2345cfa0e695de0a91d3d533387eb9"
+    },
+    {
+      "number": 88,
+      "headRefName": "test/v1-cross-entry-sensitive-cleanup",
+      "headRefOid": "551e3096f1bfa8fc9f9e59a0a703131b87b15683",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/88",
+      "matchingMergedCommit": "a2c9e6347fa223db61542dce4ced084605dadb56"
+    },
+    {
+      "number": 89,
+      "headRefName": "test/v1-background-lock-cleanup",
+      "headRefOid": "ab04786111349e357bb30306d93ed612d58c634b",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/89",
+      "matchingMergedCommit": "7d073335790427a3b5a4105bd420cf242e5d602e"
+    },
+    {
+      "number": 90,
+      "headRefName": "fix/v1-unlock-attempt-ownership",
+      "headRefOid": "036c428600da7bfd0d7ae1387a8abeaeedb85c79",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/90",
+      "matchingMergedCommit": "9e8695c0cb30bf017b77d469ea7b4f12291fd5c8"
+    },
+    {
+      "number": 91,
+      "headRefName": "chore/v1-release-metadata-preflight",
+      "headRefOid": "1929c55a6c1ed57dff078ed2aae4fdc1eb8ccd13",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/91",
+      "matchingMergedCommit": "61c6b9811ab08b173d004078976f6194799b9bda"
+    },
+    {
+      "number": 92,
+      "headRefName": "chore/android-release-signing-seam",
+      "headRefOid": "c4bb9b60acb7837dd38485279e98fa04b1899413",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/92",
+      "matchingMergedCommit": "91afe5f7d7415cfaf9d3809f153583869d3fb302"
+    },
+    {
+      "number": 93,
+      "headRefName": "chore/platform-build-scripts",
+      "headRefOid": "d6c794f9453a0d75b448e665657020ff508aa1cd",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/93",
+      "matchingMergedCommit": "83d4fddd77be7f2c144ea2ddd566e2132e88acf8"
+    },
+    {
+      "number": 94,
+      "headRefName": "chore/android-signed-aab-release",
+      "headRefOid": "b5da96bd4c9303b735c25bb5f44aba5f5fa33fde",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/94",
+      "matchingMergedCommit": "2e51fae63a5d15f6c6c6695d2264dceff704851b"
+    },
+    {
+      "number": 95,
+      "headRefName": "chore/github-release-aggregation",
+      "headRefOid": "5d951d40a97fab4b9fddf838440b673b8d40270e",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/95",
+      "matchingMergedCommit": "35e25fadf206629210ac308c09bb2067247f1047"
+    },
+    {
+      "number": 96,
+      "headRefName": "docs/android-only-release-scope",
+      "headRefOid": "5b764aa41c6b0d2ff78794cd86d73a728606f440",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/96",
+      "matchingMergedCommit": "7119fd1562d147921b7d2762f5ca2ea82b558c29"
+    },
+    {
+      "number": 97,
+      "headRefName": "docs/android-release-runbook",
+      "headRefOid": "190f4a9c314311378271c8e2fa914453ca9ed7ab",
+      "baseRefName": "master",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/97",
+      "matchingMergedCommit": "66dc2b5c18f1d848b8e0f3182a4eee4ad941a60f"
+    },
+    {
+      "number": 98,
+      "headRefName": "fix/android-release-pub-regeneration",
+      "headRefOid": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "baseRefName": "docs/android-release-runbook",
+      "url": "https://github.com/CCreative-Od1L/project_sw/pull/98",
+      "matchingMergedCommit": "cf15300f5400fa87054f1d86c8b486926f367004"
+    }
+  ],
+  "remaining_migration_pr": 64,
+  "superseded_pr_results": [
+    {
+      "number": 98,
+      "original_head": "4fa3c7a2412935a108ab55b2b7d6933ee1ccf832",
+      "matching_merged_commit": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 97,
+      "original_head": "190f4a9c314311378271c8e2fa914453ca9ed7ab",
+      "matching_merged_commit": "66dc2b5c18f1d848b8e0f3182a4eee4ad941a60f",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 96,
+      "original_head": "5b764aa41c6b0d2ff78794cd86d73a728606f440",
+      "matching_merged_commit": "7119fd1562d147921b7d2762f5ca2ea82b558c29",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 95,
+      "original_head": "5d951d40a97fab4b9fddf838440b673b8d40270e",
+      "matching_merged_commit": "35e25fadf206629210ac308c09bb2067247f1047",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 94,
+      "original_head": "b5da96bd4c9303b735c25bb5f44aba5f5fa33fde",
+      "matching_merged_commit": "2e51fae63a5d15f6c6c6695d2264dceff704851b",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 93,
+      "original_head": "d6c794f9453a0d75b448e665657020ff508aa1cd",
+      "matching_merged_commit": "83d4fddd77be7f2c144ea2ddd566e2132e88acf8",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 92,
+      "original_head": "c4bb9b60acb7837dd38485279e98fa04b1899413",
+      "matching_merged_commit": "91afe5f7d7415cfaf9d3809f153583869d3fb302",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 91,
+      "original_head": "1929c55a6c1ed57dff078ed2aae4fdc1eb8ccd13",
+      "matching_merged_commit": "61c6b9811ab08b173d004078976f6194799b9bda",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 90,
+      "original_head": "036c428600da7bfd0d7ae1387a8abeaeedb85c79",
+      "matching_merged_commit": "9e8695c0cb30bf017b77d469ea7b4f12291fd5c8",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 89,
+      "original_head": "ab04786111349e357bb30306d93ed612d58c634b",
+      "matching_merged_commit": "7d073335790427a3b5a4105bd420cf242e5d602e",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 88,
+      "original_head": "551e3096f1bfa8fc9f9e59a0a703131b87b15683",
+      "matching_merged_commit": "a2c9e6347fa223db61542dce4ced084605dadb56",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 87,
+      "original_head": "42fc892e4be5878fb9d5fc6958503d137fa4cc7d",
+      "matching_merged_commit": "b4a9b235fa2345cfa0e695de0a91d3d533387eb9",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 86,
+      "original_head": "a0c9f7a642a378fc9877d26a41e9c1f0e634715b",
+      "matching_merged_commit": "7645992a8dd47e158a0ad27154dd75c46fb2f5e6",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 85,
+      "original_head": "9991757131b669767900036e30e2dce40d8a3574",
+      "matching_merged_commit": "f58083f43e936dac3a82f19fd6bdb9abf0ca0e42",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 84,
+      "original_head": "c401baf75e5b04536b65b18a54a0928aaac1f16a",
+      "matching_merged_commit": "13b17c27131cedae2605e30f25d5c33f46e812a8",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 83,
+      "original_head": "7b68321a3d3a99ad476c70b812cc2a9f78058427",
+      "matching_merged_commit": "597489d260e052a14f4c5882a991741ca0c6c5c5",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 82,
+      "original_head": "8111febaec6e5a2598e36b453fd8ef19381a4a38",
+      "matching_merged_commit": "e203cc147d55b5099b53af506663a74418238e5d",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 81,
+      "original_head": "dbb50748c6233ce2ef0548d3948cdea8a301c3b3",
+      "matching_merged_commit": "97da485dc452676aacbbf825ce85d6a8cbfc8b89",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 80,
+      "original_head": "3950e34409986b35cf72ad76cae66a9009a0b97d",
+      "matching_merged_commit": "4b538fee34f2e1e36f534e235fc97a4915e8b5f3",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 79,
+      "original_head": "b7311a16e2dfe2bfa134329cd4943af583b404e5",
+      "matching_merged_commit": "584e4ce8a516f127e7e68486e69546b5137d3582",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 78,
+      "original_head": "869333c720a19a0f487238799e82f81773e3ea58",
+      "matching_merged_commit": "726eb367002813f5481c5223212ea26c410cd67d",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 77,
+      "original_head": "133b47da4228ce6e2b40458451d253ea0a4698d9",
+      "matching_merged_commit": "0bbdb38324c49ae2a19aa929242790228c92ad6b",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 76,
+      "original_head": "d34147cebec7d30760ada710528c2664eda27b30",
+      "matching_merged_commit": "ce784b84726f57a29fc39be59240a9ca7d39ff75",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 75,
+      "original_head": "3dbaa70761518180bf67f7f6fba4cd5f8a72fb27",
+      "matching_merged_commit": "c33a9f5b6d178617f10013ea38a73463a598493f",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 74,
+      "original_head": "244156ec5a4a80ed392a595b2219c8472d2844ba",
+      "matching_merged_commit": "c789e52c5fc9027a82b0cfa06f40866f1dfcff4a",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 73,
+      "original_head": "c8ea753c2e4a5ac942773753c98a3f8aba96b5ca",
+      "matching_merged_commit": "4456f3bbdf41b3cffa79b5162435dc363737460c",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 72,
+      "original_head": "224dade2db381eacdd828389bc29a28852b5cfa3",
+      "matching_merged_commit": "851120338006d958a23215bde96eb9d4744f6000",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 71,
+      "original_head": "5bc89a5309067449da3ee14a1c4cc267d7cb520b",
+      "matching_merged_commit": "328e528edbda81b32e6bf558d2b56868ae2a9826",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 70,
+      "original_head": "57aeabe46c438cdf75d9daa434d81a47f8df278c",
+      "matching_merged_commit": "eb9f04a3dee7e10b077dec182bd055ff565c95c3",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 69,
+      "original_head": "64274d722f6f6ff5ab6791bbd3007dcdee4ab0ad",
+      "matching_merged_commit": "a28ac28ba1a8d56c8b2e54d9ed923d440580fe7b",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 68,
+      "original_head": "7f78db4abb2cc12a70418be78069e385d5a10a89",
+      "matching_merged_commit": "26a6266f88d952b197266c8c2de8b84a54e698da",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 67,
+      "original_head": "c281b633122d73ed6df2f0419750772c48b5bfa6",
+      "matching_merged_commit": "bf36657290eff94322eb90664e10c4f14077791e",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 66,
+      "original_head": "b5ad7b445facd2593c4a0c73b56aa1e58a4ff5a1",
+      "matching_merged_commit": "325b1c6a00ff01fd2bd7edf618d3cabdc5611b29",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    },
+    {
+      "number": 65,
+      "original_head": "d3a51395edc0a0d81e2eed8260832f62214024f8",
+      "matching_merged_commit": "571e6f3d81f9a615da8d9b2bfa7b22bbe6259754",
+      "action": "closed_as_superseded",
+      "replacement": "https://github.com/CCreative-Od1L/project_sw/pull/99"
+    }
+  ],
+  "pr_checks": [
+    {
+      "name": "Android emulator integration tests",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39906800239/job/120260516648"
+    },
+    {
+      "name": "Quality gate",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39906800238/job/120260516504"
+    },
+    {
+      "name": "Android debug APK",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39906800258/job/120260516969"
+    },
+    {
+      "name": "Dependency and toolchain audit",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39906800237/job/120260516611"
+    },
+    {
+      "name": "Cryptography safety tests",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39906800238/job/120260516802"
+    },
+    {
+      "name": "iOS unsigned debug app",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39906800258/job/120260516665"
+    }
+  ],
+  "persistent_worktrees_root": "/home/pleGGen/projects/password_manager_worktrees",
+  "landed_candidate_archive": "archive/landed-20261022/v1-common-baseline",
+  "legacy_remote_source_branches_retained": true,
+  "issues_47_49_to_53_remain_open": true,
+  "master_push_checks": [
+    {
+      "conclusion": "success",
+      "databaseId": 39907644931,
+      "event": "push",
+      "headSha": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "status": "completed",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39907644931",
+      "workflowName": "CI"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 39907644907,
+      "event": "push",
+      "headSha": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "status": "completed",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39907644907",
+      "workflowName": "Platform builds"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 39907644936,
+      "event": "push",
+      "headSha": "cf15300f5400fa87054f1d86c8b486926f367004",
+      "status": "completed",
+      "url": "https://github.com/CCreative-Od1L/project_sw/actions/runs/39907644936",
+      "workflowName": "Android integration"
+    }
+  ]
+}

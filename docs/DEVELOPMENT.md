@@ -148,6 +148,8 @@ linter:
 - [x] release metadata preflight、Android signed AAB 与 GitHub Release 汇总——tag、`pubspec.yaml` 版本、`CHANGELOG.md`、Flutter/lockfile 可重建元数据及 Android 签名构建已落地;iOS 发布已明确排除在 V1.0 范围外
 - [x] 当前本地已有 `ci.yml`、`integration.yml`、`build.yml`、`release.yml`、`scheduled.yml` 与平台打包脚本；候选 PR 合并状态及既有成功运行见 [当前进度](PROGRESS.md)
 - [x] ~~本地日志加密方案决策~~ → 已定:不加密,脱敏后明文滚动存储(见 §6,理由:诊断职责冲突 + 残余威胁落在 [SECURITY.md §13](./SECURITY.md) 不防御范围)
-- [ ] 候选 PR 整合、`master` 分支保护与必需检查配置核验
+- [x] 共同代码基线经 PR #99 交付 `master`，覆盖的 #65–#98 已关闭；独立任务分支统一以新主干为起点
+- [ ] 迁移接口/认证门控整合、擦除跨重启保护及各自验收
+- [ ] `master` 分支保护与必需检查配置核验
 - [ ] 正式 Android release 环境配置、真实 tag → GitHub Release 演练及历史 tag 重建验收；临时签名 AAB 构建成功不等于正式发布完成
 - [ ] v1.0 最终 Android 真机验收(含双设备迁移、生物恢复/擦除及后台中断)

@@ -1,6 +1,6 @@
 # 已开发功能的待验证清单
 
-> 复核日期：2026-10-22。验收代码基线为 `chore/v1-common-baseline` 的 `4fa3c7a`；迁移 UI 旧候选为 PR #64 的 `b2c9a79`。下列 9 组主题分别标明自动化已验证、待平台联调、测试待补证及实现/整合缺口，不代表 9 项功能完全未经验证。实现状态见 [当前进度](PROGRESS.md)，分支/worktree 归属见 [分支整理记录](BRANCH_ORGANIZATION.md)。
+> 复核日期：2026-10-22。共同基线已由 PR #99 交付 `master`（`cf15300`），源码与原候选 `4fa3c7a` 相同；迁移 UI 旧候选仍为 PR #64 的 `b2c9a79`。下列 9 组主题分别标明自动化已验证、待平台联调、测试待补证及实现/整合缺口，不代表 9 项功能完全未经验证。实现状态见 [当前进度](PROGRESS.md)，分支/worktree 归属见 [分支整理记录](BRANCH_ORGANIZATION.md)。
 
 ## 验证证据的范围
 
@@ -115,7 +115,7 @@
 - [ ] 确认 metadata、Android、publish 三个 job 成功；GitHub Release 的版本说明、`release-metadata.txt` 与 `app-release.aab` 对应同一 tag/commit，并记录 AAB SHA-256。
 - [ ] 在干净环境检出该 tag，使用锁定 SDK/依赖重新构建并核对版本、commit、工具链与产物可用性；不能仅凭 metadata 文件存在认定已完成重建，也不默认要求两次 AAB 字节完全相同。
 
-远端候选 PR 尚待合并是交付流程状态，不表示本地还缺发布链代码。当前 metadata 中的 SHA-256 对象是 `pubspec.lock`；workflow 尚未自动生成 AAB checksum 附件，AAB SHA-256 目前按运行手册人工记录，不能宣称已有自动附件能力。
+旧发布候选已随 PR #99 交付主干，相关旧 PR 已收敛；正式签名环境和真实发布演练仍待验收。当前 metadata 中的 SHA-256 对象是 `pubspec.lock`；workflow 尚未自动生成 AAB checksum 附件，AAB SHA-256 目前按运行手册人工记录，不能宣称已有自动附件能力。
 
 ## 实现/整合缺口（先解决，再验收）
 
