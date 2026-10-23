@@ -55,6 +55,7 @@ PROJECT_SW 是一个**本地优先(local-first)、零云依赖**的密码管理�
 | 文档 | 内容 |
 |------|------|
 | [docs/PROGRESS.md](docs/PROGRESS.md) | 当前进度、代码与远端分支差异、待验收与发布事项、验证证据 |
+| [docs/WORK_ITEMS.md](docs/WORK_ITEMS.md) | 当前待工作项、代码缺口、测试补证、依赖顺序与完成标准 |
 | [docs/PENDING_VALIDATION.md](docs/PENDING_VALIDATION.md) | 已开发但待真机/完整链路验证的功能、已有验证边界与验收清单 |
 | [docs/BRANCH_ORGANIZATION.md](docs/BRANCH_ORGANIZATION.md) | 共同代码基线、独立任务分支、历史归档与远端 PR 收敛顺序 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构综述、Clean Architecture 分层、模块划分、数据流、密钥层级 |

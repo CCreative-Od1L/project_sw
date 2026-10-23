@@ -1,6 +1,6 @@
 # 已开发功能的待验证清单
 
-> 复核日期：2026-10-22。共同基线已由 PR #99 交付 `master`（`cf15300`），源码与原候选 `4fa3c7a` 相同；迁移 UI 旧候选仍为 PR #64 的 `b2c9a79`。下列 9 组主题分别标明自动化已验证、待平台联调、测试待补证及实现/整合缺口，不代表 9 项功能完全未经验证。实现状态见 [当前进度](PROGRESS.md)，分支/worktree 归属见 [分支整理记录](BRANCH_ORGANIZATION.md)。
+> 复核日期：2026-10-23。共同基线已由 PR #99 交付 `master`（`cf15300`），源码与原候选 `4fa3c7a` 相同；迁移 UI 旧候选仍为 PR #64 的 `b2c9a79`。下列 9 组主题分别标明自动化已验证、待平台联调、测试待补证及实现/整合缺口，不代表 9 项功能完全未经验证。实现状态见 [当前进度](PROGRESS.md)，工作顺序见 [待工作项](WORK_ITEMS.md)，分支/worktree 归属见 [分支整理记录](BRANCH_ORGANIZATION.md)。
 
 ## 验证证据的范围
 
@@ -21,8 +21,8 @@
 | V05 | 死锁擦除 | 手势、确认词、十次倒计时与取消已有自动化 | 真实入口到平台删除；故障/重试 UI 测试待补证；跨重启限制同 V04 |
 | V06 | 解锁归属与敏感活动中断 | 旧结果隔离、提交 guard、活动和计时器已有确定性测试 | Android 真实生命周期与系统生物提示接线回归 |
 | V07 | 页面与应用内复制状态清理 | 详情/弹窗控制器、生成器、复制状态及排队操作已有自动化 | 真实后台/路由清理联调；新建条目表单锁定清空的专门测试待补证 |
-| V08 | 扫码配对与完整迁移 | 协议/TCP/仓库测试，以及候选发送页展示/取消测试 | 先补迁移 step-up、更新 lease/guard 和生产装配；再进行双设备验收 |
-| V09 | Android 发布与 tag 重建 | 发布脚本/合同测试及临时签名 AAB 构建已验证，本地已有发布链代码 | 正式环境配置核验、真实 tag → Release、干净环境 tag 重建 |
+| V08 | 扫码配对与完整迁移 | 协议/TCP/仓库测试，以及候选发送页展示/取消测试 | 先补迁移 step-up、更新 lease/guard、生产装配及规格要求的单条选择；再进行双设备验收 |
+| V09 | Android 发布与 tag 重建 | 发布脚本/合同测试及临时签名 AAB 构建已验证，本地已有发布链代码 | 配置发布环境/签名与主干保护，再验证真实 tag → Release、干净环境 tag 重建 |
 
 ## V01：常规修改主密码
 
@@ -96,12 +96,12 @@
 
 当前本地只有协议/仓库/TCP 底层。PR #64 的候选代码已有发送/接收页、`MobileScanner`、二维码、相机权限与 `NetworkMigrationFlow`。候选的 [页面测试](https://github.com/CCreative-Od1L/project_sw/blob/b2c9a793a0e04a52247b4e22187fbf88c1287480/test/app/migration_page_test.dart#L13) 使用 `FakeMigrationFlow`，只驱动发送页展示和取消；底层 loopback socket 测试不能代替两台设备联网。
 
-开发/整合前提：PR #64 当前尚未接入迁移主密码 step-up，且使用已被当前版本替换的 idle suppression 接口；必须先补接强认证、activity lease/guard 与生产装配，详见下文缺口。这些属于代码工作，不能描述为“已全部实现，只等两台手机验收”。
+开发/整合前提：PR #64 当前尚未接入迁移主密码 step-up，且使用已被当前版本替换的 idle suppression 接口；必须先补接强认证、activity lease/guard、生产装配及单条选择，详见下文缺口。这些属于代码工作，不能描述为“已全部实现，只等两台手机验收”。
 
 前提完成后，剩余的平台验收为：
 
 - [ ] 两台 Android 真机在同一局域网完成相机授权、扫码、配对与真实条目迁移；分别检查权限拒绝、无效/过期二维码、取消及地址不可达。
-- [ ] 迁移后解锁读取完整条目，检查 `updated_at` 冲突覆盖/跳过、版本与字段保留；生物设置不随迁移转移。
+- [ ] 分别验证全库与单条选择，确认未选择条目不外传；迁移后解锁读取完整条目，检查 `updated_at` 冲突覆盖/跳过、版本与字段保留；生物设置不随迁移转移。
 - [ ] 在连接/传输阶段断网、取消或将任一设备切后台；确认不会提交部分导入，旧库仍可读取，会话策略恢复。
 
 验收缺口的直接来源是 [#50 的人工验收要求](https://github.com/CCreative-Od1L/project_sw/issues/50#issuecomment-5226920912)。
@@ -111,7 +111,7 @@
 当前本地已整合 metadata preflight、签名校验/准备脚本、AAB 构建、artifact 汇总及 `gh release create`。已有脚本测试与 [workflow 合同测试](../test/tool/github_release_workflow_test.dart#L6)，后者检查 YAML 文本，没有实际创建 Release。[#53 最新记录](https://github.com/CCreative-Od1L/project_sw/issues/53#issuecomment-5403771353) 证明临时签名 AAB 构建成功，正式签名环境和 tag 演练仍待验收。
 
 - [x] Metadata 正/负路径、签名材料准备、构建脚本、发布 workflow 合同，以及临时签名 AAB 构建已有验证记录。
-- [ ] 核验正式 `release` environment 和所需 Android signing 配置，按 [发布运行手册](RELEASE_RUNBOOK.md) 执行真实 annotated tag 流程。
+- [ ] 建立并核验正式 `release` environment、所需 Android signing 配置及主干合并门禁，按 [发布运行手册](RELEASE_RUNBOOK.md) 执行真实 annotated tag 流程。2026-10-23 API 列出的环境为空，`master` 无经典保护且 rulesets 为空，详见 [发布前置](WORK_ITEMS.md#w08w12发布前置与最终证据)。
 - [ ] 确认 metadata、Android、publish 三个 job 成功；GitHub Release 的版本说明、`release-metadata.txt` 与 `app-release.aab` 对应同一 tag/commit，并记录 AAB SHA-256。
 - [ ] 在干净环境检出该 tag，使用锁定 SDK/依赖重新构建并核对版本、commit、工具链与产物可用性；不能仅凭 metadata 文件存在认定已完成重建，也不默认要求两次 AAB 字节完全相同。
 
@@ -128,6 +128,12 @@ PR #64 的 [发送/接收入口](https://github.com/CCreative-Od1L/project_sw/bl
 [`WipeVault`](../lib/features/auth/domain/wipe_vault.dart#L18) 在当前进程失败时保留 `wipeStarted`。但[会话初始化](../lib/app/app_dependencies.dart#L91) 与[生产启动](../lib/app/app_dependencies.dart#L332) 只按 vault 文件是否存在决定 `coldStart` 或首次设置，没有持久化擦除进度/失败状态。
 
 因此，失败后重启不能保证仍保持擦除锁：vault 仍在时会按普通冷启动处理，vault 已删但其他目标残留时可能直接进入首次设置。当前已验证的“失败保锁”必须限定在同一进程内；跨重启的安全恢复属于实现缺口，不能只靠追加真机验收来关闭。
+
+安全重试也需要一并落实：[`AuthenticatedWipeVault`](../lib/features/auth/domain/authenticated_wipe_vault.dart#L30) 每次都请求仅限解锁态的 activity，擦除开始后会话却保持 `wipeStarted`。因此，UI 可再次提交不等于同一正常擦除入口在部分失败后能够安全重试；须明确可达的恢复路径，再补页面/路由断言。
+
+### 单条迁移选择未实现
+
+[迁移规格 §1](specs/lan_migration.md#1-安全要求) 要求可选择全库或单条迁移。当前 [`MigrationVaultPort`](../lib/features/migration/domain/migration_transfer.dart#L53) 只有带 guard 的全量导出接口，[仓库导出](../lib/features/auth/data/encrypted_vault_repository.dart#L464) 遍历整个目录，旧候选页面也没有条目选择。该项属于实现缺口，补齐范围选择与导出约束后再验证选择结果，不能将现有全量传输测试视为单条能力证据。
 
 ## 已有验收与平台边界
 
