@@ -8,8 +8,8 @@ updates:
       time: '04:00'
       timezone: America/Los_Angeles
     open-pull-requests-limit: 5
-    # Flutter 3.44.7 / Dart 3.12.2 cannot resolve these published releases.
-    # Remove after the compatible SDK upgrade in issue #114.
+    # Known SDK conflicts for test/intl/sodium on Flutter 3.44.7 / Dart 3.12.2.
+    # SDK and UI adoption follow-up: issue #114.
     ignore:
       - dependency-name: test
         versions: ['1.31.1', '1.31.2', '1.32.0', '1.33.0']
@@ -17,6 +17,9 @@ updates:
         versions: ['0.20.3']
       - dependency-name: sodium
         versions: ['4.1.0', '4.1.2']
+      # GoRouter 18 resolves, but changes this app to non-Material pages (#114).
+      - dependency-name: go_router
+        versions: ['18.0.0', '18.0.1', '18.0.2', '18.1.0', '18.1.1']
 
   - package-ecosystem: github-actions
     directory: /

@@ -22,10 +22,9 @@
 | `master` | #99 代码、#111 文档、#100 下载依赖、#112 擦除、#106/#107 依赖及 #104 工具链均已交付（主干 `60bec47`） | `/home/pleGGen/projects/password_manager` |
 | 共同基线只读视图 | detached `cf15300`，保留原基线对照 | `/home/pleGGen/projects/password_manager_worktrees/baseline` |
 | `feat/v1-lan-migration-integration` | #113 已独立实现，仍需双设备验收；依赖维护交付后只从最新主干同步 | `/home/pleGGen/projects/password_manager_worktrees/lan-migration` |
-| `chore/dependency-update-policy`（本交付分支） | 从已合并主干独立维护 SDK 暂缓策略和记录，合入后删除 | `/home/pleGGen/projects/password_manager_worktrees/dependency-policy` |
 | 旧迁移本地归档 | `archive/pre-independent-20261022/feat/v1-lan-migration-ui` → `b2c9a79`，#64 对照来源 | 无 worktree |
 
-#111、#100、#112、#106、#107、#104 的交付分支及 worktree 已清理并保留备份；每项只从已合并主干创建。依赖维护全过程与最终处置见 [维护记录](DEPENDENCY_MAINTENANCE.md)。
+#111、#100、#112、#106、#107、#104 的交付分支及 worktree 已清理并保留备份；每项只从已合并主干创建；维护策略 #115 也已交付并清理。依赖维护全过程与最终处置见 [维护记录](DEPENDENCY_MAINTENANCE.md)。
 
 仍活动的迁移任务不继承任何未合并兄弟任务；维护交付后从主干同步并重新验证。原 `/tmp` 工作区已迁至项目旁持久目录，`/tmp` 仅用于日志和可重复的临时解析探测。
 
@@ -63,3 +62,5 @@
 3. 恢复异常与新建表单清空两组自动化补证、真实平台联调及发布验收继续推进。
 4. #105/#109/#108 的 SDK 前置由 [#114](https://github.com/CCreative-Od1L/project_sw/issues/114) 接续，其他可选依赖独立维护。
 5. 原始依赖来源及修复提交分别保存在 `.git/branch-backups/2026-10-23/` 的 `before-dependency-ci-repairs.bundle`、`cupertino-icons-repaired.bundle`、`get-it-repaired.bundle`、`before-toolchain-and-sdk-pr-handling.bundle` 等文件；均经 bundle 校验，删除远端引用使用完整 SHA 租约。
+
+本轮中新生成的 #116 也使用独立工作区，从 #115 已交付主干创建；兼容路由更新及 18.x 暂缓规则见维护记录，交付后清理临时工作区，再同步仍活动的迁移分支。
