@@ -17,18 +17,17 @@
 
 ## 独立任务分支与工作区
 
-| 分支/视图 | 当前基线或内容 | 工作区 |
-|-----------|----------------|--------|
-| `master` | 共同代码基线 `cf15300`，后续包含独立交付的文档提交 | 本地引用与 `origin/master` 对齐 |
-| 共同基线只读视图 | detached HEAD `cf15300` | `/home/pleGGen/projects/password_manager_worktrees/baseline` |
-| `docs/v1-progress-and-validation`（交付分支） | 从 `cf15300` 独立交付文档，合入后删除 | `/home/pleGGen/projects/password_manager`，交付后回到 `master` |
-| `fix/v1-wipe-restart-recovery` | 从共同基线创建；本次独立实现持久化擦除保护、启动恢复与安全重试 | `/home/pleGGen/projects/password_manager_worktrees/wipe-restart` |
-| `feat/v1-lan-migration-integration` | 从共同基线创建；仅同步 `origin/master`，尚无迁移移植提交 | `/home/pleGGen/projects/password_manager_worktrees/lan-migration` |
-| `archive/pre-independent-20261022/feat/v1-lan-migration-ui` | `b2c9a79`，旧 PR #64 的移植来源 | 仅保留引用，无 worktree |
+| 分支/视图 | 当前内容与归属 | 工作区 |
+|---|---|---|
+| `master` | #99 代码、#111 文档、#100 下载依赖、#112 擦除、#106/#107 依赖及 #104 工具链均已交付（主干 `60bec47`） | `/home/pleGGen/projects/password_manager` |
+| 共同基线只读视图 | detached `cf15300`，保留原基线对照 | `/home/pleGGen/projects/password_manager_worktrees/baseline` |
+| `feat/v1-lan-migration-integration` | #113 已独立实现，仍需双设备验收；依赖维护交付后只从最新主干同步 | `/home/pleGGen/projects/password_manager_worktrees/lan-migration` |
+| `chore/dependency-update-policy`（本交付分支） | 从已合并主干独立维护 SDK 暂缓策略和记录，合入后删除 | `/home/pleGGen/projects/password_manager_worktrees/dependency-policy` |
+| 旧迁移本地归档 | `archive/pre-independent-20261022/feat/v1-lan-migration-ui` → `b2c9a79`，#64 对照来源 | 无 worktree |
 
-三个任务分支从同一主干基线出发，不互相继承任务改动。迁移分支尚待接入；擦除分支本次已有独立实现和自动化。创建或同步分支本身不代表功能验收完成。后续各自开发、验证，并分别创建以 `master` 为目标的 PR。
+#111、#100、#112、#106、#107、#104 的交付分支及 worktree 已清理并保留备份；每项只从已合并主干创建。依赖维护全过程与最终处置见 [维护记录](DEPENDENCY_MAINTENANCE.md)。
 
-原 `/tmp` 工作区已失效，本次恢复到项目旁的持久目录，未混入任何分支任务改动。后续不以 `/tmp` 作为工作区的持久依赖。
+仍活动的迁移任务不继承任何未合并兄弟任务；维护交付后从主干同步并重新验证。原 `/tmp` 工作区已迁至项目旁持久目录，`/tmp` 仅用于日志和可重复的临时解析探测。
 
 ## 本次验证
 
@@ -43,7 +42,7 @@
 
 合并后 `master` 自动触发的 [CI](https://github.com/CCreative-Od1L/project_sw/actions/runs/39907644931)、[双平台构建](https://github.com/CCreative-Od1L/project_sw/actions/runs/39907644907)、[Android 集成](https://github.com/CCreative-Od1L/project_sw/actions/runs/39907644936) 也均为 success，全部对应 `cf15300`。
 
-此前本地格式检查为 149 个文件零改动，静态分析无问题，270 项 Flutter 测试通过。本次提交只更新文档与分支记录；新迁移/擦除改动将来仍须分别验证。真实生物恢复、平台删除、双设备迁移和正式发布不由本次绿色 CI 代替。
+此前本地格式检查为 149 个文件零改动，静态分析无问题，270 项 Flutter 测试通过。以上为 #99 当时的验证记录。后续 #100、#112 和依赖维护已分别验证；#113 原候选通过 297 项测试，仍需基线更新后的复验。真实生物恢复、平台删除、双设备迁移和正式发布不由本次绿色 CI 代替。
 
 ## 原始历史与恢复依据
 
@@ -59,8 +58,8 @@
 
 完整工作清单、依赖及完成标准见 [当前待工作项](WORK_ITEMS.md)。
 
-1. 文档经独立 PR 交付，交付状态以对应 PR 为准；合入后任务只从最新主干同步。Issue 状态校正继续按 [W09](WORK_ITEMS.md#工作总表) 跟踪。
-2. 擦除跨进程保护与安全重试已实现并补自动化，仍需平台验收；迁移分支移植 #64，补齐 step-up、lease/guard、生产装配及规格要求的单条选择；分别验证并提交 PR。
-3. 新迁移方案交付后，再确认替代关系并收敛旧 PR #64。
-4. 主干启用的 Dependabot 自动生成依赖更新 PR，这些新 PR 按独立维护任务处理，不属于本次被替代的 #65–#98。
-5. 按 [待验证清单](PENDING_VALIDATION.md) 完成剩余平台联调和发布验收；关闭旧 PR 和清理源分支不关闭这些验收要求。
+1. 文档 #111、下载 #100、擦除 #112 和依赖 #106/#107/#104 已交付；本轮修复及 SDK 暂缓处置见 [依赖维护](DEPENDENCY_MAINTENANCE.md)。
+2. #113 只从维护后的最新主干同步并复验，再完成双设备验收及合并；旧 #64 保留至替代交付和覆盖关系确认。
+3. 恢复异常与新建表单清空两组自动化补证、真实平台联调及发布验收继续推进。
+4. #105/#109/#108 的 SDK 前置由 [#114](https://github.com/CCreative-Od1L/project_sw/issues/114) 接续，其他可选依赖独立维护。
+5. 原始依赖来源及修复提交分别保存在 `.git/branch-backups/2026-10-23/` 的 `before-dependency-ci-repairs.bundle`、`cupertino-icons-repaired.bundle`、`get-it-repaired.bundle`、`before-toolchain-and-sdk-pr-handling.bundle` 等文件；均经 bundle 校验，删除远端引用使用完整 SHA 租约。
