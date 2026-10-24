@@ -23,16 +23,23 @@ abstract final class MigrationTransferCoordinator {
     required MigrationSession session,
     required MigrationCapabilities capabilities,
     required MigrationVaultPort vault,
+    SessionActivityLease? lease,
+    MigrationSelection selection = const MigrationSelection.all(),
   }) async {
-    final SessionActivityLease activityLease = sessionController.beginActivity(
+    final SessionActivityLease activityLease = _activityLease(
+      sessionController,
       SessionActivity.migrationSending,
+      lease,
     );
     activityLease.onInterrupted(() {
       unawaited(_closeInterruptedTransport(transport));
     });
     try {
       final List<MigrationEntryPayload> entries = await vault
-          .exportMigrationEntries(activityGuard: activityLease);
+          .exportMigrationEntries(
+            activityGuard: activityLease,
+            selection: selection,
+          );
       try {
         activityLease.ensureActive();
         final Uint8List preflightBytes = MigrationPreflightCodec.encode(
@@ -106,7 +113,7 @@ abstract final class MigrationTransferCoordinator {
         }
       }
     } finally {
-      activityLease.complete();
+      if (lease == null) activityLease.complete();
     }
   }
 
@@ -117,9 +124,12 @@ abstract final class MigrationTransferCoordinator {
     required MigrationSession session,
     required MigrationCapabilities capabilities,
     required MigrationVaultPort vault,
+    SessionActivityLease? lease,
   }) async {
-    final SessionActivityLease activityLease = sessionController.beginActivity(
+    final SessionActivityLease activityLease = _activityLease(
+      sessionController,
       SessionActivity.migrationReceiving,
+      lease,
     );
     activityLease.onInterrupted(() {
       unawaited(_closeInterruptedTransport(transport));
@@ -212,8 +222,28 @@ abstract final class MigrationTransferCoordinator {
       for (final MigrationEntryPayload entry in entries) {
         entry.dispose();
       }
-      activityLease.complete();
+      if (lease == null) activityLease.complete();
     }
+  }
+
+  static SessionActivityLease _activityLease(
+    SessionController controller,
+    SessionActivity activity,
+    SessionActivityLease? lease,
+  ) {
+    final SessionState state = controller.state;
+    if (state is! UnlockedSession ||
+        state.authStrength != AuthStrength.masterPassword) {
+      throw StateError('Migration requires master-password authorization.');
+    }
+    if (lease == null) return controller.beginActivity(activity);
+    if (lease.activity != activity || !controller.ownsActivity(lease)) {
+      throw StateError(
+        'The migration lease does not belong to this operation.',
+      );
+    }
+    lease.ensureActive();
+    return lease;
   }
 
   static void _expectType(

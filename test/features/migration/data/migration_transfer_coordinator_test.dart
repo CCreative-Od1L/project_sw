@@ -235,6 +235,40 @@ void main() {
     expect(payload.dek, everyElement(0));
     expect(payload.entryCiphertext, everyElement(0));
   });
+  test(
+    'coordinator rejects a lease from another session without ending it',
+    () async {
+      final owner = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      final other = SessionController(
+        initialState: const UnlockedSession(
+          authStrength: AuthStrength.masterPassword,
+        ),
+      );
+      addTearDown(owner.dispose);
+      addTearDown(other.dispose);
+      final lease = owner.beginActivity(SessionActivity.migrationSending);
+      final sessions = _sessions();
+      addTearDown(sessions.sender.dispose);
+      addTearDown(sessions.receiver.dispose);
+      await expectLater(
+        MigrationTransferCoordinator.send(
+          sessionController: other,
+          transport: RecordingCloseTransport(),
+          session: sessions.sender,
+          capabilities: _capabilities(),
+          vault: RecordingVault(),
+          lease: lease,
+        ),
+        throwsStateError,
+      );
+      expect(lease.isActive, isTrue);
+      lease.complete();
+    },
+  );
 }
 
 MigrationCapabilities _capabilities() => MigrationCapabilities(
@@ -281,7 +315,11 @@ final class RecordingVault implements MigrationVaultPort {
   @override
   Future<List<MigrationEntryPayload>> exportMigrationEntries({
     required SessionActivityGuard activityGuard,
-  }) async => _source.map(_copyPayload).toList(growable: false);
+    MigrationSelection selection = const MigrationSelection.all(),
+  }) async => _source
+      .where((entry) => selection.includes(entry.entryId))
+      .map(_copyPayload)
+      .toList(growable: false);
 
   @override
   Future<void> importMigrationEntries(
@@ -383,6 +421,7 @@ final class DelayedExportVault implements MigrationVaultPort {
   @override
   Future<List<MigrationEntryPayload>> exportMigrationEntries({
     required SessionActivityGuard activityGuard,
+    MigrationSelection selection = const MigrationSelection.all(),
   }) {
     exportStarted.complete();
     return _export.future;

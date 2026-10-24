@@ -1,3 +1,4 @@
+import 'master_password_step_up_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:project_sw/app/localization.dart';
@@ -192,17 +193,7 @@ final class _SettingsContent extends StatelessWidget {
     if (cubit == null || !cubit.requiresMasterPassword) {
       return true;
     }
-    final bool? verified = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) => BlocProvider<StepUpCubit>.value(
-        value: cubit,
-        child: _StepUpDialog(
-          stepUpCubit: cubit,
-          sessionController: sessionController,
-        ),
-      ),
-    );
-    return verified == true;
+    return showMasterPasswordStepUp(context, cubit, sessionController);
   }
 
   @override
@@ -865,105 +856,6 @@ final class _AuthenticatedWipeDialogState
 
   void _submit(BuildContext context) {
     context.read<AuthenticatedWipeCubit>().submit(_passwordController.text);
-  }
-}
-
-final class _StepUpDialog extends StatefulWidget {
-  const _StepUpDialog({
-    required this.stepUpCubit,
-    required this.sessionController,
-  });
-
-  final StepUpCubit stepUpCubit;
-  final SessionController? sessionController;
-
-  @override
-  State<_StepUpDialog> createState() => _StepUpDialogState();
-}
-
-final class _StepUpDialogState extends State<_StepUpDialog>
-    with SessionSecretDialogState<_StepUpDialog> {
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  SessionController? get sessionController => widget.sessionController;
-
-  @override
-  void clearDialogSecrets() => _controller.clear();
-
-  @override
-  void dispose() {
-    _controller
-      ..clear()
-      ..dispose();
-    super.dispose();
-  }
-
-  Future<void> _verify() async {
-    final bool verified = await widget.stepUpCubit.verify(_controller.text);
-    if (verified && mounted) {
-      Navigator.of(context).pop(true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<StepUpCubit, StepUpViewState>(
-      builder: (BuildContext context, StepUpViewState state) {
-        final bool verifying = state is StepUpVerifying;
-        final String? error = switch (state) {
-          StepUpInvalidPassword() => context.l10n.stepUpInvalidPassword,
-          StepUpFault() => context.l10n.stepUpFailed,
-          StepUpUnavailable() => context.l10n.stepUpUnavailable,
-          _ => null,
-        };
-        return AlertDialog(
-          title: Text(context.l10n.stepUpTitle),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(context.l10n.stepUpDescription),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
-                enabled: !verifying,
-                decoration: InputDecoration(
-                  labelText: context.l10n.masterPassword,
-                ),
-                onSubmitted: verifying ? null : (_) => _verify(),
-              ),
-              if (error != null) ...<Widget>[
-                const SizedBox(height: 12),
-                Text(
-                  error,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: verifying ? null : () => Navigator.of(context).pop(),
-              child: Text(context.l10n.close),
-            ),
-            FilledButton(
-              onPressed: verifying ? null : _verify,
-              child: verifying
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(context.l10n.confirmMasterPassword),
-            ),
-          ],
-        );
-      },
-    );
   }
 }
 
